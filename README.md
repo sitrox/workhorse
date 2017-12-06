@@ -1,9 +1,9 @@
 [![Build Status](https://travis-ci.org/sitrox/workhorse.svg?branch=master)](https://travis-ci.org/sitrox/workhorse)
 [![Gem Version](https://badge.fury.io/rb/workhorse.svg)](https://badge.fury.io/rb/workhorse)
 
-**This gem is considered work in progress. Do not use this in production yet.**
-
 # Workhorse
+
+**This Gem is still in an early stage of development. Please not use this in production yet.**
 
 Multi-threaded job backend with database queuing for ruby.
 
