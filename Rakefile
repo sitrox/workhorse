@@ -13,7 +13,7 @@ task :gemspec do
 
     spec.add_development_dependency 'bundler', '~> 1.3'
     spec.add_development_dependency 'rake'
-    spec.add_development_dependency 'rubocop', '0.35.1'
+    spec.add_development_dependency 'rubocop', '0.51.0'
     spec.add_development_dependency 'minitest'
     spec.add_dependency 'activerecord'
     spec.add_dependency 'schemacop', '~> 2.0'
