@@ -1,3 +1,4 @@
+# rubocop: disable Lint/RescueWithoutErrorClass
 module Workhorse
   class Performer
     def initialize(db_job)
