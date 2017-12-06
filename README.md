@@ -15,6 +15,13 @@ To install this gem using bundler, add it to your `Gemfile`:
 gem 'workhorse'
 ```
 
+## Roadmap
+
+* [ ] ActiveJob integration for Rails
+* [ ] Job timeouts
+* [ ] Daemon, generator
+* [ ] Migration generator (+ data migration from `delayed_job`)
+
 ## Copyright
 
 Copyright (c) 2017 Sitrox. See `LICENSE` for further details.
