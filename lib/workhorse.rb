@@ -8,6 +8,14 @@ module Workhorse
       || fail('No performer is associated with the current thread. This method must always be called inside of a job.')
   end
 
+  cattr_accessor :tx_callback
+  self.tx_callback = proc do |&block|
+    ActiveRecord::Base.transaction(&block)
+  end
+
+  cattr_accessor :perform_jobs_in_tx
+  self.perform_jobs_in_tx = true
+
   def self.setup
     fail 'Workhorse is already set up.' if @set_up
     yield self

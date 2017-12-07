@@ -22,7 +22,7 @@ module Workhorse
       # ---------------------------------------------------------------
       # Mark job as started
       # ---------------------------------------------------------------
-      ActiveRecord::Base.transaction do
+      Workhorse.tx_callback do
         log 'Marking as started', :debug
         @db_job.mark_started!
       end
@@ -31,13 +31,21 @@ module Workhorse
       # Deserialize and perform job
       # ---------------------------------------------------------------
       log 'Performing', :info
-      deserialized_job.perform
+
+      if Workhorse.perform_jobs_in_tx
+        Workhorse.tx_callback do
+          deserialized_job.perform
+        end
+      else
+        deserialized_job.perform
+      end
+
       log 'Successfully performed', :info
 
       # ---------------------------------------------------------------
       # Mark job as succeeded
       # ---------------------------------------------------------------
-      ActiveRecord::Base.transaction do
+      Workhorse.tx_callback do
         log 'Mark succeeded', :debug
         @db_job.mark_succeeded!
       end
@@ -47,7 +55,7 @@ module Workhorse
       # ---------------------------------------------------------------
       log %(#{e.message}\n#{e.backtrace.join("\n")}), :error
 
-      ActiveRecord::Base.transaction do
+      Workhorse.tx_callback do
         log 'Mark failed', :debug
         @db_job.mark_failed!(e)
       end
