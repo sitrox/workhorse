@@ -42,11 +42,12 @@ module Workhorse
     def poll
       Tx.t do
         remaining_capacity = worker.remaining_capacity
-        puts "Polling DB for jobs (#{remaining_capacity} available threads)...".yellow
+        worker.log "Polling DB for jobs (#{remaining_capacity} available threads)...".yellow, :debug
 
         unless remaining_capacity.zero?
           jobs = queued_db_jobs(remaining_capacity)
           jobs.each do |job|
+            worker.log "Marking job #{job.id} as locked", :debug
             job.mark_locked!(worker.id)
             worker.perform job
           end
@@ -86,8 +87,6 @@ module Workhorse
       rel.lock!
 
       rel.where!('ROWNUM <= ?', limit)
-
-      puts rel.to_sql
 
       return rel
     end

@@ -1,15 +1,30 @@
 # rubocop: disable Lint/RescueWithoutErrorClass
 module Workhorse
   class Performer
-    def initialize(db_job)
+    attr_reader :worker
+
+    def initialize(db_job, worker)
       @db_job = db_job
+      @worker = worker
+      @started = false
     end
 
     def perform
+      fail 'Performer can only run once.' if @started
+      @started = true
+      perform!
+    end
+
+    private
+
+    def perform!
+      Thread.current[:workhorse_current_performer] = self
+
       # ---------------------------------------------------------------
       # Mark job as started
       # ---------------------------------------------------------------
-      ActiveRecord::Base.t do
+      ActiveRecord::Base.transaction do
+        worker.log
         @db_job.mark_started!
       end
 
@@ -21,7 +36,7 @@ module Workhorse
       # ---------------------------------------------------------------
       # Mark job as succeeded
       # ---------------------------------------------------------------
-      ActiveRecord::Base.t do
+      ActiveRecord::Base.transaction do
         @db_job.mark_succeeded!
       end
     rescue => e
@@ -30,12 +45,17 @@ module Workhorse
       # ---------------------------------------------------------------
       # TODO: Log exception
       puts e.message.inspect.red
-      ActiveRecord::Base.t do
+      ActiveRecord::Base.transaction do
         @db_job.mark_failed!(e)
       end
+    ensure
+      Thread.current[:workhorse_current_performer] = nil
     end
 
-    private
+    def log(text, level = :info)
+      text = "[#{id}] #{text}"
+      worker.log text, level
+    end
 
     def deserialized_job
       # The source is safe as long as jobs are always enqueued using

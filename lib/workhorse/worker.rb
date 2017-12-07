@@ -1,17 +1,21 @@
 module Workhorse
   class Worker
+    LOG_LEVELS = %i[fatal error warn info debug].freeze
+
     attr_reader :queues
     attr_reader :state
     attr_reader :pool_size
     attr_reader :polling_interval
     attr_reader :mutex
+    attr_accessor :logger
 
-    def initialize(queues: [], pool_size: nil, polling_interval: 5, auto_terminate: true)
+    def initialize(queues: [], pool_size: nil, polling_interval: 5, auto_terminate: true, quiet: true)
       @queues = queues
       @pool_size = pool_size || queues.size + 1
       @polling_interval = polling_interval
       @auto_terminate = auto_terminate
       @state = :initialized
+      @quiet = quiet
 
       @mutex = Mutex.new
       @pool = Concurrent::ThreadPoolExecutor.new(
@@ -22,6 +26,15 @@ module Workhorse
         auto_terminate: false
       )
       @poller = Workhorse::Poller.new(self)
+      @logger = nil
+    end
+
+    def log(text, level = :info)
+      text = "[Job worker #{id}] #{text}"
+      puts text unless @quiet
+      return unless logger
+      fail "Log level #{level} is not available. Available are #{LOG_LEVELS.inspect}." unless LOG_LEVELS.include?(level)
+      logger.send(level, "#{Time.now.strftime('%FT%T%z')}: #{text}")
     end
 
     def id
@@ -31,8 +44,10 @@ module Workhorse
     def start
       mutex.synchronize do
         assert_state! :initialized
+        log 'Starting up'
         @state = :running
         @poller.start
+        log 'Started up'
 
         trap_termination if @auto_terminate
       end
@@ -45,10 +60,12 @@ module Workhorse
     def shutdown
       mutex.synchronize do
         assert_state! :running
+        log 'Shutting down'
         @state = :shutdown
 
         @poller.shutdown
         @pool.shutdown
+        log 'Shut down'
       end
     end
 
@@ -63,6 +80,7 @@ module Workhorse
     def perform(db_job)
       mutex.synchronize do
         assert_state! :running
+        log "Posting job #{db_job} to thread pool"
 
         @pool.post do
           Workhorse::Performer.new(db_job).perform
@@ -74,12 +92,12 @@ module Workhorse
 
     def trap_termination
       Signal.trap('TERM') do
-        puts "\nCaught TERM, shutting worker down..."
+        log "\nCaught TERM, shutting worker down..."
         shutdown
       end
 
       Signal.trap('INT') do
-        puts "\nCaught INT, shutting worker down..."
+        log "\nCaught INT, shutting worker down..."
         shutdown
       end
     end
