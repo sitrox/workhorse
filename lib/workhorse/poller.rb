@@ -56,39 +56,54 @@ module Workhorse
     end
 
     def queued_db_jobs(limit)
+      table = Workhorse::DbJob.arel_table
+      is_oracle = ActiveRecord::Base.connection.adapter_name == 'OracleEnhanced'
+
       # ---------------------------------------------------------------
       # Lock all queued jobs that are not complete
       # ---------------------------------------------------------------
-      Workhorse::DbJob.connection.execute(%(
-        SELECT NULL FROM JOBS
-        WHERE QUEUE IS NOT NULL
-        AND STATE != 'succeeded' AND STATE != 'failed'
-        FOR UPDATE
-      ))
+      Workhorse::DbJob.connection.execute(
+        Workhorse::DbJob.select('null').where(
+          table[:queue].not_eq(nil)
+          .and(table[:state].eq(:waiting))
+        ).lock.to_sql
+      )
 
       # ---------------------------------------------------------------
       # Select jobs to execute
       # ---------------------------------------------------------------
-      rel = Workhorse::DbJob.all
-      rel.where!('LOCKED_AT IS NULL')
 
+      # Fetch all waiting jobs of the correct queues
+      select = table.project(Arel.sql('*')).where(table[:state].eq(:waiting))
+
+      # Restrict queues that are currently in progress
+      bad_queries_select = table.project(table[:queue])
+                                .where(table[:state].in(%i[locked running]))
+                                .distinct
+      select = select.where(table[:queue].not_in(bad_queries_select))
+
+      # Restrict queues to "open" ones
       if worker.queues.any?
-        rel.where!(%(
-          QUEUE IS NOT NULL OR QUEUE IN (
-            SELECT DISTINCT QUEUE FROM JOBS WHERE STATE != ?
-          )
-        ), Workhorse::DbJob::STATE_WAITING)
-        rel.where!('QUEUE IS NULL OR QUEUE IN (?)', worker.queues)
-      else
-        rel.where!('QUEUE IS NULL')
+        where = table[:queue].in(worker.queues.reject(&:nil?))
+        if worker.queues.include?(nil)
+          where = where.or(table[:queue].eq(nil))
+        end
+        select = select.where(where)
       end
 
-      rel.order!(created_at: :asc)
-      rel.lock!
+      # Order by creation date
+      select = select.order(table[:created_at].asc)
 
-      rel.where!('ROWNUM <= ?', limit)
+      # Limit number of records
+      if is_oracle
+        select = select.where(Arel.sql('ROWNUM').lteq(limit))
+      else
+        select = select.take(limit)
+      end
 
-      return rel
+      select = select.lock
+
+      return Workhorse::DbJob.find_by_sql(select.to_sql)
     end
   end
 end
