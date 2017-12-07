@@ -24,28 +24,32 @@ module Workhorse
       # Mark job as started
       # ---------------------------------------------------------------
       ActiveRecord::Base.transaction do
-        worker.log
+        log 'Marking as started', :debug
         @db_job.mark_started!
       end
 
       # ---------------------------------------------------------------
       # Deserialize and perform job
       # ---------------------------------------------------------------
+      log 'Performing', :info
       deserialized_job.perform
+      log 'Successfully performed', :info
 
       # ---------------------------------------------------------------
       # Mark job as succeeded
       # ---------------------------------------------------------------
       ActiveRecord::Base.transaction do
+        log 'Mark succeeded', :debug
         @db_job.mark_succeeded!
       end
     rescue => e
       # ---------------------------------------------------------------
       # Mark job as failed
       # ---------------------------------------------------------------
-      # TODO: Log exception
-      puts e.message.inspect.red
+      log %(#{e.message}\n#{e.backtrace.join("\n")}), :error
+
       ActiveRecord::Base.transaction do
+        log 'Mark failed', :debug
         @db_job.mark_failed!(e)
       end
     ensure
@@ -53,7 +57,7 @@ module Workhorse
     end
 
     def log(text, level = :info)
-      text = "[#{id}] #{text}"
+      text = "[#{@db_job.id}] #{text}"
       worker.log text, level
     end
 

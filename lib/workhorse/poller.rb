@@ -42,7 +42,7 @@ module Workhorse
     def poll
       Tx.t do
         remaining_capacity = worker.remaining_capacity
-        worker.log "Polling DB for jobs (#{remaining_capacity} available threads)...".yellow, :debug
+        worker.log "Polling DB for jobs (#{remaining_capacity} available threads)...", :debug
 
         unless remaining_capacity.zero?
           jobs = queued_db_jobs(remaining_capacity)

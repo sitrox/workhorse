@@ -6,7 +6,7 @@ module Workhorse::Jobs
     end
 
     def perform
-      @cls.constantize.run!(@params)
+      @cls.run!(@params)
     end
   end
 end

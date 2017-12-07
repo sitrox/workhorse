@@ -34,7 +34,7 @@ module Workhorse
       puts text unless @quiet
       return unless logger
       fail "Log level #{level} is not available. Available are #{LOG_LEVELS.inspect}." unless LOG_LEVELS.include?(level)
-      logger.send(level, "#{Time.now.strftime('%FT%T%z')}: #{text}")
+      logger.send(level, text.strip)
     end
 
     def id
@@ -80,10 +80,14 @@ module Workhorse
     def perform(db_job)
       mutex.synchronize do
         assert_state! :running
-        log "Posting job #{db_job} to thread pool"
+        log "Posting job #{db_job.id} to thread pool"
 
         @pool.post do
-          Workhorse::Performer.new(db_job).perform
+          begin
+            Workhorse::Performer.new(db_job, self).perform
+          rescue => e
+            log %(#{e.message}\n#{e.backtrace.join("\n")}), :error
+          end
         end
       end
     end
