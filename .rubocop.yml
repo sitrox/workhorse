@@ -18,6 +18,9 @@ Style/DoubleNegation:
 Style/SignalException:
   EnforcedStyle: only_fail
 
+Lint/RescueWithoutErrorClass:
+  Enabled: False
+
 Style/ConditionalAssignment:
   Enabled: false
 

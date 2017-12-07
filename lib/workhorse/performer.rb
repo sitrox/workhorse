@@ -1,4 +1,3 @@
-# rubocop: disable Lint/RescueWithoutErrorClass
 module Workhorse
   class Performer
     attr_reader :worker
