@@ -9,7 +9,7 @@ class Workhorse::WorkerTest < ActiveSupport::TestCase
       Workhorse::Enqueuer.enqueue DbConnectionTestJob.new
     end
     w.start
-    sleep 1
+    sleep 2
     w.shutdown
 
     assert_equal 5, DbConnectionTestJob.db_connections.count
