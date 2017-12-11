@@ -1,6 +1,10 @@
 language: ruby
 rvm:
  - 2.3.0
+services:
+ - mysql
+before_install:
+  - mysql -e 'CREATE DATABASE workhorse;'
 script:
  - bundle install
  # - bundle exec rake test
