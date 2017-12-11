@@ -22,7 +22,7 @@ module Workhorse
       @pool = Concurrent::ThreadPoolExecutor.new(
         min_threads: 0,
         max_threads: @pool_size,
-        max_queue: 1, # TODO: 0 does not seem to work for some reason
+        max_queue: @pool_size,
         fallback_policy: :abort,
         auto_terminate: false
       )
