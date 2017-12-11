@@ -100,7 +100,6 @@ w.logger = Logger.new('workhorse.log')
 w.start
 
 # This waits until the process receives an interrupt and then shuts down the
-worker
 w.wait
 ```
 
