@@ -1,3 +1,7 @@
+require 'socket'
+require 'active_support/all'
+require 'active_record'
+
 module Workhorse
   @set_up = false
 

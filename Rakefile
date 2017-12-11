@@ -15,8 +15,12 @@ task :gemspec do
     spec.add_development_dependency 'rake'
     spec.add_development_dependency 'rubocop', '0.51.0'
     spec.add_development_dependency 'minitest'
-    spec.add_dependency 'activerecord'
+    spec.add_development_dependency 'mysql2', '~> 0.3.13'
+    spec.add_development_dependency 'benchmark-ips'
+    spec.add_dependency 'activesupport', '~> 5.1'
+    spec.add_dependency 'activerecord', '~> 5.1'
     spec.add_dependency 'schemacop', '~> 2.0'
+    spec.add_dependency 'concurrent-ruby'
   end
 
   File.open('workhorse.gemspec', 'w') { |f| f.write(gemspec.to_ruby.strip) }
