@@ -44,7 +44,7 @@ module Workhorse
     private
 
     def poll
-      Tx.t do
+      Workhorse.tx_callback.call do
         remaining_capacity = worker.remaining_capacity
         worker.log "Polling DB for jobs (#{remaining_capacity} available threads)...", :debug
 
