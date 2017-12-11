@@ -80,13 +80,28 @@ Workhorse.enqueue Operations::Jobs::CleanUpDatabase, { quiet: true }, queue: :ma
 
 ### Configuring and starting workers
 
-Workers poll the database for news jobs and execute them in one or more threads.
+Workers poll the database for new jobs and execute them in one or more threads.
 Workers can be started in a separate process or in your main application
 process. Typically only one worker is started per process as it does not make
 sense to have multiple workers per process.
 
 ```ruby
+# Instantiate a new worker with a maximal thread pool size of 5 and enabled
+# logging to STDOUT.
 w = Workhorse::Worker.new(pool_size: 5, quiet: false)
+
+# Assign a logger so that logs are saved to a file. You can also assign
+# `Rails.logger` to it if you are inside of Rails.
+w.logger = Logger.new('workhorse.log')
+
+# Start the worker so that it polls the database and performs jobs. This call is
+# not blocking. Make sure to call `wait` to prevent the process from ending
+# right away.
+w.start
+
+# This waits until the process receives an interrupt and then shuts down the
+worker
+w.wait
 ```
 
 ## Roadmap
