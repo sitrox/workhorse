@@ -3,7 +3,7 @@ require 'active_record'
 require 'mysql2'
 require 'benchmark'
 
-require 'basic_job'
+require 'jobs'
 ActiveRecord::Base.logger = Logger.new('debug.log')
 ActiveRecord::Base.establish_connection adapter: 'mysql2', database: 'workhorse', username: 'travis', password: '', pool: 10, host: :localhost
 

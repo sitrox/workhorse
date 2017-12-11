@@ -19,6 +19,30 @@ module Workhorse
     def perform!
       Thread.current[:workhorse_current_performer] = self
 
+      ActiveRecord::Base.connection_pool.with_connection do
+        if defined?(Rails)
+          Rails.application.executor.wrap do
+            perform_wrapped
+          end
+        else
+          perform_wrapped
+        end
+      end
+    rescue => e
+      # ---------------------------------------------------------------
+      # Mark job as failed
+      # ---------------------------------------------------------------
+      log %(#{e.message}\n#{e.backtrace.join("\n")}), :error
+
+      Workhorse.tx_callback.call do
+        log 'Mark failed', :debug
+        @db_job.mark_failed!(e)
+      end
+    ensure
+      Thread.current[:workhorse_current_performer] = nil
+    end
+
+    def perform_wrapped
       # ---------------------------------------------------------------
       # Mark job as started
       # ---------------------------------------------------------------
@@ -49,18 +73,6 @@ module Workhorse
         log 'Mark succeeded', :debug
         @db_job.mark_succeeded!
       end
-    rescue => e
-      # ---------------------------------------------------------------
-      # Mark job as failed
-      # ---------------------------------------------------------------
-      log %(#{e.message}\n#{e.backtrace.join("\n")}), :error
-
-      Workhorse.tx_callback.call do
-        log 'Mark failed', :debug
-        @db_job.mark_failed!(e)
-      end
-    ensure
-      Thread.current[:workhorse_current_performer] = nil
     end
 
     def log(text, level = :info)
