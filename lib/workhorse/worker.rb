@@ -74,6 +74,10 @@ module Workhorse
       end
     end
 
+    # Waits until the worker is shut down. This only happens if shutdown gets
+    # called - either by another thread or by enabling `auto_terminate` and
+    # receiving a respective signal. Use this method to let worker run
+    # undefinitely.
     def wait
       @poller.wait
     end
