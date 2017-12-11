@@ -17,7 +17,7 @@ module Workhorse
         fail "Job #{id} is already locked by #{locked_by.inspect}."
       end
 
-      self.locked_at = Time.zone.now
+      self.locked_at = Time.now
       self.locked_by = worker_id
       self.state     = STATE_LOCKED
       save!
@@ -26,7 +26,7 @@ module Workhorse
     def mark_started!
       assert_state! STATE_LOCKED
 
-      self.started_at = Time.zone.now
+      self.started_at = Time.now
       self.state      = STATE_STARTED
       save!
     end
@@ -34,7 +34,7 @@ module Workhorse
     def mark_failed!(exception)
       assert_state! STATE_LOCKED, STATE_STARTED
 
-      self.failed_at  = Time.zone.now
+      self.failed_at  = Time.now
       self.last_error = %(#{exception.message}\n#{exception.backtrace.join("\n")})
       self.state      = STATE_FAILED
       save!
@@ -43,7 +43,7 @@ module Workhorse
     def mark_succeeded!
       assert_state! STATE_STARTED
 
-      self.succeeded_at = Time.zone.now
+      self.succeeded_at = Time.now
       self.state        = STATE_SUCCEEDED
       save!
     end
