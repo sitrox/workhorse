@@ -24,7 +24,7 @@ Lint/RescueWithoutErrorClass:
 Style/ConditionalAssignment:
   Enabled: false
 
-Style/IndentArray:
+Layout/IndentArray:
   EnforcedStyle: consistent
 
 Metrics/MethodLength:
