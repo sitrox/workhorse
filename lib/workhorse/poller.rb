@@ -16,14 +16,18 @@ module Workhorse
       @running = true
 
       @thread = Thread.new do
-        loop do
-          poll
+        begin
+          loop do
+            poll
 
-          if running?
-            sleep worker.polling_interval
-          else
-            break
+            if running?
+              sleep worker.polling_interval
+            else
+              break
+            end
           end
+        rescue => e
+          worker.log %(Poller stopped with exception:\n#{e.message}\n#{e.backtrace.join("\n")})
         end
       end
     end
