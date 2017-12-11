@@ -31,5 +31,5 @@ require 'rake/testtask'
 Rake::TestTask.new do |t|
   t.pattern = 'test/workhorse/**/*_test.rb'
   t.verbose = false
-  t.libs << 'test'
+  t.libs << 'test/lib'
 end
