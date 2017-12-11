@@ -1,6 +1,7 @@
 module Workhorse
   class Worker
     LOG_LEVELS = %i[fatal error warn info debug].freeze
+    SHUTDOWN_SIGNALS = %w[TERM INT].freeze
 
     attr_reader :queues
     attr_reader :state
@@ -57,8 +58,12 @@ module Workhorse
       fail "Expected worker to be in state #{state} but current state is #{self.state}." unless self.state == state
     end
 
+    # Shuts down worker and DB poller. Jobs currently beeing processed are
+    # properly finished before this method returns. Subsequent calls to this
+    # method are ignored.
     def shutdown
       mutex.synchronize do
+        return if @state == :shutdown
         assert_state! :running
         log 'Shutting down'
         @state = :shutdown
@@ -95,14 +100,13 @@ module Workhorse
     private
 
     def trap_termination
-      Signal.trap('TERM') do
-        log "\nCaught TERM, shutting worker down..."
-        shutdown
-      end
-
-      Signal.trap('INT') do
-        log "\nCaught INT, shutting worker down..."
-        shutdown
+      SHUTDOWN_SIGNALS.each do |signal|
+        Signal.trap(signal) do
+          log "\nCaught #{signal}, shutting worker down..."
+          Thread.new do
+            shutdown
+          end
+        end
       end
     end
   end
