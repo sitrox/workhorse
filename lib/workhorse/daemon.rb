@@ -89,7 +89,15 @@ module Workhorse
     end
 
     def watchdog
-      # TODO
+      if defined?(Rails)
+        should_be_running = !File.exist?(Rails.root.join('tmp/stop.txt'))
+      else
+        should_be_running = true
+      end
+
+      if should_be_running && status != 0
+        start
+      end
     end
 
     def restart
