@@ -112,8 +112,8 @@ module Workhorse
     def trap_termination
       SHUTDOWN_SIGNALS.each do |signal|
         Signal.trap(signal) do
-          log "\nCaught #{signal}, shutting worker down..."
           Thread.new do
+            log "\nCaught #{signal}, shutting worker down..."
             shutdown
           end
         end
