@@ -33,3 +33,9 @@ require 'workhorse/performer'
 require 'workhorse/poller'
 require 'workhorse/worker'
 require 'workhorse/jobs/run_rails_op'
+
+# Daemon functionality is not available on java platforms
+if RUBY_PLATFORM != 'java'
+  require 'workhorse/daemon'
+  require 'workhorse/daemon/shell_handler'
+end
