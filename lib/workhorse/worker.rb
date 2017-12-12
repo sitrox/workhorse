@@ -8,9 +8,15 @@ module Workhorse
     attr_reader :pool_size
     attr_reader :polling_interval
     attr_reader :mutex
-    attr_accessor :logger
+    attr_reader :logger
 
-    def initialize(queues: [], pool_size: nil, polling_interval: 5, auto_terminate: true, quiet: true)
+    def self.start_and_wait(*args)
+      worker = new(*args)
+      worker.start
+      worker.wait
+    end
+
+    def initialize(queues: [], pool_size: nil, polling_interval: 5, auto_terminate: true, quiet: true, logger: nil)
       @queues = queues
       @pool_size = pool_size || queues.size + 1
       @polling_interval = polling_interval
@@ -27,7 +33,7 @@ module Workhorse
         auto_terminate: false
       )
       @poller = Workhorse::Poller.new(self)
-      @logger = nil
+      @logger = logger
     end
 
     def log(text, level = :info)
