@@ -19,12 +19,8 @@ module Workhorse
         begin
           loop do
             poll
-
-            if running?
-              sleep worker.polling_interval
-            else
-              break
-            end
+            break unless running?
+            sleep
           end
         rescue => e
           worker.log %(Poller stopped with exception:\n#{e.message}\n#{e.backtrace.join("\n")})
@@ -42,6 +38,15 @@ module Workhorse
     end
 
     private
+
+    def sleep
+      remaining = worker.polling_interval
+
+      while running? && remaining > 0
+        Kernel.sleep 1
+        remaining -= 1
+      end
+    end
 
     def poll
       Workhorse.tx_callback.call do
