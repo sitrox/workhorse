@@ -10,7 +10,7 @@ module Workhorse
 
       if @pidfile.nil?
         @pidfile = count > 1 ? 'tmp/pids/workhorse.%i.pid' : 'tmp/pids/workhorse.pid'
-      elsif @count > 1 &&! @pidfile.include?('%s')
+      elsif @count > 1 && !@pidfile.include?('%s')
         fail 'Pidfile must include placeholder "%s" for worker id when specifying a count > 1.'
       end
     end
@@ -65,7 +65,7 @@ module Workhorse
     #   0: All workers running
     #   3: One or more workers not running
     #  99: One or more workers not running but at least one pid file exists
-    def status(quiet: false)
+    def status
       status = 0
 
       @count.times do |worker_id|
@@ -101,13 +101,13 @@ module Workhorse
 
     def say(text)
       unless @quiet
-        $stderr.puts text
+        warn text
       end
     end
 
     def process?(pid)
       return begin
-        Process.getpgid( pid )
+        Process.getpgid(pid)
         true
       rescue Errno::ESRCH
         false

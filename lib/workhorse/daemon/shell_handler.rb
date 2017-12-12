@@ -29,14 +29,14 @@ module Workhorse
 
         exit 0
       rescue => e
-        $stderr.puts e.message
+        warn e.message
         exit 99
       end
     end
 
     def usage
-      $stderr.puts <<~USAGE
-        Usage: #{$0} start|stop|status|watchdog|restart|usage
+      warn <<~USAGE
+        Usage: #{$PROGRAM_NAME} start|stop|status|watchdog|restart|usage
 
         Exit status:
          0  if OK,
