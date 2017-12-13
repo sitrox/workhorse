@@ -135,7 +135,8 @@ Workhorse::Worker.start_and_wait(
 )
 ```
 
-See [code documentation][http://www.rubydoc.info/github/sitrox/workhorse/Workhorse%2FWorker:initialize]
+See [code
+documentation](http://www.rubydoc.info/github/sitrox/workhorse/Workhorse%2FWorker:initialize)
 for more information on the arguments.
 
 ### Start workers using a daemon script
