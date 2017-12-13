@@ -45,7 +45,7 @@ module Workhorse
 
         if pid_file && pid
           puts "Worker ##{worker_id}: Shutdown"
-          stop_worker worker_id, pid_file, pid
+          stop_worker pid_file, pid
         elsif pid_file
           File.delete pid_file
           puts "Worker ##{worker_id}: Already shut down (stale PID file)"
@@ -111,7 +111,7 @@ module Workhorse
       IO.write(pid_file_for(worker_id), pid)
     end
 
-    def stop_worker(worker_id, pid_file, pid)
+    def stop_worker(pid_file, pid)
       loop do
         begin
           Process.kill('TERM', pid)
@@ -151,7 +151,7 @@ module Workhorse
     def read_pid(worker_id)
       file = pid_file_for(worker_id)
 
-      if File.exists?(file)
+      if File.exist?(file)
         pid = IO.read(file).to_i
         return file, process?(pid) ? pid : nil
       else
