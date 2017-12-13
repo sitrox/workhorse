@@ -12,6 +12,8 @@ module Workhorse
         @pidfile = count > 1 ? 'tmp/pids/workhorse.%i.pid' : 'tmp/pids/workhorse.pid'
       elsif @count > 1 && !@pidfile.include?('%s')
         fail 'Pidfile must include placeholder "%s" for worker id when specifying a count > 1.'
+      elsif @count == 0 && @pidfile.include?('%s')
+        fail 'Pidfile must not include placeholder "%s" for worker id when specifying a count of 1.'
       end
     end
 
