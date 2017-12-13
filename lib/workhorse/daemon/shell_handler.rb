@@ -1,12 +1,16 @@
 module Workhorse
   class Daemon::ShellHandler
-    def self.run(*args, &block)
+    def self.run(options = {}, &block)
       unless ARGV.count == 1
         usage
         exit 99
       end
 
-      daemon = Workhorse::Daemon.new(*args, &block)
+      lockfile_path = options.delete(:lockfile) || 'workhorse.lock'
+      lockfile = File.open(lockfile_path, 'a')
+      lockfile.flock(File::LOCK_EX || File::LOCK_NB)
+
+      daemon = Workhorse::Daemon.new(options, &block)
 
       begin
         case ARGV.first
@@ -31,6 +35,8 @@ module Workhorse
       rescue => e
         warn "#{e.message}\n#{e.backtrace.join("\n")}"
         exit 99
+      ensure
+        lockfile.flock(File::LOCK_UN)
       end
     end
 
