@@ -116,26 +116,52 @@ Workhorse.enqueue Operations::Jobs::CleanUpDatabase, { quiet: true }, queue: :ma
 ## Configuring and starting workers
 
 Workers poll the database for new jobs and execute them in one or more threads.
-Workers can be started in a separate process or in your main application
-process. Typically only one worker is started per process as it does not make
-sense to have multiple workers per process.
+Typically, one worker is started per process. While you can start workers
+manually, either in your main application process(es) or in a separate one,
+workhorse also provides you with a convenient way of starting one or multiple
+worker processes as a daemon.
+
+### Start workers manually
+
+Workers are created by instantiatating, configuring and starting a new
+`Workhorse::Worker` instance.
 
 ```ruby
-# Instantiate a new worker with a maximal thread pool size of 5 and enabled
-# logging to STDOUT.
-w = Workhorse::Worker.new(pool_size: 5, quiet: false)
+Workhorse::Worker.start_and_wait(
+  pool_size: 5,                           # Processes 5 jobs concurrently
+  quiet:     false,                       # Logs to STDOUT
+  logger:    Rails.logger                 # Logs to Rails log. You can also
+                                          # provide any custom logger.
+)
+```
 
-# Assign a logger so that logs are saved to a file. You can also assign
-# `Rails.logger` to it if you are inside of Rails.
-w.logger = Logger.new('workhorse.log')
+### Start workers using a daemon script
 
-# Start the worker so that it polls the database and performs jobs. This call is
-# not blocking. Make sure to call `wait` to prevent the process from ending
-# right away.
-w.start
+Using `Workhorse::Daemon` (`Workhorse::Daemon::ShellHandler`), you can spawn one
+multiple worker processes automatically. This is useful for cases where you want
+the workers to exist in separate processes as opposed to in your main
+application process(es).
 
-# This waits until the process receives an interrupt and then shuts down the
-w.wait
+For this case, the workhorse install routine automatically creates a file called
+`bin/workhorse.rb` which can be used to start one or more worker processes.
+
+The daemon-part allows you to run arbitrary code as a daemon:
+
+```ruby
+Workhorse::Daemon::ShellHandler.run count: 5 do
+  # This runs as a daemon and will be started 5 times
+end
+```
+
+Within this shell handler, you can now instantiate, configure and start a worker
+as described under *Start workers manually*:
+
+```ruby
+Workhorse::Daemon::ShellHandler.run count: 5 do
+  # This will be run 5 times, each time in a separate process. Per process, it
+  # will be able to process 3 jobs concurrently.
+  Workhorse::Worker.start_and_wait(pool_size: 3, logger: Rails.logger)
+end
 ```
 
 ## Roadmap
