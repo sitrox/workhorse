@@ -172,8 +172,6 @@ end
 
 * [ ] ActiveJob integration for Rails
 * [ ] Job timeouts
-* [ ] Daemon, generator
-* [ ] Migration generator (+ data migration from `delayed_job`)
 
 ## Copyright
 
