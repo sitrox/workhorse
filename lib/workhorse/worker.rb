@@ -34,6 +34,8 @@ module Workhorse
       )
       @poller = Workhorse::Poller.new(self)
       @logger = logger
+
+      fail 'Polling interval must be an integer.' unless @polling_interval.is_a?(Integer)
     end
 
     def log(text, level = :info)
