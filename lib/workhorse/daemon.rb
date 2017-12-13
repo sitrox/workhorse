@@ -24,11 +24,11 @@ module Workhorse
         pid_file, pid = read_pid(worker_id)
 
         if pid_file && pid
-          warn "Worker ##{worker_id}: Already running (PID #{pid})"
+          warn "Worker ##{worker_id}: Already started (PID #{pid})"
           code = 1
         elsif pid_file
           File.delete pid_file
-          puts "Worker ##{worker_id}: Startup (stale pid file)"
+          puts "Worker ##{worker_id}: Starting (stale pid file)"
           start_worker worker_id
         else
           warn "Worker ##{worker_id}: Starting"
@@ -46,13 +46,13 @@ module Workhorse
         pid_file, pid = read_pid(worker_id)
 
         if pid_file && pid
-          puts "Worker ##{worker_id}: Shutdown"
+          puts "Worker ##{worker_id}: Stopping"
           stop_worker pid_file, pid
         elsif pid_file
           File.delete pid_file
-          puts "Worker ##{worker_id}: Already shut down (stale PID file)"
+          puts "Worker ##{worker_id}: Already stopped (stale PID file)"
         else
-          warn "Worker ##{worker_id}: Already shut down"
+          warn "Worker ##{worker_id}: Already stopped"
           code = 1
         end
       end
