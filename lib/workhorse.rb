@@ -31,6 +31,7 @@ require 'workhorse/db_job'
 require 'workhorse/enqueuer'
 require 'workhorse/performer'
 require 'workhorse/poller'
+require 'workhorse/pool'
 require 'workhorse/worker'
 require 'workhorse/jobs/run_rails_op'
 
