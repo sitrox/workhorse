@@ -14,6 +14,11 @@ module Workhorse
 
     def install_daemon_script
       template 'bin/workhorse.rb'
+      chmod 'bin/workhorse.rb', 0o755
+    end
+
+    def install_initializer
+      template 'config/initializers/workhorse.rb'
     end
   end
 end

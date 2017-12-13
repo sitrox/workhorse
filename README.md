@@ -26,20 +26,55 @@ What it isn't:
 
 ## Installation
 
-To install this gem using bundler, add it to your `Gemfile`:
+### Requirements
 
-```ruby
-gem 'workhorse'
-```
+* A database and table handler that properly supports row-level locking (such as
+  MySQL with InnoDB, PostgreSQL or Oracle).
+* An operating system and file system that supports file locking.
 
-## Usage
+### Installing under Rails
 
-Usage of this Gem is divided into two sections: Queuing jobs (inserting them
-into the database queue) and starting workers that process this queue.
+1. Add `workhorse` to your `Gemfile`:
 
-### Queuing jobs
+   ```ruby
+   gem 'workhorse'
+   ```
 
-#### Basic jobs
+2. Run the install generator:
+
+   ```bash
+   bin/rails generate workhorse:install
+   ```
+
+   This generates:
+
+   * A database migration for creating the `jobs` table
+   * An initializer `config/initializers/workhorse.rb` for global configuration
+   * A daemon worker script under `bin/workhorse.rb`
+
+   Please customize the configuration files to your liking.
+
+3. If running Rails, create an initializer under
+   `config/initializers/workhorse.rb`:
+
+   ```ruby
+   Workhorse.setup do |config|
+     # Use `tx_callback` to specify an alternate block that handels
+     # transactions. This defaults to the following.
+     # config.tx_callback = proc do |&block|
+     #   ActiveRecord::Base.transaction&(&block)
+     # end
+
+     # Set this to false in order to prevent jobs from being automatically
+     # wrapped into a transaction. The built-in workhorse logic will still run
+     # in transactions.
+     config.perform_jobs_in_tx = true
+   end
+   ```
+
+## Queuing jobs
+
+### Basic jobs
 
 Workhorse can handle any jobs that support the `perform` method and are
 serializable. To queue a basic job, use the static method `Workhorse.enqueue`:
@@ -59,7 +94,7 @@ this job will never run simoultaneously with other jobs in the same queue. If no
 queue is given, the job can always be executed simoultaneously with any other
 job.
 
-#### RailsOps operations
+### RailsOps operations
 
 Workhorse allows you to easily queue
 [RailsOps](https://github.com/sitrox/rails_ops) operations using the static
@@ -78,7 +113,7 @@ You can also specify a queue:
 Workhorse.enqueue Operations::Jobs::CleanUpDatabase, { quiet: true }, queue: :maintenance
 ```
 
-### Configuring and starting workers
+## Configuring and starting workers
 
 Workers poll the database for new jobs and execute them in one or more threads.
 Workers can be started in a separate process or in your main application
