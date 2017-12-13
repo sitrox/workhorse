@@ -54,24 +54,6 @@ What it isn't:
 
    Please customize the configuration files to your liking.
 
-3. If running Rails, create an initializer under
-   `config/initializers/workhorse.rb`:
-
-   ```ruby
-   Workhorse.setup do |config|
-     # Use `tx_callback` to specify an alternate block that handels
-     # transactions. This defaults to the following.
-     # config.tx_callback = proc do |&block|
-     #   ActiveRecord::Base.transaction&(&block)
-     # end
-
-     # Set this to false in order to prevent jobs from being automatically
-     # wrapped into a transaction. The built-in workhorse logic will still run
-     # in transactions.
-     config.perform_jobs_in_tx = true
-   end
-   ```
-
 ## Queuing jobs
 
 ### Basic jobs
