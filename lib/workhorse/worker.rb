@@ -111,6 +111,7 @@ module Workhorse
     # receiving a respective signal. Use this method to let worker run
     # undefinitely.
     def wait
+      assert_state! :running
       @poller.wait
     end
 
