@@ -5,7 +5,7 @@ class Workhorse::PoolTest < ActiveSupport::TestCase
     with_pool 5 do |p|
       assert_equal 5, p.idle
 
-      4.times do |i|
+      4.times do |_i|
         p.post do
           sleep 1
         end
@@ -36,7 +36,10 @@ class Workhorse::PoolTest < ActiveSupport::TestCase
       counter = Concurrent::AtomicFixnum.new(0)
 
       5.times do
-        p.post { sleep 1; counter.increment }
+        p.post do
+          sleep 1
+          counter.increment
+        end
       end
 
       sleep 1.2
@@ -44,7 +47,10 @@ class Workhorse::PoolTest < ActiveSupport::TestCase
       assert_equal 5, counter.value
 
       2.times do
-        p.post { sleep 1; counter.increment }
+        p.post do
+          sleep 1
+          counter.increment
+        end
       end
 
       sleep 1.2
@@ -55,10 +61,10 @@ class Workhorse::PoolTest < ActiveSupport::TestCase
 
   private
 
-  def with_pool(size, &block)
+  def with_pool(size)
     p = Workhorse::Pool.new(size)
     begin
-      block.call(p)
+      yield(p)
     ensure
       p.shutdown
     end
