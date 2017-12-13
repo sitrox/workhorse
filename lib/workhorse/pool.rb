@@ -17,7 +17,7 @@ module Workhorse
     end
 
     # Posts a new work unit to the pool.
-    def post(&block)
+    def post
       mutex.synchronize do
         if @active_threads.value >= @size
           fail 'All threads are busy.'
@@ -29,7 +29,7 @@ module Workhorse
 
         @executor.post do
           begin
-            block.call
+            yield
           ensure
             active_threads.decrement
           end
