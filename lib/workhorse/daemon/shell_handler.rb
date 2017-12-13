@@ -16,8 +16,8 @@ module Workhorse
           daemon.stop
         when 'status'
           daemon.status
-        when 'watchdog'
-          daemon.watchdog
+        when 'watch'
+          daemon.watch
         when 'restart'
           daemon.restart
         when 'usage'
@@ -29,18 +29,18 @@ module Workhorse
 
         exit 0
       rescue => e
-        warn e.message
+        warn "#{e.message}\n#{e.backtrace.join("\n")}"
         exit 99
       end
     end
 
     def usage
       warn <<~USAGE
-        Usage: #{$PROGRAM_NAME} start|stop|status|watchdog|restart|usage
+        Usage: #{$PROGRAM_NAME} start|stop|status|watch|restart|usage
 
         Exit status:
          0  if OK,
-         3  if daemon is not running,
+         1  if at least one worker has an unexpected status,
          99 on all other errors.
       USAGE
     end

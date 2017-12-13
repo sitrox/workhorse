@@ -16,101 +16,123 @@ module Workhorse
     end
 
     def start
-      # Check that no pid file exists
-      @count.times do |worker_id|
-        file = pid_file_for(worker_id)
-        if File.exist?(file)
-          fail "PID file #{file} already exists."
+      code = 0
+
+      for_each_worker do |worker_id|
+        pid_file, pid = read_pid(worker_id)
+
+        if pid_file && pid
+          warn "Worker ##{worker_id}: Already running (PID #{pid})"
+          code = 1
+        elsif pid_file
+          File.delete pid_file
+          puts "Worker ##{worker_id}: Startup (stale pid file)"
+          start_worker worker_id
+        else
+          warn "Worker ##{worker_id}: Starting"
+          start_worker worker_id
         end
       end
 
-      # Start daemons
-      @count.times do |worker_id|
-        say "Starting worker #{worker_id}."
-        pid = fork(&@block)
-        IO.write(pid_file_for(worker_id), pid)
-      end
+      return code
     end
 
     def stop
-      # Check that all pid files exist
-      @count.times do |worker_id|
-        file = pid_file_for(worker_id)
-        unless File.exist?(file)
-          fail "PID file #{file} not found."
-        end
-      end
+      code = 0
 
-      # Stop daemons
-      @count.times do |worker_id|
-        file = pid_file_for(worker_id)
-        pid = IO.read(file).to_i
-        say "Stopping worker #{worker_id}."
+      for_each_worker do |worker_id|
+        pid_file, pid = read_pid(worker_id)
 
-        loop do
-          begin
-            Process.kill('TERM', pid)
-          rescue Errno::ESRCH
-            break
-          end
-
-          sleep 1
-        end
-
-        File.delete(file)
-      end
-    end
-
-    # Returns:
-    #   0: All workers running
-    #   3: One or more workers not running
-    #  99: One or more workers not running but at least one pid file exists
-    def status
-      status = 0
-
-      @count.times do |worker_id|
-        file = pid_file_for(worker_id)
-        if File.exist?(file)
-          pid = IO.read(file).to_i
-
-          if process?(pid)
-            say "Worker #{worker_id} is running."
-          else
-            say "Worker #{worker_id} is not running, but PID file found."
-            status = 99
-          end
+        if pid_file && pid
+          puts "Worker ##{worker_id}: Shutdown"
+          stop_worker worker_id, pid_file, pid
+        elsif pid_file
+          File.delete pid_file
+          puts "Worker ##{worker_id}: Already shut down (stale PID file)"
         else
-          say "Worker #{worker_id} is not running."
-          status = 3 unless status > 3
+          warn "Worker ##{worker_id}: Already shut down"
+          code = 1
         end
       end
 
-      return 3
+      return code
     end
 
-    def watchdog
+    def status(quiet: false)
+      code = 0
+
+      for_each_worker do |worker_id|
+        pid_file, pid = read_pid(worker_id)
+
+        if pid_file && pid
+          puts "Worker ##{worker_id}: Running" unless quiet
+        elsif pid_file
+          warn "Worker ##{worker_id}: Not running (stale PID file)" unless quiet
+          code = 1
+        else
+          warn "Worker ##{worker_id}: Not running" unless quiet
+          code = 1
+        end
+      end
+
+      return code
+    end
+
+    def watch
       if defined?(Rails)
         should_be_running = !File.exist?(Rails.root.join('tmp/stop.txt'))
       else
         should_be_running = true
       end
 
-      if should_be_running && status != 0
-        start
+      if should_be_running && status(quiet: true) != 0
+        return start
+      else
+        return 0
       end
     end
 
     def restart
       stop
-      start
+      return start
     end
 
     private
 
-    def say(text)
-      unless @quiet
-        warn text
+    def for_each_worker(&block)
+      1.upto(@count, &block)
+    end
+
+    def start_worker(worker_id)
+      pid = fork do
+        $0 = process_name(worker_id)
+        @block.call
       end
+      IO.write(pid_file_for(worker_id), pid)
+    end
+
+    def stop_worker(worker_id, pid_file, pid)
+      loop do
+        begin
+          Process.kill('TERM', pid)
+        rescue Errno::ESRCH
+          break
+        end
+
+        sleep 1
+      end
+
+      File.delete(pid_file)
+    end
+
+    def process_name(worker_id)
+      if defined?(Rails)
+        path = Rails.root
+      else
+        path = $PROGRAM_NAME
+      end
+
+      return "Workhorse Worker ##{worker_id}: #{path}"
     end
 
     def process?(pid)
@@ -124,6 +146,17 @@ module Workhorse
 
     def pid_file_for(worker_id)
       @pidfile % worker_id
+    end
+
+    def read_pid(worker_id)
+      file = pid_file_for(worker_id)
+
+      if File.exists?(file)
+        pid = IO.read(file).to_i
+        return file, process?(pid) ? pid : nil
+      else
+        return nil, nil
+      end
     end
   end
 end
