@@ -10,12 +10,34 @@ module Workhorse
     attr_reader :mutex
     attr_reader :logger
 
+    # Instantiates and starts a new worker with the given arguments and then
+    # waits for its completion (i.e. an interrupt).
     def self.start_and_wait(*args)
       worker = new(*args)
       worker.start
       worker.wait
     end
 
+    # Instantiates a new worker. The worker is not automatically started.
+    #
+    # @param queues [Array] The queues you want this worker to process. If an
+    #   empty array is given, any queues will be processed. Queues need to be
+    #   specified as a symbol. To also process jobs without a queue, supply
+    #   `nil` within the array.
+    # @param pool_size [Integer] The number of jobs that will be processed
+    #   simultaneously. If this parameter is not given, it will be set to the
+    #   number of given queues + 1.
+    # @param polling_interval [Integer] Interval in seconds the database will
+    #   be polled for new jobs. Set this as high as possible to avoid
+    #   unnecessary database load Set this as high as possible to avoid
+    #   unnecessary database load.
+    # @param auto_terminate [Boolean] Whether to automatically shut down the
+    #   worker properly on INT and TERM signals.
+    # @param quiet [Boolean] If this is set to `false`, the worker will also log
+    #   to STDOUT.
+    # @param logger [Logger] An optional logger the worker will append to. This
+    #   can be any instance of ruby's `Logger` but is commonly set to
+    #   `Rails.logger`.
     def initialize(queues: [], pool_size: nil, polling_interval: 5, auto_terminate: true, quiet: true, logger: nil)
       @queues = queues
       @pool_size = pool_size || queues.size + 1
@@ -50,6 +72,8 @@ module Workhorse
       @id ||= "#{Socket.gethostname}.#{Process.pid}.#{SecureRandom.hex(3)}"
     end
 
+    # Starts the worker. This call is not blocking - call {wait} for this
+    # purpose.
     def start
       mutex.synchronize do
         assert_state! :initialized
