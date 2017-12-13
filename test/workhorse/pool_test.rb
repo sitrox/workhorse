@@ -1,7 +1,7 @@
 require 'test_helper'
 
 class Workhorse::PoolTest < ActiveSupport::TestCase
-  def test_remaining_capacity
+  def test_idle
     with_pool 5 do |p|
       assert_equal 5, p.idle
 

@@ -50,11 +50,11 @@ module Workhorse
 
     def poll
       Workhorse.tx_callback.call do
-        remaining_capacity = worker.remaining_capacity
-        worker.log "Polling DB for jobs (#{remaining_capacity} available threads)...", :debug
+        idle = worker.idle
+        worker.log "Polling DB for jobs (#{idle} available threads)...", :debug
 
-        unless remaining_capacity.zero?
-          jobs = queued_db_jobs(remaining_capacity)
+        unless idle.zero?
+          jobs = queued_db_jobs(idle)
           jobs.each do |job|
             worker.log "Marking job #{job.id} as locked", :debug
             job.mark_locked!(worker.id)

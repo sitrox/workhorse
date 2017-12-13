@@ -47,13 +47,7 @@ module Workhorse
       @quiet = quiet
 
       @mutex = Mutex.new
-      @pool = Concurrent::ThreadPoolExecutor.new(
-        min_threads: 0,
-        max_threads: @pool_size,
-        max_queue: @pool_size,
-        fallback_policy: :abort,
-        auto_terminate: false
-      )
+      @pool = Pool.new(@pool_size)
       @poller = Workhorse::Poller.new(self)
       @logger = logger
 
@@ -115,8 +109,8 @@ module Workhorse
       @poller.wait
     end
 
-    def remaining_capacity
-      @pool.remaining_capacity
+    def idle
+      @pool.idle
     end
 
     def perform(db_job)

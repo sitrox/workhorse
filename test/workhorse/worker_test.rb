@@ -1,18 +1,22 @@
 require 'test_helper'
 
 class Workhorse::WorkerTest < ActiveSupport::TestCase
-  # def test_remaining_capacity
-  #   w = Workhorse::Worker.new(pool_size: 5)
-  #   w.start
-  #   assert_equal 5, w.remaining_capacity
-  #
-  #   Workhorse::Enqueuer.enqueue BasicJob.new
-  #
-  #   sleep 1
-  #   assert_equal 4, w.remaining_capacity
-  # end
   def setup
     Workhorse::DbJob.delete_all
+  end
+
+  def test_idle
+    w = Workhorse::Worker.new(pool_size: 5)
+    w.start
+    assert_equal 5, w.idle
+
+    Workhorse::Enqueuer.enqueue BasicJob.new
+
+    sleep 0.5
+    assert_equal 4, w.idle
+
+    sleep 1
+    assert_equal 5, w.idle
   end
 
   def test_start_and_shutdown
