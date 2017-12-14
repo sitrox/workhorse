@@ -51,7 +51,12 @@ module Workhorse
 
     def poll
       Workhorse.tx_callback.call do
+        # As we are the only thread posting into the worker pool, it is safe to
+        # get the number of idle threads without mutex synchronization. The
+        # actual number of idle workers at time of posting can only be larger
+        # than or equal to the number we get here.
         idle = worker.idle
+
         worker.log "Polling DB for jobs (#{idle} available threads)...", :debug
 
         unless idle.zero?
