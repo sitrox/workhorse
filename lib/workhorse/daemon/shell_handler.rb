@@ -15,15 +15,15 @@ module Workhorse
       begin
         case ARGV.first
         when 'start'
-          daemon.start
+          exit daemon.start
         when 'stop'
-          daemon.stop
+          exit daemon.stop
         when 'status'
-          daemon.status
+          exit daemon.status
         when 'watch'
-          daemon.watch
+          exit daemon.watch
         when 'restart'
-          daemon.restart
+          exit daemon.restart
         when 'usage'
           usage
           exit 99
