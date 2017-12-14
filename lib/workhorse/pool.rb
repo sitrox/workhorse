@@ -19,7 +19,7 @@ module Workhorse
     # Posts a new work unit to the pool.
     def post
       mutex.synchronize do
-        if @active_threads.value >= @size
+        if idle.zero?
           fail 'All threads are busy.'
         end
 
@@ -42,10 +42,14 @@ module Workhorse
       @size - @active_threads.value
     end
 
-    # Shuts down the pool
+    def wait
+      @executor.wait_for_termination
+    end
+
+    # Shuts down the pool and waits for termination.
     def shutdown
       @executor.shutdown
-      @executor.wait_for_termination
+      wait
     end
   end
 end
