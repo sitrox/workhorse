@@ -88,9 +88,13 @@ module Workhorse
     # properly finished before this method returns. Subsequent calls to this
     # method are ignored.
     def shutdown
+      # This is safe to be checked outside of the mutex as 'shutdown' is the
+      # final state this worker can be in.
+      return if @state == :shutdown
+
       mutex.synchronize do
-        return if @state == :shutdown
         assert_state! :running
+
         log 'Shutting down'
         @state = :shutdown
 
@@ -107,6 +111,7 @@ module Workhorse
     def wait
       assert_state! :running
       @poller.wait
+      @pool.wait
     end
 
     def idle
@@ -133,10 +138,14 @@ module Workhorse
     def trap_termination
       SHUTDOWN_SIGNALS.each do |signal|
         Signal.trap(signal) do
+          # Start a new thread as certain functionality (such as logging) is not
+          # available from within a trap context. As "shutdown" terminates
+          # quickly when called multiple times, this does not pose a risk of
+          # keeping open a big number of "shutdown threads".
           Thread.new do
             log "\nCaught #{signal}, shutting worker down..."
             shutdown
-          end
+          end.join
         end
       end
     end
