@@ -124,12 +124,20 @@ for more information on the arguments.
 ### Start workers using a daemon script
 
 Using `Workhorse::Daemon` (`Workhorse::Daemon::ShellHandler`), you can spawn one
-multiple worker processes automatically. This is useful for cases where you want
-the workers to exist in separate processes as opposed to in your main
+or multiple worker processes automatically. This is useful for cases where you
+want the workers to exist in separate processes as opposed to in your main
 application process(es).
 
 For this case, the workhorse install routine automatically creates a file called
 `bin/workhorse.rb` which can be used to start one or more worker processes.
+
+To start the daemon:
+
+```bash
+bin/workhorse.rb start[|stop|status|watch|restart|usage]
+```
+
+#### Background and customization
 
 The daemon-part allows you to run arbitrary code as a daemon:
 
