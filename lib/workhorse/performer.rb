@@ -20,7 +20,7 @@ module Workhorse
       Thread.current[:workhorse_current_performer] = self
 
       ActiveRecord::Base.connection_pool.with_connection do
-        if defined?(Rails)
+        if defined?(Rails) && Rails.application && Rails.application.respond_to?(:executor)
           Rails.application.executor.wrap do
             perform_wrapped
           end
