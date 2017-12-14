@@ -31,6 +31,10 @@ module Workhorse
     def shutdown
       fail 'Poller is not running.' unless running?
       @running = false
+      wait
+    end
+
+    def wait
       @thread.join
     end
 
