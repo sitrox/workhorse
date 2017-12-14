@@ -40,7 +40,7 @@ module Workhorse
       end
     end
 
-    def usage
+    def self.usage
       warn <<~USAGE
         Usage: #{$PROGRAM_NAME} start|stop|status|watch|restart|usage
 
