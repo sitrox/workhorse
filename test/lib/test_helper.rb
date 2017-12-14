@@ -22,7 +22,6 @@ class WorkhorseTest < ActiveSupport::TestCase
   end
 end
 
-ActiveRecord::Base.logger = Logger.new('debug.log')
 ActiveRecord::Base.establish_connection adapter: 'mysql2', database: 'workhorse', username: 'travis', password: '', pool: 10, host: :localhost
 
 require 'db_schema'
