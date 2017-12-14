@@ -1,10 +1,6 @@
 require 'test_helper'
 
-class Workhorse::EnqueuerTest < ActiveSupport::TestCase
-  def setup
-    Workhorse::DbJob.delete_all
-  end
-
+class Workhorse::EnqueuerTest < WorkhorseTest
   def test_basic
     assert_equal 0, Workhorse::DbJob.all.count
     Workhorse::Enqueuer.enqueue BasicJob.new

@@ -1,10 +1,6 @@
 require 'test_helper'
 
-class Workhorse::WorkerTest < ActiveSupport::TestCase
-  def setup
-    Workhorse::DbJob.delete_all
-  end
-
+class Workhorse::WorkerTest < WorkhorseTest
   def test_idle
     w = Workhorse::Worker.new(pool_size: 5)
     w.start
@@ -79,7 +75,7 @@ class Workhorse::WorkerTest < ActiveSupport::TestCase
 
   def test_no_queues
     enqueue_in_multiple_queues
-    work 2, queues: [nil, :q1]
+    work 3, queues: [nil, :q1]
 
     jobs = Workhorse::DbJob.all.to_a
     assert_equal 'succeeded', jobs[0].state
@@ -89,7 +85,7 @@ class Workhorse::WorkerTest < ActiveSupport::TestCase
 
   def test_queues_with_nil
     enqueue_in_multiple_queues
-    work 2, queues: [nil, :q1]
+    work 3, queues: [nil, :q1]
 
     jobs = Workhorse::DbJob.all.to_a
     assert_equal 'succeeded', jobs[0].state
@@ -99,7 +95,7 @@ class Workhorse::WorkerTest < ActiveSupport::TestCase
 
   def test_queues_without_nil
     enqueue_in_multiple_queues
-    work 2, queues: %i[q1 q2]
+    work 3, queues: %i[q1 q2]
 
     jobs = Workhorse::DbJob.all.to_a
     assert_equal 'waiting',   jobs[0].state
@@ -108,16 +104,6 @@ class Workhorse::WorkerTest < ActiveSupport::TestCase
   end
 
   private
-
-  def work(time = 2, options = {})
-    options[:pool_size] ||= 5
-    options[:polling_interval] ||= 1
-
-    w = Workhorse::Worker.new(options)
-    w.start
-    sleep time
-    w.shutdown
-  end
 
   def enqueue_in_multiple_queues
     Workhorse::Enqueuer.enqueue BasicJob.new(some_param: nil)

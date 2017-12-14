@@ -1,6 +1,6 @@
 require 'test_helper'
 
-class Workhorse::PoolTest < ActiveSupport::TestCase
+class Workhorse::PoolTest < WorkhorseTest
   def test_idle
     with_pool 5 do |p|
       assert_equal 5, p.idle

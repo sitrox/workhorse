@@ -1,6 +1,6 @@
 require 'test_helper'
 
-class Workhorse::WorkerTest < ActiveSupport::TestCase
+class Workhorse::WorkerTest < WorkhorseTest
   # This test makes sure that concurrent jobs always work in different database
   # connections.
   def test_db_connections
