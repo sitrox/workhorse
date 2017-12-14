@@ -46,6 +46,21 @@ class Workhorse::WorkerTest < ActiveSupport::TestCase
     assert_equal 'succeeded', Workhorse::DbJob.first.state
   end
 
+  def test_params
+    BasicJob.results.clear
+
+    Workhorse::Enqueuer.enqueue BasicJob.new(some_param: 5)
+    w = Workhorse::Worker.new polling_interval: 1
+    w.start
+    sleep 2
+    w.shutdown
+
+    assert_equal 'succeeded', Workhorse::DbJob.first.state
+
+    assert_equal 1, BasicJob.results.count
+    assert_equal 5, BasicJob.results.first
+  end
+
   def test_term
     w = Workhorse::Worker.new
     w.start

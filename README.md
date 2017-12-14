@@ -63,12 +63,16 @@ serializable. To queue a basic job, use the static method `Workhorse.enqueue`:
 
 ```ruby
 class MyJob
+  def initialize(name)
+    @name = name
+  end
+
   def perform
-    puts "Hello world"
+    puts "Hello #{@name}"
   end
 end
 
-Workhorse.enqueue MyJob.new, queue: :test
+Workhorse.enqueue MyJob.new('John'), queue: :test
 ```
 
 In the above example, we also specify a queue named `:test`. This means that
