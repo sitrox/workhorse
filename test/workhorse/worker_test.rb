@@ -13,6 +13,8 @@ class Workhorse::WorkerTest < WorkhorseTest
 
     sleep 1
     assert_equal 5, w.idle
+
+    w.shutdown
   end
 
   def test_start_and_shutdown
@@ -77,7 +79,7 @@ class Workhorse::WorkerTest < WorkhorseTest
     enqueue_in_multiple_queues
     work 3, queues: [nil, :q1]
 
-    jobs = Workhorse::DbJob.all.to_a
+    jobs = Workhorse::DbJob.order(queue: :asc).to_a
     assert_equal 'succeeded', jobs[0].state
     assert_equal 'succeeded', jobs[1].state
     assert_equal 'waiting',   jobs[2].state
@@ -87,7 +89,7 @@ class Workhorse::WorkerTest < WorkhorseTest
     enqueue_in_multiple_queues
     work 3, queues: [nil, :q1]
 
-    jobs = Workhorse::DbJob.all.to_a
+    jobs = Workhorse::DbJob.order(queue: :asc).to_a
     assert_equal 'succeeded', jobs[0].state
     assert_equal 'succeeded', jobs[1].state
     assert_equal 'waiting',   jobs[2].state
@@ -97,7 +99,7 @@ class Workhorse::WorkerTest < WorkhorseTest
     enqueue_in_multiple_queues
     work 3, queues: %i[q1 q2]
 
-    jobs = Workhorse::DbJob.all.to_a
+    jobs = Workhorse::DbJob.order(queue: :asc).to_a
     assert_equal 'waiting',   jobs[0].state
     assert_equal 'succeeded', jobs[1].state
     assert_equal 'succeeded', jobs[2].state
