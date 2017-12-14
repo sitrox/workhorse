@@ -12,3 +12,6 @@ Some key advantages we feel workhorse has over other Gems:
   be easily readable, understandable and modifyable.
 
 - Workhorse allows to run multiple jobs simultaneously *in the same process*.
+
+We encourage you to have a look at the other projects as well and carefully
+figuring out which one is best for you.
