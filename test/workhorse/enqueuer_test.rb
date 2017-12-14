@@ -30,4 +30,17 @@ class Workhorse::EnqueuerTest < ActiveSupport::TestCase
     db_job = Workhorse::DbJob.first
     assert_equal 'q1', db_job.queue
   end
+
+  def test_op
+    Workhorse::Enqueuer.enqueue_op DummyRailsOpsOp, { foo: :bar }, queue: :q1
+
+    w = Workhorse::Worker.new(queues: [:q1])
+    w.start
+    sleep 1.5
+    w.shutdown
+
+    assert_equal 'succeeded', Workhorse::DbJob.first.state
+
+    assert_equal [{ foo: :bar }], DummyRailsOpsOp.results
+  end
 end

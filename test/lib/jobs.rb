@@ -20,3 +20,26 @@ class DbConnectionTestJob
     db_connections << ActiveRecord::Base.connection.object_id
   end
 end
+
+class DummyRailsOpsOp
+  class_attribute :results
+  self.results = Concurrent::Array.new
+
+  def self.run!(params = {})
+    new(params).run!
+  end
+
+  def initialize(params = {})
+    @params = params
+  end
+
+  def run!
+    perform
+  end
+
+  private
+
+  def perform
+    results << @params
+  end
+end
