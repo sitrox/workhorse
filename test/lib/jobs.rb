@@ -2,13 +2,14 @@ class BasicJob
   class_attribute :results
   self.results = Concurrent::Array.new
 
-  def initialize(some_param: nil)
+  def initialize(some_param: nil, sleep_time: 1)
     @some_param = some_param
+    @sleep_time = sleep_time
   end
 
   def perform
     results << @some_param
-    sleep 1
+    sleep @sleep_time
   end
 end
 

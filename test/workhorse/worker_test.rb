@@ -2,16 +2,16 @@ require 'test_helper'
 
 class Workhorse::WorkerTest < WorkhorseTest
   def test_idle
-    w = Workhorse::Worker.new(pool_size: 5)
+    w = Workhorse::Worker.new(pool_size: 5, polling_interval: 1)
     w.start
     assert_equal 5, w.idle
 
-    Workhorse::Enqueuer.enqueue BasicJob.new
+    Workhorse::Enqueuer.enqueue BasicJob.new(sleep_time: 3)
 
-    sleep 0.5
+    sleep 2
     assert_equal 4, w.idle
 
-    sleep 1
+    sleep 3
     assert_equal 5, w.idle
 
     w.shutdown
@@ -65,6 +65,7 @@ class Workhorse::WorkerTest < WorkhorseTest
     Process.kill 'TERM', Process.pid
     sleep 1
     w.assert_state! :shutdown
+    w.shutdown
   end
 
   def test_int
@@ -73,6 +74,7 @@ class Workhorse::WorkerTest < WorkhorseTest
     Process.kill 'INT', Process.pid
     sleep 1
     w.assert_state! :shutdown
+    w.shutdown
   end
 
   def test_no_queues
