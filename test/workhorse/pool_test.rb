@@ -7,21 +7,21 @@ class Workhorse::PoolTest < WorkhorseTest
 
       4.times do |_i|
         p.post do
-          sleep 1
+          sleep 0.5
         end
       end
 
-      sleep 0.5
+      sleep 0.1
       assert_equal 1, p.idle
 
-      sleep 1
+      sleep 0.5
       assert_equal 5, p.idle
     end
   end
 
   def test_overflow
     with_pool 5 do |p|
-      5.times { p.post { sleep 1 } }
+      5.times { p.post { sleep 0.5 } }
 
       exception = assert_raises do
         p.post { sleep 1 }
@@ -37,23 +37,21 @@ class Workhorse::PoolTest < WorkhorseTest
 
       5.times do
         p.post do
-          sleep 1
           counter.increment
         end
       end
 
-      sleep 1.2
+      sleep 0.01
 
       assert_equal 5, counter.value
 
       2.times do
         p.post do
-          sleep 1
           counter.increment
         end
       end
 
-      sleep 1.2
+      sleep 0.01
 
       assert_equal 7, counter.value
     end
