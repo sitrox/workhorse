@@ -6,12 +6,12 @@ class Workhorse::WorkerTest < WorkhorseTest
     w.start
     assert_equal 5, w.idle
 
-    Workhorse::Enqueuer.enqueue BasicJob.new(sleep_time: 3)
+    Workhorse::Enqueuer.enqueue BasicJob.new(sleep_time: 0.5)
 
-    sleep 2
+    sleep 0.1
     assert_equal 4, w.idle
 
-    sleep 3
+    sleep 0.5
     assert_equal 5, w.idle
 
     w.shutdown
@@ -34,11 +34,11 @@ class Workhorse::WorkerTest < WorkhorseTest
 
   def test_perform
     w = Workhorse::Worker.new polling_interval: 1
-    Workhorse::Enqueuer.enqueue BasicJob.new
+    Workhorse::Enqueuer.enqueue BasicJob.new(sleep_time: 0.1)
     assert_equal 'waiting', Workhorse::DbJob.first.state
 
     w.start
-    sleep 2
+    sleep 1
     w.shutdown
 
     assert_equal 'succeeded', Workhorse::DbJob.first.state
@@ -47,10 +47,10 @@ class Workhorse::WorkerTest < WorkhorseTest
   def test_params
     BasicJob.results.clear
 
-    Workhorse::Enqueuer.enqueue BasicJob.new(some_param: 5)
+    Workhorse::Enqueuer.enqueue BasicJob.new(some_param: 5, sleep_time: 0)
     w = Workhorse::Worker.new polling_interval: 1
     w.start
-    sleep 2
+    sleep 0.5
     w.shutdown
 
     assert_equal 'succeeded', Workhorse::DbJob.first.state
@@ -79,17 +79,17 @@ class Workhorse::WorkerTest < WorkhorseTest
 
   def test_no_queues
     enqueue_in_multiple_queues
-    work 3, queues: [nil, :q1]
+    work 1
 
     jobs = Workhorse::DbJob.order(queue: :asc).to_a
     assert_equal 'succeeded', jobs[0].state
     assert_equal 'succeeded', jobs[1].state
-    assert_equal 'waiting',   jobs[2].state
+    assert_equal 'succeeded', jobs[2].state
   end
 
   def test_queues_with_nil
     enqueue_in_multiple_queues
-    work 3, queues: [nil, :q1]
+    work 1, queues: [nil, :q1]
 
     jobs = Workhorse::DbJob.order(queue: :asc).to_a
     assert_equal 'succeeded', jobs[0].state
@@ -99,7 +99,7 @@ class Workhorse::WorkerTest < WorkhorseTest
 
   def test_queues_without_nil
     enqueue_in_multiple_queues
-    work 3, queues: %i[q1 q2]
+    work 1, queues: %i[q1 q2]
 
     jobs = Workhorse::DbJob.order(queue: :asc).to_a
     assert_equal 'waiting',   jobs[0].state

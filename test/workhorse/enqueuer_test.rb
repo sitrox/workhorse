@@ -32,7 +32,7 @@ class Workhorse::EnqueuerTest < WorkhorseTest
 
     w = Workhorse::Worker.new(queues: [:q1])
     w.start
-    sleep 1.5
+    sleep 1
     w.shutdown
 
     assert_equal 'succeeded', Workhorse::DbJob.first.state
