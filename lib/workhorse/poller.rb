@@ -99,10 +99,14 @@ module Workhorse
 
       # Restrict queues to "open" ones
       unless worker.queues.empty?
-        where = table[:queue].in(worker.queues.reject(&:nil?))
-
         if worker.queues.include?(nil)
-          where = where.or(table[:queue].eq(nil))
+          where = table[:queue].eq(nil)
+          remaining_queues = worker.queues.reject(&:nil?)
+          unless remaining_queues.empty?
+            where = where.or(table[:queue].in(remaining_queues))
+          end
+        else
+          where = table[:queue].in(worker.queues)
         end
 
         select = select.where(where)
