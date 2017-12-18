@@ -87,6 +87,16 @@ class Workhorse::WorkerTest < WorkhorseTest
     assert_equal 'succeeded', jobs[2].state
   end
 
+  def test_nil_queue
+    enqueue_in_multiple_queues
+    work 1, queues: [nil]
+
+    jobs = Workhorse::DbJob.order(queue: :asc).to_a
+    assert_equal 'succeeded', jobs[0].state
+    assert_equal 'waiting',   jobs[1].state
+    assert_equal 'waiting',   jobs[2].state
+  end
+
   def test_queues_with_nil
     enqueue_in_multiple_queues
     work 1, queues: [nil, :q1]

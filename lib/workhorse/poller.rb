@@ -75,7 +75,7 @@ module Workhorse
       is_oracle = ActiveRecord::Base.connection.adapter_name == 'OracleEnhanced'
 
       # ---------------------------------------------------------------
-      # Lock all queued jobs that are not complete
+      # Lock all queued jobs that are waiting
       # ---------------------------------------------------------------
       Workhorse::DbJob.connection.execute(
         Workhorse::DbJob.select('null').where(
@@ -98,11 +98,17 @@ module Workhorse
       select = select.where(table[:queue].not_in(bad_queries_select))
 
       # Restrict queues to "open" ones
-      if worker.queues.any?
-        where = table[:queue].in(worker.queues.reject(&:nil?))
+      unless worker.queues.empty?
         if worker.queues.include?(nil)
-          where = where.or(table[:queue].eq(nil))
+          where = table[:queue].eq(nil)
+          remaining_queues = worker.queues.reject(&:nil?)
+          unless remaining_queues.empty?
+            where = where.or(table[:queue].in(remaining_queues))
+          end
+        else
+          where = table[:queue].in(worker.queues)
         end
+
         select = select.where(where)
       end
 
