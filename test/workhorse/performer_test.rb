@@ -5,14 +5,14 @@ class Workhorse::WorkerTest < WorkhorseTest
   # connections.
   def test_db_connections
     w = Workhorse::Worker.new polling_interval: 1, pool_size: 5
-    5.times do
+    2.times do
       Workhorse.enqueue DbConnectionTestJob.new
     end
     w.start
     sleep 1
     w.shutdown
 
-    assert_equal 5, DbConnectionTestJob.db_connections.count
-    assert_equal 5, DbConnectionTestJob.db_connections.uniq.count
+    assert_equal 2, DbConnectionTestJob.db_connections.count
+    assert_equal 2, DbConnectionTestJob.db_connections.uniq.count
   end
 end
