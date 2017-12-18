@@ -6,7 +6,7 @@ class Workhorse::WorkerTest < WorkhorseTest
   def test_db_connections
     w = Workhorse::Worker.new polling_interval: 1, pool_size: 5
     5.times do
-      Workhorse::Enqueuer.enqueue DbConnectionTestJob.new
+      Workhorse.enqueue DbConnectionTestJob.new
     end
     w.start
     sleep 1

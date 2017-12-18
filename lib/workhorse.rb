@@ -2,7 +2,11 @@ require 'socket'
 require 'active_support/all'
 require 'active_record'
 
+require 'workhorse/enqueuer'
+
 module Workhorse
+  extend Workhorse::Enqueuer
+
   @set_up = false
 
   # Returns the performer currently performing the active job. This can only be
@@ -28,7 +32,6 @@ module Workhorse
 end
 
 require 'workhorse/db_job'
-require 'workhorse/enqueuer'
 require 'workhorse/performer'
 require 'workhorse/poller'
 require 'workhorse/pool'

@@ -6,7 +6,7 @@ class Workhorse::WorkerTest < WorkhorseTest
     w.start
     assert_equal 5, w.idle
 
-    Workhorse::Enqueuer.enqueue BasicJob.new(sleep_time: 0.5)
+    Workhorse.enqueue BasicJob.new(sleep_time: 0.5)
 
     sleep 0.1
     assert_equal 4, w.idle
@@ -29,12 +29,12 @@ class Workhorse::WorkerTest < WorkhorseTest
     w.shutdown
     w.shutdown # Should be ignored
 
-    Workhorse::Enqueuer.enqueue BasicJob.new
+    Workhorse.enqueue BasicJob.new
   end
 
   def test_perform
     w = Workhorse::Worker.new polling_interval: 1
-    Workhorse::Enqueuer.enqueue BasicJob.new(sleep_time: 0.1)
+    Workhorse.enqueue BasicJob.new(sleep_time: 0.1)
     assert_equal 'waiting', Workhorse::DbJob.first.state
 
     w.start
@@ -47,7 +47,7 @@ class Workhorse::WorkerTest < WorkhorseTest
   def test_params
     BasicJob.results.clear
 
-    Workhorse::Enqueuer.enqueue BasicJob.new(some_param: 5, sleep_time: 0)
+    Workhorse.enqueue BasicJob.new(some_param: 5, sleep_time: 0)
     w = Workhorse::Worker.new polling_interval: 1
     w.start
     sleep 0.5
@@ -120,8 +120,8 @@ class Workhorse::WorkerTest < WorkhorseTest
   private
 
   def enqueue_in_multiple_queues
-    Workhorse::Enqueuer.enqueue BasicJob.new(some_param: nil)
-    Workhorse::Enqueuer.enqueue BasicJob.new(some_param: :q1), queue: :q1
-    Workhorse::Enqueuer.enqueue BasicJob.new(some_param: :q2), queue: :q2
+    Workhorse.enqueue BasicJob.new(some_param: nil)
+    Workhorse.enqueue BasicJob.new(some_param: :q1), queue: :q1
+    Workhorse.enqueue BasicJob.new(some_param: :q2), queue: :q2
   end
 end

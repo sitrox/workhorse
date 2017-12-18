@@ -3,7 +3,7 @@ require 'test_helper'
 class Workhorse::EnqueuerTest < WorkhorseTest
   def test_basic
     assert_equal 0, Workhorse::DbJob.all.count
-    Workhorse::Enqueuer.enqueue BasicJob.new
+    Workhorse.enqueue BasicJob.new
     assert_equal 1, Workhorse::DbJob.all.count
 
     db_job = Workhorse::DbJob.first
@@ -20,7 +20,7 @@ class Workhorse::EnqueuerTest < WorkhorseTest
 
   def test_with_queue
     assert_equal 0, Workhorse::DbJob.all.count
-    Workhorse::Enqueuer.enqueue BasicJob.new, queue: :q1
+    Workhorse.enqueue BasicJob.new, queue: :q1
     assert_equal 1, Workhorse::DbJob.all.count
 
     db_job = Workhorse::DbJob.first
@@ -28,7 +28,7 @@ class Workhorse::EnqueuerTest < WorkhorseTest
   end
 
   def test_op
-    Workhorse::Enqueuer.enqueue_op DummyRailsOpsOp, { foo: :bar }, queue: :q1
+    Workhorse.enqueue_op DummyRailsOpsOp, { foo: :bar }, queue: :q1
 
     w = Workhorse::Worker.new(queues: [:q1])
     w.start
