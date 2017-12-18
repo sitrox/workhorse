@@ -28,7 +28,7 @@ class Workhorse::EnqueuerTest < WorkhorseTest
   end
 
   def test_op
-    Workhorse.enqueue_op DummyRailsOpsOp, { foo: :bar }, queue: :q1
+    Workhorse.enqueue_op DummyRailsOpsOp, { queue: :q1 }, foo: :bar
 
     w = Workhorse::Worker.new(queues: [:q1])
     w.start
@@ -38,5 +38,15 @@ class Workhorse::EnqueuerTest < WorkhorseTest
     assert_equal 'succeeded', Workhorse::DbJob.first.state
 
     assert_equal [{ foo: :bar }], DummyRailsOpsOp.results
+  end
+
+  def test_op_without_params
+    Workhorse.enqueue_op DummyRailsOpsOp, queue: :q1
+    assert_equal 'q1', Workhorse::DbJob.first.queue
+  end
+
+  def test_op_without_params_and_queue
+    Workhorse.enqueue_op DummyRailsOpsOp
+    assert_nil Workhorse::DbJob.first.queue
   end
 end

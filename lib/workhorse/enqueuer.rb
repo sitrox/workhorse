@@ -14,9 +14,22 @@ module Workhorse
     end
 
     # Enqueue the execution of an operation by its class and params
-    def enqueue_op(cls, params, queue: nil)
-      job = Workhorse::Jobs::RunRailsOp.new(cls, params)
-      enqueue job, queue: queue
+    def enqueue_op(cls, *args)
+      case args.size
+      when 0
+        workhorse_args = {}
+        op_args = {}
+      when 1
+        workhorse_args = args.first
+        op_args = {}
+      when 2
+        workhorse_args, op_args = *args
+      else
+        fail ArgumentError, "wrong number of arguments (#{args.size + 1} for 2..3)"
+      end
+
+      job = Workhorse::Jobs::RunRailsOp.new(cls, op_args)
+      enqueue job, workhorse_args
     end
   end
 end
