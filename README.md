@@ -33,7 +33,8 @@ What it does not do:
   MySQL with InnoDB, PostgreSQL, or Oracle).
 * If you are planning on using the daemons handler:
   * An operating system and file system that supports file locking.
-  * MRI ruby (aka "c ruby") as jRuby does not support `fork`.
+  * MRI ruby (aka "c ruby") as jRuby does not support `fork`. See the
+    [FAQ](FAQ.md) for possible workarounds.
 
 ### Installing under Rails
 
