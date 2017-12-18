@@ -6,12 +6,14 @@ class Workhorse::WorkerTest < WorkhorseTest
     w.start
     assert_equal 5, w.idle
 
-    Workhorse.enqueue BasicJob.new(sleep_time: 0.5)
+    sleep 0.5
 
-    sleep 0.1
+    Workhorse.enqueue BasicJob.new(sleep_time: 1)
+
+    sleep 1
     assert_equal 4, w.idle
 
-    sleep 0.5
+    sleep 1
     assert_equal 5, w.idle
 
     w.shutdown
