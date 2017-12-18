@@ -18,8 +18,8 @@ module Workhorse
       @thread = Thread.new do
         begin
           loop do
-            poll
             break unless running?
+            poll
             sleep
           end
         rescue => e

@@ -140,7 +140,7 @@ For this case, the workhorse install routine automatically creates the file
 The script can be called as follows:
 
 ```bash
-bin/workhorse.rb start|stop|status|watch|restart|usage
+RAILS_ENV=production bin/workhorse.rb start|stop|status|watch|restart|usage
 ```
 
 #### Background and customization

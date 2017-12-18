@@ -57,3 +57,11 @@ Workhorse::Worker.start_and_wait(pool_size: 5)
 ```
 
 This can then be started and "daemonized" using standard linux tools.
+
+## I'm getting random autoloading exeptions
+
+Make sure to always start the worker in *production mode*, i.e.:
+
+```bash
+RAILS_ENV=production bin/workhorse.rb start
+```

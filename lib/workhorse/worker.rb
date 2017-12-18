@@ -52,6 +52,8 @@ module Workhorse
       @logger = logger
 
       fail 'Polling interval must be an integer.' unless @polling_interval.is_a?(Integer)
+
+      check_rails_env if defined?(Rails)
     end
 
     def log(text, level = :info)
@@ -133,6 +135,12 @@ module Workhorse
     end
 
     private
+
+    def check_rails_env
+      unless Rails.env.production?
+        warn 'WARNING: Always run workhorse workers in production environment. Other environments can lead to unexpected behavior.'
+      end
+    end
 
     def trap_termination
       SHUTDOWN_SIGNALS.each do |signal|
