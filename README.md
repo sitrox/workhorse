@@ -25,7 +25,8 @@ What it does not do:
 * It does not spawn new processes on the fly. Jobs are run in separate threads
   but not in separate processes (unless you manually start multiple worker
   processes).
-* It does not support retries, timeouts, and timed execution.
+* It does not support
+  [timeouts](FAQ.md#why-does-workhorse-not-support-timeouts) and timed execution.
 
 ## Installation
 
@@ -36,7 +37,7 @@ What it does not do:
 * If you are planning on using the daemons handler:
   * An operating system and file system that supports file locking.
   * MRI ruby (aka "c ruby") as jRuby does not support `fork`. See the
-    [FAQ](FAQ.md##im-using-jruby-how-can-i-use-the-daemon-handler) for possible workarounds.
+    [FAQ](FAQ.md#im-using-jruby-how-can-i-use-the-daemon-handler) for possible workarounds.
 
 ### Installing under Rails
 
