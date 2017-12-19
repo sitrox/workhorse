@@ -15,10 +15,9 @@ class WorkhorseTest < ActiveSupport::TestCase
     options[:pool_size] ||= 5
     options[:polling_interval] ||= 1
 
-    w = Workhorse::Worker.new(options)
-    w.start
-    sleep time
-    w.shutdown
+    with_worker(options) do
+      sleep time
+    end
   end
 
   def with_worker(options = {})
