@@ -15,7 +15,7 @@ ActiveRecord::Schema.define do
     t.datetime :failed_at
     t.text :last_error, limit: 4_294_967_295
 
-    t.integer :priority
+    t.integer :priority, null: false
 
     t.timestamps null: false
   end
