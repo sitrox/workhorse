@@ -166,7 +166,6 @@ Please consult the [FAQ](FAQ.md).
 ## Roadmap
 
 * [ ] ActiveJob integration for Rails
-* [ ] Job timeouts
 
 ## Copyright
 
