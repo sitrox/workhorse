@@ -20,6 +20,16 @@ class WorkhorseTest < ActiveSupport::TestCase
     sleep time
     w.shutdown
   end
+
+  def with_worker(options = {})
+    w = Workhorse::Worker.new(options)
+    begin
+      w.start
+      yield(w)
+    ensure
+      w.shutdown
+    end
+  end
 end
 
 ActiveRecord::Base.establish_connection adapter: 'mysql2', database: 'workhorse', username: 'travis', password: '', pool: 10, host: :localhost
