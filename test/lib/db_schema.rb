@@ -4,7 +4,7 @@ ActiveRecord::Schema.define do
   create_table :jobs, force: true do |t|
     t.string :state, null: false, default: 'waiting'
     t.string :queue, null: true
-    t.text :handler, null: false
+    t.text :handler, null: false, limit: 4_294_967_295
 
     t.string :locked_by
     t.datetime :locked_at
@@ -13,7 +13,9 @@ ActiveRecord::Schema.define do
 
     t.datetime :succeeded_at
     t.datetime :failed_at
-    t.text :last_error
+    t.text :last_error, limit: 4_294_967_295
+
+    t.integer :priority
 
     t.timestamps null: false
   end

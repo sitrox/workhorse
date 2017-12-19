@@ -113,7 +113,7 @@ module Workhorse
       end
 
       # Order by creation date
-      select = select.order(table[:created_at].asc)
+      select = select.order(table[:priority].asc).order(table[:created_at].asc)
 
       # Limit number of records
       if is_oracle

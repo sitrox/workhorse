@@ -9,7 +9,7 @@ class BasicJob
 
   def perform
     results << @some_param
-    sleep @sleep_time
+    sleep @sleep_time if @sleep_time > 0
   end
 end
 
