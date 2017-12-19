@@ -1,4 +1,4 @@
-class CreateTableJobs < ActiveRecord::Migration
+class CreateTableJobs < ActiveRecord::Migration[4.2]
   def change
     create_table :jobs, force: true do |t|
       t.string :state, null: false, default: 'waiting'
