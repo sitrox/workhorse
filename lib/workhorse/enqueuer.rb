@@ -1,16 +1,17 @@
 module Workhorse
   module Enqueuer
     # Enqueue any object that is serializable and has a `perform` method
-    def enqueue(job, queue: nil)
+    def enqueue(job, queue: nil, priority: 0)
       return DbJob.create!(
         queue: queue,
+        priority: priority,
         handler: Marshal.dump(job)
       )
     end
 
     # Enqueue an ActiveJob job
     def enqueue_active_job(job)
-      enqueue job, queue: job.queue_name
+      enqueue job, queue: job.queue_name, priority: job.priority
     end
 
     # Enqueue the execution of an operation by its class and params

@@ -25,6 +25,12 @@ class Workhorse::EnqueuerTest < WorkhorseTest
 
     db_job = Workhorse::DbJob.first
     assert_equal 'q1', db_job.queue
+    assert_equal 0, db_job.priority
+  end
+
+  def test_with_priority
+    Workhorse.enqueue BasicJob.new, priority: 1
+    assert_equal 1, Workhorse::DbJob.first.priority
   end
 
   def test_op
