@@ -14,6 +14,8 @@ class CreateTableJobs < ActiveRecord::Migration[4.2]
       t.datetime :failed_at
       t.text :last_error, limit: 4_294_967_295
 
+      t.integer :priority
+
       t.timestamps null: false
     end
 
