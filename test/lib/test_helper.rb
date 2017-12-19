@@ -23,8 +23,8 @@ class WorkhorseTest < ActiveSupport::TestCase
 
   def with_worker(options = {})
     w = Workhorse::Worker.new(options)
+    w.start
     begin
-      w.start
       yield(w)
     ensure
       w.shutdown
