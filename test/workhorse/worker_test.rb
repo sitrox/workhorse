@@ -2,44 +2,41 @@ require 'test_helper'
 
 class Workhorse::WorkerTest < WorkhorseTest
   def test_idle
-    w = Workhorse::Worker.new(pool_size: 5, polling_interval: 1)
-    w.start
-    assert_equal 5, w.idle
+    with_worker(pool_size: 5, polling_interval: 1) do |w|
+      assert_equal 5, w.idle
 
-    Workhorse.enqueue BasicJob.new(sleep_time: 0.5)
+      sleep 0.5
+      Workhorse.enqueue BasicJob.new(sleep_time: 1)
 
-    sleep 0.1
-    assert_equal 4, w.idle
+      sleep 1
+      assert_equal 4, w.idle
 
-    sleep 0.5
-    assert_equal 5, w.idle
-
-    w.shutdown
+      sleep 1
+      assert_equal 5, w.idle
+    end
   end
 
   def test_start_and_shutdown
-    w = Workhorse::Worker.new
-    w.start
-    w.assert_state! :running
+    with_worker do |w|
+      w.assert_state! :running
 
-    assert_raises RuntimeError do
-      w.start
+      assert_raises RuntimeError do
+        w.start
+      end
+
+      w.shutdown
+      w.shutdown # Should be ignored
     end
-
-    w.shutdown
-    w.shutdown # Should be ignored
-
-    Workhorse.enqueue BasicJob.new
   end
 
   def test_perform
-    w = Workhorse::Worker.new polling_interval: 1
-    Workhorse.enqueue BasicJob.new(sleep_time: 0.1)
-    assert_equal 'waiting', Workhorse::DbJob.first.state
+    with_worker(polling_interval: 1) do
+      sleep 0.1
+      Workhorse.enqueue BasicJob.new(sleep_time: 0.1)
+      assert_equal 'waiting', Workhorse::DbJob.first.state
 
-    w.start
-    sleep 1
-    w.shutdown
+      sleep 1
+    end
 
     assert_equal 'succeeded', Workhorse::DbJob.first.state
   end
@@ -48,10 +45,7 @@ class Workhorse::WorkerTest < WorkhorseTest
     BasicJob.results.clear
 
     Workhorse.enqueue BasicJob.new(some_param: 5, sleep_time: 0)
-    w = Workhorse::Worker.new polling_interval: 1
-    w.start
-    sleep 0.5
-    w.shutdown
+    work 0.5
 
     assert_equal 'succeeded', Workhorse::DbJob.first.state
 
@@ -60,21 +54,19 @@ class Workhorse::WorkerTest < WorkhorseTest
   end
 
   def test_term
-    w = Workhorse::Worker.new
-    w.start
-    Process.kill 'TERM', Process.pid
-    sleep 1
-    w.assert_state! :shutdown
-    w.shutdown
+    with_worker do |w|
+      Process.kill 'TERM', Process.pid
+      sleep 1
+      w.assert_state! :shutdown
+    end
   end
 
   def test_int
-    w = Workhorse::Worker.new
-    w.start
-    Process.kill 'INT', Process.pid
-    sleep 1
-    w.assert_state! :shutdown
-    w.shutdown
+    with_worker do |w|
+      Process.kill 'INT', Process.pid
+      sleep 1
+      w.assert_state! :shutdown
+    end
   end
 
   def test_no_queues
