@@ -15,6 +15,8 @@ How it works:
 * Each worker is configurable as to which queue(s) it processes. Jobs in the
   same queue never run simultaneously. Jobs with no queue can always run in
   parallel.
+* Each job has a priority, the default being 0. Jobs with higher priorities
+  (lower is higher, 0 the highest) get processed first.
 * Each worker polls the database and spawns a number of threads to execute jobs
   of different queues simultaneously.
 
@@ -66,7 +68,7 @@ What it does not do:
 
 Workhorse can handle any jobs that support the `perform` method and are
 serializable. To queue a basic job, use the static method `Workhorse.enqueue`.
-You can optionally pass a queue name.
+You can optionally pass a queue name and a priority.
 
 ```ruby
 class MyJob
@@ -79,7 +81,7 @@ class MyJob
   end
 end
 
-Workhorse.enqueue MyJob.new('John'), queue: :test
+Workhorse.enqueue MyJob.new('John'), queue: :test, priority: 2
 ```
 
 ### RailsOps operations
@@ -89,7 +91,7 @@ Workhorse allows you to easily queue
 method `Workhorse.enqueue_op`:
 
 ```ruby
-Workhorse.enqueue_op Operations::Jobs::CleanUpDatabase, { quiet: true }, queue: :maintenance
+Workhorse.enqueue_op Operations::Jobs::CleanUpDatabase, { quiet: true }, queue: :maintenance, priority: 2
 ```
 
 Params passed using the second argument will be used for operation instantiation
@@ -98,7 +100,8 @@ at job execution.
 If you do not want to pass any params to the operation, just omit the second hash:
 
 ```ruby
-Workhorse.enqueue_op Operations::Jobs::CleanUpDatabase, queue: :maintenance
+Workhorse.enqueue_op Operations::Jobs::CleanUpDatabase, queue: :maintenance,
+priority: 2
 ```
 
 ## Configuring and starting workers
@@ -164,7 +167,6 @@ Please consult the [FAQ](FAQ.md).
 
 * [ ] ActiveJob integration for Rails
 * [ ] Job timeouts
-* [ ] Job priorities
 
 ## Copyright
 
