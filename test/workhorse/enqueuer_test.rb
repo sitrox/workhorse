@@ -36,9 +36,9 @@ class Workhorse::EnqueuerTest < WorkhorseTest
   def test_op
     Workhorse.enqueue_op DummyRailsOpsOp, { queue: :q1 }, foo: :bar
 
-    w = Workhorse::Worker.new(queues: [:q1])
+    w = Workhorse::Worker.new(queues: [:q1], polling_interval: 0.2)
     w.start
-    sleep 1
+    sleep 0.2
     w.shutdown
 
     assert_equal 'succeeded', Workhorse::DbJob.first.state
