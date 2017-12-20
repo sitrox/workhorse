@@ -44,8 +44,8 @@ module Workhorse
       remaining = worker.polling_interval
 
       while running? && remaining > 0
-        Kernel.sleep 1
-        remaining -= 1
+        Kernel.sleep 0.1
+        remaining -= 0.1
       end
     end
 

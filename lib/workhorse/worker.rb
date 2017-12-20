@@ -51,7 +51,9 @@ module Workhorse
       @poller = Workhorse::Poller.new(self)
       @logger = logger
 
-      fail 'Polling interval must be an integer.' unless @polling_interval.is_a?(Integer)
+      unless (@polling_interval / 0.1).round(2).modulo(1) == 0.0
+        fail 'Polling interval must be a multiple of 0.1.'
+      end
 
       check_rails_env if defined?(Rails)
     end
