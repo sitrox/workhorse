@@ -35,7 +35,7 @@ class Workhorse::WorkerTest < WorkhorseTest
       Workhorse.enqueue BasicJob.new(sleep_time: 0.1)
       assert_equal 'waiting', Workhorse::DbJob.first.state
 
-      sleep 1
+      sleep 1.1
     end
 
     assert_equal 'succeeded', Workhorse::DbJob.first.state
