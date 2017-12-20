@@ -2,16 +2,16 @@ require 'test_helper'
 
 class Workhorse::WorkerTest < WorkhorseTest
   def test_idle
-    with_worker(pool_size: 5, polling_interval: 1) do |w|
+    with_worker(pool_size: 5, polling_interval: 0.2) do |w|
       assert_equal 5, w.idle
 
-      sleep 0.5
-      Workhorse.enqueue BasicJob.new(sleep_time: 1)
+      sleep 0.1
+      Workhorse.enqueue BasicJob.new(sleep_time: 0.2)
 
-      sleep 1
+      sleep 0.2
       assert_equal 4, w.idle
 
-      sleep 1
+      sleep 0.2
       assert_equal 5, w.idle
     end
   end
@@ -30,12 +30,12 @@ class Workhorse::WorkerTest < WorkhorseTest
   end
 
   def test_perform
-    with_worker(polling_interval: 1) do
+    with_worker(polling_interval: 0.2) do
       sleep 0.1
       Workhorse.enqueue BasicJob.new(sleep_time: 0.1)
       assert_equal 'waiting', Workhorse::DbJob.first.state
 
-      sleep 1
+      sleep 0.3
     end
 
     assert_equal 'succeeded', Workhorse::DbJob.first.state
@@ -54,24 +54,24 @@ class Workhorse::WorkerTest < WorkhorseTest
   end
 
   def test_term
-    with_worker do |w|
+    with_worker(polling_interval: 0.2) do |w|
       Process.kill 'TERM', Process.pid
-      sleep 1
+      sleep 0.2
       w.assert_state! :shutdown
     end
   end
 
   def test_int
-    with_worker do |w|
+    with_worker(polling_interval: 0.2) do |w|
       Process.kill 'INT', Process.pid
-      sleep 1
+      sleep 0.2
       w.assert_state! :shutdown
     end
   end
 
   def test_no_queues
     enqueue_in_multiple_queues
-    work 1
+    work 0.2, polling_interval: 0.2
 
     jobs = Workhorse::DbJob.order(queue: :asc).to_a
     assert_equal 'succeeded', jobs[0].state
@@ -81,7 +81,7 @@ class Workhorse::WorkerTest < WorkhorseTest
 
   def test_nil_queue
     enqueue_in_multiple_queues
-    work 1, queues: [nil]
+    work 0.2, queues: [nil], polling_interval: 0.2
 
     jobs = Workhorse::DbJob.order(queue: :asc).to_a
     assert_equal 'succeeded', jobs[0].state
@@ -91,7 +91,7 @@ class Workhorse::WorkerTest < WorkhorseTest
 
   def test_queues_with_nil
     enqueue_in_multiple_queues
-    work 1, queues: [nil, :q1]
+    work 0.2, queues: [nil, :q1], polling_interval: 0.2
 
     jobs = Workhorse::DbJob.order(queue: :asc).to_a
     assert_equal 'succeeded', jobs[0].state
@@ -101,7 +101,7 @@ class Workhorse::WorkerTest < WorkhorseTest
 
   def test_queues_without_nil
     enqueue_in_multiple_queues
-    work 1, queues: %i[q1 q2]
+    work 0.2, queues: %i[q1 q2], polling_interval: 0.2
 
     jobs = Workhorse::DbJob.order(queue: :asc).to_a
     assert_equal 'waiting',   jobs[0].state
@@ -118,8 +118,17 @@ class Workhorse::WorkerTest < WorkhorseTest
     Workhorse.enqueue BasicJob.new(some_param: 1, sleep_time: 0), priority: 0
 
     BasicJob.results.clear
-    work 6.5, pool_size: 1
+    work 1.3, pool_size: 1, polling_interval: 0.2
     assert_equal (1..6).to_a, BasicJob.results
+  end
+
+  def test_polling_interval
+    w = Workhorse::Worker.new(polling_interval: 1)
+    w = Workhorse::Worker.new(polling_interval: 1.1)
+    err = assert_raises do
+      w = Workhorse::Worker.new(polling_interval: 1.12)
+    end
+    assert_equal 'Polling interval must be a multiple of 0.1.', err.message
   end
 
   private
