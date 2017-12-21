@@ -37,6 +37,7 @@ require 'workhorse/poller'
 require 'workhorse/pool'
 require 'workhorse/worker'
 require 'workhorse/jobs/run_rails_op'
+require 'workhorse/jobs/cleanup_succeeded_jobs'
 
 # Daemon functionality is not available on java platforms
 if RUBY_PLATFORM != 'java'
