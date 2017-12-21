@@ -66,6 +66,12 @@ Make sure to always start the worker in *production mode*, i.e.:
 RAILS_ENV=production bin/workhorse.rb start
 ```
 
+## I'm getting "No live threads left. Deadlock?" exceptions
+
+Make sure the Worker is logging somewhere and check the logs. Typically there is
+an underlying error that leads to the exception, e.g. missing migration in
+production mode.
+
 ## Why does workhorse not support timeouts?
 
 Generic timeout implementations are [a dangerous thing](http://www.mikeperham.com/2015/05/08/timeout-rubys-most-dangerous-api/) in Ruby. This is why we decided against providing this feature in Workhorse and recommend to implement the timeouts inside of your jobs - i.e. via network timeouts.
