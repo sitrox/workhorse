@@ -19,7 +19,18 @@ class CreateTableJobs < ActiveRecord::Migration[4.2]
       t.timestamps null: false
     end
 
-    add_index :jobs, :queue
-    add_index :jobs, :state
+    if oracle?
+      add_index :jobs, :queue
+      add_index :jobs, :state
+    else
+      add_index :jobs, :queue, length: 191
+      add_index :jobs, :state, length: 191
+    end
+  end
+
+  private
+
+  def oracle?
+    ActiveRecord::Base.connection.adapter_name == 'OracleEnhanced'
   end
 end

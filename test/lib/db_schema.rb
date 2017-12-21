@@ -19,4 +19,7 @@ ActiveRecord::Schema.define do
 
     t.timestamps null: false
   end
+
+  add_index :jobs, :queue, length: 191
+  add_index :jobs, :state, length: 191
 end
