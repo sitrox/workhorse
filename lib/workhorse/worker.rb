@@ -29,8 +29,7 @@ module Workhorse
     #   number of given queues + 1.
     # @param polling_interval [Integer] Interval in seconds the database will
     #   be polled for new jobs. Set this as high as possible to avoid
-    #   unnecessary database load Set this as high as possible to avoid
-    #   unnecessary database load.
+    #   unnecessary database load. Defaults to 5 minutes.
     # @param auto_terminate [Boolean] Whether to automatically shut down the
     #   worker properly on INT and TERM signals.
     # @param quiet [Boolean] If this is set to `false`, the worker will also log
@@ -38,7 +37,7 @@ module Workhorse
     # @param logger [Logger] An optional logger the worker will append to. This
     #   can be any instance of ruby's `Logger` but is commonly set to
     #   `Rails.logger`.
-    def initialize(queues: [], pool_size: nil, polling_interval: 5, auto_terminate: true, quiet: true, logger: nil)
+    def initialize(queues: [], pool_size: nil, polling_interval: 300, auto_terminate: true, quiet: true, logger: nil)
       @queues = queues
       @pool_size = pool_size || queues.size + 1
       @polling_interval = polling_interval
