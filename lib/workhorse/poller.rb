@@ -1,10 +1,12 @@
 module Workhorse
   class Poller
     attr_reader :worker
+    attr_reader :table
 
     def initialize(worker)
       @worker = worker
       @running = false
+      @table = Workhorse::DbJob.arel_table
     end
 
     def running?
@@ -70,10 +72,8 @@ module Workhorse
       end
     end
 
+    # Returns an Array of #{Workhorse::DbJob}s that can be started
     def queued_db_jobs(limit)
-      table = Workhorse::DbJob.arel_table
-      is_oracle = ActiveRecord::Base.connection.adapter_name == 'OracleEnhanced'
-
       # ---------------------------------------------------------------
       # Lock all queued jobs that are waiting
       # ---------------------------------------------------------------
@@ -87,9 +87,90 @@ module Workhorse
       # ---------------------------------------------------------------
       # Select jobs to execute
       # ---------------------------------------------------------------
+      #
+      # Construct selects for each queue which then are UNIONed for the final
+      # set. This is required because we only want the first job of each queue
+      # to be posted.
+      union_parts = []
+      valid_queues.each do |queue|
+        # Start with a fresh select, as we now know the allowed queues
+        select = valid_ordered_select
+        select = select.where(table[:queue].eq(queue))
 
-      # Fetch all waiting jobs of the correct queues
-      select = table.project(Arel.sql('*')).where(table[:state].eq(:waiting))
+        # Get the maximum amount possible for no-queue jobs. This gives us the
+        # smallest possible set from which to draw the final set of jobs without
+        # any presumptions on the order.
+        record_number = queue.nil? ? limit : 1
+
+        union_parts << agnostic_limit(select, record_number)
+      end
+
+      return [] if union_parts.empty?
+
+      # Combine the jobs of each queue in a giant UNION chain. Arel does not
+      # support this directly, as it does not generate parentheses around the
+      # subselects.
+      union_query_sql = '('
+      union_query_sql += '(' + union_parts.shift.to_sql + ')'
+      union_parts.each do |part|
+        union_query_sql += ' UNION (' + part.to_sql + ')'
+      end
+      union_query_sql += ')'
+
+      # Create a new SelectManager to work with, using the UNION as data source
+      select = Arel::SelectManager.new(Arel.sql(union_query_sql).as('subselect'))
+      select = order(select.project(Arel.star))
+
+      # Limit number of records
+      select = agnostic_limit(select, limit)
+
+      select = select.lock
+
+      return Workhorse::DbJob.find_by_sql(select.to_sql)
+    end
+
+    # Returns a fresh Arel select manager containing all waiting jobs, ordered
+    # with {#order}.
+    #
+    # @return [Arel::SelectManager] the select manager
+    def valid_ordered_select
+      select = table.project(Arel.star)
+      select = select.where(table[:state].eq(:waiting))
+      return order(select)
+    end
+
+    # Orders the records by execution order (first to last)
+    #
+    # @param select [Arel::SelectManager] the select manager to sort
+    # @return [Arel::SelectManager] the passed select manager with sorting on
+    #   top
+    def order(select)
+      select.order(Arel.sql('priority').asc).order(Arel.sql('created_at').asc)
+    end
+
+    # Limits the number of records
+    #
+    # @param select [Arel::SelectManager] the select manager on which to apply
+    #   the limit
+    # @param number [Integer] the maximum number of records to return
+    # @return [Arel::SelectManager] the resultant select manager
+    def agnostic_limit(select, number)
+      is_oracle = ActiveRecord::Base.connection.adapter_name == 'OracleEnhanced'
+
+      return select.where(Arel.sql('ROWNUM').lteq(number)) if is_oracle
+      return select.take(number)
+    end
+
+    # Returns an Array of queue names for which a job may be posted
+    #
+    # This is done in multiple steps. First, all queues with jobs that are in
+    # progress are removed. Second, restrict to only queues for which we may
+    # post jobs. Third, extract the queue names of the remaining queues and
+    # return them in an Array.
+    #
+    # @return [Array] an array of unique queue names
+    def valid_queues
+      select = valid_ordered_select
 
       # Restrict queues that are currently in progress
       bad_queries_select = table.project(table[:queue])
@@ -97,7 +178,8 @@ module Workhorse
                                 .distinct
       select = select.where(table[:queue].not_in(bad_queries_select))
 
-      # Restrict queues to "open" ones
+      # Restrict queues to valid ones as indicated by the options given to the
+      # worker
       unless worker.queues.empty?
         if worker.queues.include?(nil)
           where = table[:queue].eq(nil)
@@ -112,19 +194,11 @@ module Workhorse
         select = select.where(where)
       end
 
-      # Order by creation date
-      select = select.order(table[:priority].asc).order(table[:created_at].asc)
-
-      # Limit number of records
-      if is_oracle
-        select = select.where(Arel.sql('ROWNUM').lteq(limit))
-      else
-        select = select.take(limit)
-      end
-
-      select = select.lock
-
-      return Workhorse::DbJob.find_by_sql(select.to_sql)
+      # Get the names of all valid queues. The extra project here allows
+      # selecting the last value in each row of the resulting array and getting
+      # the queue name.
+      queues = select.project(:queue)
+      return Workhorse::DbJob.connection.execute(queues.to_sql).map(&:last).uniq
     end
   end
 end
