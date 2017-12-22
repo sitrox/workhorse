@@ -109,6 +109,33 @@ class Workhorse::WorkerTest < WorkhorseTest
     assert_equal 'succeeded', jobs[2].state
   end
 
+  def test_multiple_queued_same_queue
+    # One queue
+    Workhorse.enqueue BasicJob.new(sleep_time: 0.2), queue: :q1
+    Workhorse.enqueue BasicJob.new(sleep_time: 0.2), queue: :q1
+
+    work 0.2, polling_interval: 0.2
+
+    jobs = Workhorse::DbJob.all.to_a
+    assert_equal 'succeeded', jobs[0].state
+    assert_equal 'waiting',   jobs[1].state
+
+    # Two queues
+    Workhorse::DbJob.delete_all
+    Workhorse.enqueue BasicJob.new(sleep_time: 0.2), queue: :q1
+    Workhorse.enqueue BasicJob.new(sleep_time: 0.2), queue: :q1
+    Workhorse.enqueue BasicJob.new(sleep_time: 0.2), queue: :q2
+    Workhorse.enqueue BasicJob.new(sleep_time: 0.2), queue: :q2
+
+    work 0.2, polling_interval: 0.2
+
+    jobs = Workhorse::DbJob.order(queue: :asc).to_a
+    assert_equal 'succeeded', jobs[0].state
+    assert_equal 'waiting',   jobs[1].state
+    assert_equal 'succeeded', jobs[2].state
+    assert_equal 'waiting',   jobs[3].state
+  end
+
   def test_order_with_priorities
     Workhorse.enqueue BasicJob.new(some_param: 6, sleep_time: 0), priority: 4
     Workhorse.enqueue BasicJob.new(some_param: 4, sleep_time: 0), priority: 3
