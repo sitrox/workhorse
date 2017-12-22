@@ -158,6 +158,16 @@ class Workhorse::WorkerTest < WorkhorseTest
     assert_equal 'Polling interval must be a multiple of 0.1.', err.message
   end
 
+  def test_perform_at
+    Workhorse.enqueue BasicJob.new(sleep_time: 0), perform_at: Time.now
+    Workhorse.enqueue BasicJob.new(sleep_time: 0), perform_at: Time.now + 600
+    work 0.1, polling_interval: 0.1
+
+    jobs = Workhorse::DbJob.all.to_a
+    assert_equal 'succeeded', jobs[0].state
+    assert_equal 'waiting',   jobs[1].state
+  end
+
   private
 
   def enqueue_in_multiple_queues
