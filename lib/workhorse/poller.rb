@@ -136,6 +136,7 @@ module Workhorse
     def valid_ordered_select
       select = table.project(Arel.star)
       select = select.where(table[:state].eq(:waiting))
+      select = select.where(table[:perform_at].lteq(Time.now).or(table[:perform_at].eq(nil)))
       return order(select)
     end
 
