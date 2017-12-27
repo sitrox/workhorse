@@ -1,9 +1,27 @@
 # Workhorse Change log
 
-## 0.2.0 - 2017-12-19
+## 0.3.0 – 2017-12-27
+
+### Added
+
+* Option `perform_at` to set earliest execution time of a job
+* Stock job for clean-up of succeeded jobs
+* Example for safe scheduling of repeating jobs
+
+### Changed
+
+* Improved help text output for the daemon
+* Polling intervals can now be multiples of 0.1 instead of integers
+
+### Fixed
+
+* Respect queues even when no job of that queue is running
+* Initial migration now works for both Oracle and MySQL
+
+## 0.2.0 – 2017-12-19
 
 * Adds support for job-level priorities
 
-## 0.1.0 - 2017-12-18
+## 0.1.0 – 2017-12-18
 
 * First feature-complete production release
