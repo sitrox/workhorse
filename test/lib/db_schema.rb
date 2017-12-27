@@ -16,10 +16,12 @@ ActiveRecord::Schema.define do
     t.text :last_error, limit: 4_294_967_295
 
     t.integer :priority, null: false
+    t.datetime :perform_at, null: true
 
     t.timestamps null: false
   end
 
   add_index :jobs, :queue, length: 191
   add_index :jobs, :state, length: 191
+  add_index :jobs, :perform_at
 end

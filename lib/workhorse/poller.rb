@@ -7,6 +7,7 @@ module Workhorse
       @worker = worker
       @running = false
       @table = Workhorse::DbJob.arel_table
+      @is_oracle = ActiveRecord::Base.connection.adapter_name == 'OracleEnhanced'
     end
 
     def running?
@@ -110,19 +111,30 @@ module Workhorse
       # Combine the jobs of each queue in a giant UNION chain. Arel does not
       # support this directly, as it does not generate parentheses around the
       # subselects.
+      # Furthermore, add the alias directly instead of using Arel `as`, because
+      # it uses the keyword 'AS' in SQL generated for Oracle, which is invalid
+      # for table aliases.
       union_query_sql = '('
       union_query_sql += '(' + union_parts.shift.to_sql + ')'
       union_parts.each do |part|
         union_query_sql += ' UNION (' + part.to_sql + ')'
       end
-      union_query_sql += ')'
+      union_query_sql += ') subselect'
 
       # Create a new SelectManager to work with, using the UNION as data source
-      select = Arel::SelectManager.new(Arel.sql(union_query_sql).as('subselect'))
+      select = Arel::SelectManager.new(Arel.sql(union_query_sql))
       select = order(select.project(Arel.star))
 
       # Limit number of records
       select = agnostic_limit(select, limit)
+
+      # Wrap the entire query in an other subselect to enable locking under
+      # Oracle SQL. As MySQL is able to lock the records without this additional
+      # complication, only do this when using the Oracle backend.
+      if @is_oracle
+        select = Arel::SelectManager.new(Arel.sql('(' + select.to_sql + ')'))
+        select = table.project(Arel.star).where(table[:id].in(select.project(:id)))
+      end
 
       select = select.lock
 
@@ -134,8 +146,9 @@ module Workhorse
     #
     # @return [Arel::SelectManager] the select manager
     def valid_ordered_select
-      select = table.project(Arel.star)
+      select = table.project(table[Arel.star])
       select = select.where(table[:state].eq(:waiting))
+      select = select.where(table[:perform_at].lteq(Time.now).or(table[:perform_at].eq(nil)))
       return order(select)
     end
 
@@ -155,9 +168,7 @@ module Workhorse
     # @param number [Integer] the maximum number of records to return
     # @return [Arel::SelectManager] the resultant select manager
     def agnostic_limit(select, number)
-      is_oracle = ActiveRecord::Base.connection.adapter_name == 'OracleEnhanced'
-
-      return select.where(Arel.sql('ROWNUM').lteq(number)) if is_oracle
+      return select.where(Arel.sql('ROWNUM').lteq(number)) if @is_oracle
       return select.take(number)
     end
 
@@ -198,7 +209,7 @@ module Workhorse
       # selecting the last value in each row of the resulting array and getting
       # the queue name.
       queues = select.project(:queue)
-      return Workhorse::DbJob.connection.execute(queues.to_sql).map(&:last).uniq
+      return Workhorse::DbJob.find_by_sql(queues.to_sql).map(&:queue).uniq
     end
   end
 end
