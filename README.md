@@ -11,14 +11,15 @@ How it works:
 
 * Jobs are instances of classes that support the `perform` method.
 * Jobs are persisted in the database using ActiveRecord.
+* Each job has a priority, the default being 0. Jobs with higher priorities
+  (lower is higher, 0 the highest) get processed first.
+* Each job can be set to execute after a certain date / time.
 * You can start one or more worker processes.
 * Each worker is configurable as to which queue(s) it processes. Jobs in the
   same queue never run simultaneously. Jobs with no queue can always run in
   parallel.
-* Each job has a priority, the default being 0. Jobs with higher priorities
-  (lower is higher, 0 the highest) get processed first.
-* Each worker polls the database and spawns a number of threads to execute jobs
-  of different queues simultaneously.
+* Each worker polls the database and spawns a configurable number of threads to
+  execute jobs of different queues simultaneously.
 
 What it does not do:
 
@@ -36,7 +37,7 @@ What it does not do:
   MySQL with InnoDB, PostgreSQL, or Oracle).
 * If you are planning on using the daemons handler:
   * An operating system and file system that supports file locking.
-  * MRI ruby (aka "c ruby") as jRuby does not support `fork`. See the
+  * MRI ruby (aka "CRuby") as jRuby does not support `fork`. See the
     [FAQ](FAQ.md#im-using-jruby-how-can-i-use-the-daemon-handler) for possible workarounds.
 
 ### Installing under Rails
@@ -101,9 +102,86 @@ at job execution.
 If you do not want to pass any params to the operation, just omit the second hash:
 
 ```ruby
-Workhorse.enqueue_op Operations::Jobs::CleanUpDatabase, queue: :maintenance,
-priority: 2
+Workhorse.enqueue_op Operations::Jobs::CleanUpDatabase, queue: :maintenance, priority: 2
 ```
+
+### Scheduling
+
+Workhorse has no out-of-the-box functionality to support scheduling of regular
+jobs, such as maintenance or backup jobs. There are two primary ways of
+achieving regular execution:
+
+1. Rescheduling by the same job after successful execution and setting
+   `perform_at`
+
+   This is simple to set up and requires no additional dependencies. However,
+   the time taken to execute a job and the time delay caused by the polling
+   interval cannot easily be factored into the calculation of the interval,
+   leading to a slight shift in effective execution date. (This can be mitigated
+   by scheduling the job before knowing whether the current run will succeed.
+   Proceed down this path at your own peril!)
+
+   *Example:* A job that takes 5 seconds to run and is set to reschedule itself
+   after 10 minutes is started at 12:00 sharp. After one hour it will be set to
+   execute at 13:00:30 at the earliest.
+
+   In its most basic form, the `perform` method of a job would look as follows:
+
+   ```ruby
+   class MyJob
+     def perform
+       # Do all the work
+
+       # Perform again after 10 minutes (600 seconds)
+       Workhorse.enqueue MyJob.new, perform_at: Time.now + 600
+     end
+   end
+   ```
+
+2. Using an external scheduler
+
+   A more elaborate setup requires an external scheduler, but which can still be
+   called from Ruby. One such scheduler is
+   [rufus-scheduler](https://github.com/jmettraux/rufus-scheduler). A small
+   example of an adapted `bin/workhorse.rb` to accommodate for the additional
+   cog in the mechanism is given below:
+
+   ```ruby
+   #!/usr/bin/env ruby
+   
+   require './config/environment'
+   
+   Workhorse::Daemon::ShellHandler.run do
+     worker = Workhorse::Worker.new(pool_size: 5, polling_interval: 10, logger: Rails.logger)
+     scheduler = Rufus::Scheduler.new
+   
+     worker.start
+   
+     scheduler.cron '0/10 * * * *' do
+       Workhorse.enqueue Workhorse::Jobs::CleanupSucceededJobs.new
+     end
+   
+     Signal.trap 'TERM' do
+       scheduler.shutdown
+       Thread.new do
+         worker.shutdown
+       end.join
+     end
+   
+     scheduler.join
+     worker.wait
+   end
+   ```
+
+   This allows starting and stopping the daemon with the usual interface.
+   Note that the scheduler is handled like a Workhorse worker, the consequence
+   of which is that only one 'worker' should be started by the ShellHandler.
+   Otherwise there would be multiple jobs scheduled at the same time.
+
+   Please refer to the documentation on
+   [rufus-scheduler](https://github.com/jmettraux/rufus-scheduler) (or the
+   scheduler of your choice) for further options concerning the timing of the
+   jobs.
 
 ## Configuring and starting workers
 
