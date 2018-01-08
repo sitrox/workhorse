@@ -248,4 +248,4 @@ Please consult the [FAQ](FAQ.md).
 
 ## Copyright
 
-Copyright © 2017 Sitrox. See `LICENSE` for further details.
+Copyright © 2018 Sitrox. See `LICENSE` for further details.
