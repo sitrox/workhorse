@@ -148,26 +148,26 @@ achieving regular execution:
 
    ```ruby
    #!/usr/bin/env ruby
-   
+
    require './config/environment'
-   
+
    Workhorse::Daemon::ShellHandler.run do
      worker = Workhorse::Worker.new(pool_size: 5, polling_interval: 10, logger: Rails.logger)
      scheduler = Rufus::Scheduler.new
-   
+
      worker.start
-   
+
      scheduler.cron '0/10 * * * *' do
        Workhorse.enqueue Workhorse::Jobs::CleanupSucceededJobs.new
      end
-   
+
      Signal.trap 'TERM' do
        scheduler.shutdown
        Thread.new do
          worker.shutdown
        end.join
      end
-   
+
      scheduler.join
      worker.wait
    end
