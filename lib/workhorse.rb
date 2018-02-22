@@ -5,6 +5,9 @@ require 'active_record'
 require 'workhorse/enqueuer'
 
 module Workhorse
+  # Check if the available Arel version is greater or equal than 7.0.0
+  AREL_GTE_7 = Gem::Version.new(Arel::VERSION) >= Gem::Version.new('7.0.0')
+
   extend Workhorse::Enqueuer
 
   @set_up = false
