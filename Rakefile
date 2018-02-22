@@ -17,6 +17,7 @@ task :gemspec do
     spec.add_development_dependency 'minitest'
     spec.add_development_dependency 'mysql2', '~> 0.3.13'
     spec.add_development_dependency 'benchmark-ips'
+    spec.add_development_dependency 'appraisal'
     spec.add_dependency 'activesupport'
     spec.add_dependency 'activerecord'
     spec.add_dependency 'schemacop', '~> 2.0'
