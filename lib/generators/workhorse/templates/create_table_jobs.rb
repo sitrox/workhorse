@@ -3,7 +3,7 @@ class CreateTableJobs < ActiveRecord::Migration
     create_table :jobs, force: true do |t|
       t.string :state, null: false, default: 'waiting'
       t.string :queue, null: true
-      t.blob :handler, null: false, limit: 4_294_967_295
+      t.binary :handler, null: false, limit: 4_294_967_295
 
       t.string :locked_by
       t.datetime :locked_at
