@@ -1,5 +1,9 @@
 # Workhorse Change log
 
+## 0.3.2 - 2018-02-23
+
+* Fixes a migration bug
+
 ## 0.3.1 – 2018-02-22
 
 * Adds support for Ruby >= 2.0.0 / Rails >= 3.2
