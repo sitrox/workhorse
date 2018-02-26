@@ -1,6 +1,7 @@
 require 'socket'
 require 'active_support/all'
 require 'active_record'
+require 'concurrent'
 
 require 'workhorse/enqueuer'
 
