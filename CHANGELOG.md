@@ -1,5 +1,10 @@
 # Workhorse Change log
 
+## 0.3.3 - 2018-02-23
+
+* Adds missing require for `concurrent` library that is required in some
+  versions of Rails
+
 ## 0.3.2 - 2018-02-23
 
 * Fixes a migration bug
