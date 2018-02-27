@@ -88,7 +88,7 @@ module Workhorse
       # ---------------------------------------------------------------
       # Select jobs to execute
       # ---------------------------------------------------------------
-      #
+
       # Construct selects for each queue which then are UNIONed for the final
       # set. This is required because we only want the first job of each queue
       # to be posted.
@@ -122,7 +122,11 @@ module Workhorse
       union_query_sql += ') subselect'
 
       # Create a new SelectManager to work with, using the UNION as data source
-      select = Arel::SelectManager.new(Arel.sql(union_query_sql))
+      if AREL_GTE_7
+        select = Arel::SelectManager.new(Arel.sql(union_query_sql))
+      else
+        select = Arel::SelectManager.new(ActiveRecord::Base, Arel.sql(union_query_sql))
+      end
       select = order(select.project(Arel.star))
 
       # Limit number of records
@@ -184,9 +188,11 @@ module Workhorse
       select = valid_ordered_select
 
       # Restrict queues that are currently in progress
+      bad_states = [Workhorse::DbJob::STATE_LOCKED, Workhorse::DbJob::STATE_STARTED]
       bad_queries_select = table.project(table[:queue])
-                                .where(table[:state].in(%i[locked running]))
-                                .distinct
+                                .where(table[:state].in(bad_states))
+      # .distinct is not chainable in older Arel versions
+      bad_queries_select.distinct
       select = select.where(table[:queue].not_in(bad_queries_select))
 
       # Restrict queues to valid ones as indicated by the options given to the

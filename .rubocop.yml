@@ -82,3 +82,6 @@ Style/ClassAndModuleChildren:
 
 Style/NumericPredicate:
   Enabled: false
+
+Layout/IndentHeredoc:
+  Enabled: false

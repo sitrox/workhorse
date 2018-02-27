@@ -33,6 +33,8 @@ What it does not do:
 
 ### Requirements
 
+* Ruby `>= 2.0.0`
+* Rails `>= 3.2`
 * A database and table handler that properly supports row-level locking (such as
   MySQL with InnoDB, PostgreSQL, or Oracle).
 * If you are planning on using the daemons handler:

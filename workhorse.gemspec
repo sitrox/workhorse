@@ -2,12 +2,12 @@
 
 Gem::Specification.new do |s|
   s.name = "workhorse"
-  s.version = "0.3.0"
+  s.version = "0.3.3"
 
   s.required_rubygems_version = Gem::Requirement.new(">= 0") if s.respond_to? :required_rubygems_version=
   s.authors = ["Sitrox"]
-  s.date = "2018-02-22"
-  s.files = [".gitignore", ".releaser_config", ".rubocop.yml", ".travis.yml", "CHANGELOG.md", "FAQ.md", "Gemfile", "LICENSE", "README.md", "RUBY_VERSION", "Rakefile", "VERSION", "bin/rubocop", "lib/generators/workhorse/install_generator.rb", "lib/generators/workhorse/templates/bin/workhorse.rb", "lib/generators/workhorse/templates/config/initializers/workhorse.rb", "lib/generators/workhorse/templates/create_table_jobs.rb", "lib/workhorse.rb", "lib/workhorse/daemon.rb", "lib/workhorse/daemon/shell_handler.rb", "lib/workhorse/db_job.rb", "lib/workhorse/enqueuer.rb", "lib/workhorse/jobs/cleanup_succeeded_jobs.rb", "lib/workhorse/jobs/run_rails_op.rb", "lib/workhorse/performer.rb", "lib/workhorse/poller.rb", "lib/workhorse/pool.rb", "lib/workhorse/worker.rb", "test/lib/db_schema.rb", "test/lib/jobs.rb", "test/lib/test_helper.rb", "test/workhorse/enqueuer_test.rb", "test/workhorse/performer_test.rb", "test/workhorse/poller_test.rb", "test/workhorse/pool_test.rb", "test/workhorse/worker_test.rb", "workhorse.gemspec"]
+  s.date = "2018-02-27"
+  s.files = [".gitignore", ".releaser_config", ".rubocop.yml", ".travis.yml", "Appraisals", "CHANGELOG.md", "FAQ.md", "Gemfile", "LICENSE", "README.md", "RUBY_VERSION", "Rakefile", "VERSION", "bin/rubocop", "gemfiles/rails_3.gemfile", "gemfiles/rails_4.gemfile", "gemfiles/rails_5.gemfile", "lib/generators/workhorse/install_generator.rb", "lib/generators/workhorse/templates/bin/workhorse.rb", "lib/generators/workhorse/templates/config/initializers/workhorse.rb", "lib/generators/workhorse/templates/create_table_jobs.rb", "lib/workhorse.rb", "lib/workhorse/daemon.rb", "lib/workhorse/daemon/shell_handler.rb", "lib/workhorse/db_job.rb", "lib/workhorse/enqueuer.rb", "lib/workhorse/jobs/cleanup_succeeded_jobs.rb", "lib/workhorse/jobs/run_rails_op.rb", "lib/workhorse/performer.rb", "lib/workhorse/poller.rb", "lib/workhorse/pool.rb", "lib/workhorse/worker.rb", "test/lib/db_schema.rb", "test/lib/jobs.rb", "test/lib/test_helper.rb", "test/workhorse/enqueuer_test.rb", "test/workhorse/performer_test.rb", "test/workhorse/poller_test.rb", "test/workhorse/pool_test.rb", "test/workhorse/worker_test.rb", "workhorse.gemspec"]
   s.require_paths = ["lib"]
   s.rubygems_version = "2.0.14.1"
   s.summary = "Multi-threaded job backend with database queuing for ruby."

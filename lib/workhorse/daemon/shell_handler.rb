@@ -41,36 +41,36 @@ module Workhorse
     end
 
     def self.usage
-      warn <<~USAGE
-        Usage: #{$PROGRAM_NAME} start|stop|status|watch|restart|usage
+      warn <<USAGE
+Usage: #{$PROGRAM_NAME} start|stop|status|watch|restart|usage
 
-        Options:
+Options:
 
-          start
-            Start the daemon
+  start
+    Start the daemon
 
-          stop
-            Stop the daemon
+  stop
+    Stop the daemon
 
-          status
-            Query the status of the daemon. Exit with status 1 if any worker is
-            not running.
+  status
+    Query the status of the daemon. Exit with status 1 if any worker is
+    not running.
 
-          watch
-            Checks the status (running or stopped) and whether it is as
-            expected. Starts the daemon if it is expected to run but is not.
+  watch
+    Checks the status (running or stopped) and whether it is as
+    expected. Starts the daemon if it is expected to run but is not.
 
-          restart
-            Shortcut for consecutive 'stop' and 'start'.
+  restart
+    Shortcut for consecutive 'stop' and 'start'.
 
-          usage
-            Show this message
+  usage
+    Show this message
 
-        Exit status:
-         0  if OK,
-         1  if at least one worker has an unexpected status,
-         99 on all other errors.
-      USAGE
+Exit status:
+ 0  if OK,
+ 1  if at least one worker has an unexpected status,
+ 99 on all other errors.
+USAGE
     end
   end
 end
