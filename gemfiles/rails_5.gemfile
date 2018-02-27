@@ -2,6 +2,8 @@
 
 source "https://rubygems.org"
 
+ruby "2.3.0"
+
 gem "appraisal", git: "https://github.com/thoughtbot/appraisal", branch: "nc-full-index"
 gem "activesupport", "5.1.5"
 gem "activerecord", "5.1.5"
