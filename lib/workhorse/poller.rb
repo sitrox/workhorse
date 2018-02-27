@@ -88,7 +88,7 @@ module Workhorse
       # ---------------------------------------------------------------
       # Select jobs to execute
       # ---------------------------------------------------------------
-      #
+
       # Construct selects for each queue which then are UNIONed for the final
       # set. This is required because we only want the first job of each queue
       # to be posted.
