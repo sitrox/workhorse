@@ -2,8 +2,10 @@
 
 ## 0.3.4 - 2018-02-27
 
-* Fix crucial bug where multiple jobs of the same queue could be executed
+* Fixes crucial bug where multiple jobs of the same queue could be executed
   simultaneously.
+
+* Makes `Workhorse::DbJob` attributes accessible for earlier versions of rails.
 
 ## 0.3.3 - 2018-02-26
 

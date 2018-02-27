@@ -6,6 +6,10 @@ module Workhorse
     STATE_SUCCEEDED = :succeeded
     STATE_FAILED    = :failed
 
+    if respond_to?(:attr_accessible)
+      attr_accessible :queue, :priority, :perform_at, :handler
+    end
+
     self.table_name = 'jobs'
 
     def mark_locked!(worker_id)
