@@ -188,8 +188,9 @@ module Workhorse
       select = valid_ordered_select
 
       # Restrict queues that are currently in progress
+      bad_states = [Workhorse::DbJob::STATE_LOCKED, Workhorse::DbJob::STATE_STARTED]
       bad_queries_select = table.project(table[:queue])
-                                .where(table[:state].in(%i[locked running]))
+                                .where(table[:state].in(bad_states))
       # .distinct is not chainable in older Arel versions
       bad_queries_select.distinct
       select = select.where(table[:queue].not_in(bad_queries_select))

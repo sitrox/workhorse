@@ -9,6 +9,7 @@ module Workhorse
     attr_reader :polling_interval
     attr_reader :mutex
     attr_reader :logger
+    attr_reader :poller
 
     # Instantiates and starts a new worker with the given arguments and then
     # waits for its completion (i.e. an interrupt).

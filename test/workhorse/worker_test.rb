@@ -109,6 +109,17 @@ class Workhorse::WorkerTest < WorkhorseTest
     assert_equal 'succeeded', jobs[2].state
   end
 
+  def test_queue_not_parallel
+    Workhorse::DbJob.delete_all
+    Workhorse.enqueue BasicJob.new(sleep_time: 0.2), queue: :q1
+    Workhorse.enqueue BasicJob.new(sleep_time: 0.2), queue: :q1
+
+    work 0.2, polling_interval: 0.2
+    jobs = Workhorse::DbJob.all.to_a
+    assert_equal 'succeeded', jobs[0].state
+    assert_equal 'waiting',   jobs[1].state
+  end
+
   def test_multiple_queued_same_queue
     # One queue
     Workhorse.enqueue BasicJob.new(sleep_time: 0.2), queue: :q1
