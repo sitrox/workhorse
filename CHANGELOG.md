@@ -1,6 +1,11 @@
 # Workhorse Change log
 
-## 0.3.3 - 2018-02-23
+## 0.3.4 - 2018-02-27
+
+* Fix crucial bug where multiple jobs of the same queue could be executed
+  simultaneously.
+
+## 0.3.3 - 2018-02-26
 
 * Adds missing require for `concurrent` library that is required in some
   versions of Rails
