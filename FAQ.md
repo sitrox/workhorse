@@ -75,3 +75,7 @@ production mode.
 ## Why does workhorse not support timeouts?
 
 Generic timeout implementations are [a dangerous thing](http://www.mikeperham.com/2015/05/08/timeout-rubys-most-dangerous-api/) in Ruby. This is why we decided against providing this feature in Workhorse and recommend to implement the timeouts inside of your jobs - i.e. via network timeouts.
+
+## Why is workhorse not integrated into Rails per default?
+
+We have submitted [a pull request](https://github.com/rails/rails/pull/31504) to Rails, but they stated that they won't add any new adapters to Rails. There are plans to integrate this on the Gem side only - stay tuned.
