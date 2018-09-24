@@ -2,6 +2,8 @@
 
 ## 0.3.4 - 2018-02-27
 
+* *Fixes #14
+
 * Fixes crucial bug where multiple jobs of the same queue could be executed
   simultaneously.
 

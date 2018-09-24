@@ -8,6 +8,8 @@ module Workhorse
 
       fail 'Count must be an integer > 0.' unless count.is_a?(Integer) && count > 0
 
+      FileUtils.mkdir_p('tmp/pids')
+
       if @pidfile.nil?
         @pidfile = count > 1 ? 'tmp/pids/workhorse.%i.pid' : 'tmp/pids/workhorse.pid'
       elsif @count > 1 && !@pidfile.include?('%s')
