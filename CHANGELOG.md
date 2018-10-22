@@ -1,6 +1,6 @@
 # Workhorse Change log
 
-## 0.3.5 - unreleased
+## 0.3.5 - 2018-10-22
 
 * Adds global callback `on_exception` that allows custom exception handling /
   exception notification.
