@@ -250,7 +250,7 @@ callback of your linking, e.g.:
 ```ruby
 # config/initializers/workhorse.rb
 Workhorse.setup do |config|
-  config.on_exception do |e|
+  config.on_exception = proc do |e|
     # Use gem 'exception_notification' for notifying about exceptions
     ExceptionNotifier.notify_exception(exception)
   end
