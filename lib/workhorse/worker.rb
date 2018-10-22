@@ -134,6 +134,8 @@ module Workhorse
           end
         end
       end
+    rescue => e
+      Workhorse.on_exception.call(e)
     end
 
     private

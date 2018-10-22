@@ -240,6 +240,23 @@ Workhorse::Daemon::ShellHandler.run count: 5 do
 end
 ```
 
+## Exception handling
+
+Per default, exceptions occurring in a worker thread will only be visible in the
+respective log file, usually `production.log`. If you'd like to perform specific
+actions when an exception arises, set the global option `on_exception` to a
+callback of your linking, e.g.:
+
+```ruby
+# config/initializers/workhorse.rb
+Workhorse.setup do |config|
+  config.on_exception do |e|
+    # Use gem 'exception_notification' for notifying about exceptions
+    ExceptionNotifier.notify_exception(exception)
+  end
+end
+```
+
 ## Frequently asked questions
 
 Please consult the [FAQ](FAQ.md).

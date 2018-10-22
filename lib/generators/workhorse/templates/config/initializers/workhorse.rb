@@ -11,4 +11,12 @@ Workhorse.setup do |config|
   # config.tx_callback = proc do |&block|
   #   ActiveRecord::Base.transaction&(&block)
   # end
+
+  # Enable and configure this to specify a callback for handling worker
+  # exceptions:
+  #
+  # config.on_exception = proc do |exception|
+  #   # Do something with exception, i.e.
+  #   # ExceptionNotifier.notify_exception(exception)
+  # end
 end

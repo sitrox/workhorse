@@ -12,6 +12,8 @@ module Workhorse
       fail 'Performer can only run once.' if @started
       @started = true
       perform!
+    rescue => e
+      Workhorse.on_exception.call(e)
     end
 
     private
@@ -38,6 +40,8 @@ module Workhorse
         log 'Mark failed', :debug
         @db_job.mark_failed!(e)
       end
+
+      fail e
     ensure
       Thread.current[:workhorse_current_performer] = nil
     end

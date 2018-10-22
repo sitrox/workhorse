@@ -22,6 +22,14 @@ class DbConnectionTestJob
   end
 end
 
+class FailingTestJob
+  MESSAGE = 'I fail all the time'.freeze
+
+  def perform
+    fail MESSAGE
+  end
+end
+
 class DummyRailsOpsOp
   class_attribute :results
   self.results = Concurrent::Array.new

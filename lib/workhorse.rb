@@ -25,6 +25,12 @@ module Workhorse
     ActiveRecord::Base.transaction(&block)
   end
 
+  mattr_accessor :on_exception
+  self.on_exception = proc do |exception|
+    # Do something with this exception, i.e.
+    # ExceptionNotifier.notify_exception(exception)
+  end
+
   mattr_accessor :perform_jobs_in_tx
   self.perform_jobs_in_tx = true
 
