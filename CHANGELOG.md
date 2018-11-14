@@ -1,5 +1,11 @@
 # Workhorse Change log
 
+## 0.3.6 - unreleased
+
+* Makes sure all exceptions are caught and handled properly, not only exceptions
+  deriving from `StandardError`. In previous releases, this prevented some
+  exceptions like syntax errors to be handled properly.
+
 ## 0.3.5 - 2018-10-22
 
 * Adds global callback `on_exception` that allows custom exception handling /

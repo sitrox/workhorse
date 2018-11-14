@@ -12,7 +12,7 @@ module Workhorse
       fail 'Performer can only run once.' if @started
       @started = true
       perform!
-    rescue => e
+    rescue Exception => e
       Workhorse.on_exception.call(e)
     end
 
@@ -30,7 +30,7 @@ module Workhorse
           perform_wrapped
         end
       end
-    rescue => e
+    rescue Exception => e
       # ---------------------------------------------------------------
       # Mark job as failed
       # ---------------------------------------------------------------

@@ -21,6 +21,9 @@ Style/SignalException:
 Lint/RescueWithoutErrorClass:
   Enabled: False
 
+Lint/RescueException:
+  Enabled: False
+
 Style/ConditionalAssignment:
   Enabled: false
 

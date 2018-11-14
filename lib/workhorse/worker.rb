@@ -129,12 +129,12 @@ module Workhorse
         @pool.post do
           begin
             Workhorse::Performer.new(db_job, self).perform
-          rescue => e
+          rescue Exception => e
             log %(#{e.message}\n#{e.backtrace.join("\n")}), :error
           end
         end
       end
-    rescue => e
+    rescue Exception => e
       Workhorse.on_exception.call(e)
     end
 

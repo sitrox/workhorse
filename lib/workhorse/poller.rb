@@ -25,7 +25,7 @@ module Workhorse
             poll
             sleep
           end
-        rescue => e
+        rescue Exception => e
           worker.log %(Poller stopped with exception:\n#{e.message}\n#{e.backtrace.join("\n")})
         end
       end
