@@ -14,6 +14,24 @@ class Workhorse::WorkerTest < WorkhorseTest
     assert_equal 2, DbConnectionTestJob.db_connections.uniq.count
   end
 
+  def test_success
+    Workhorse.enqueue BasicJob.new(sleep_time: 0.1)
+    work 0.2, polling_interval: 0.2
+    assert_equal 'succeeded', Workhorse::DbJob.first.state
+  end
+
+  def test_exception
+    Workhorse.enqueue FailingTestJob
+    work 0.2, polling_interval: 0.2
+    assert_equal 'failed', Workhorse::DbJob.first.state
+  end
+
+  def test_syntax_exception
+    Workhorse.enqueue SyntaxErrorJob
+    work 0.2, polling_interval: 0.2
+    assert_equal 'failed', Workhorse::DbJob.first.state
+  end
+
   def test_on_exception
     old_callback = Workhorse.on_exception
     exception = nil

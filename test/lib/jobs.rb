@@ -30,6 +30,12 @@ class FailingTestJob
   end
 end
 
+class SyntaxErrorJob
+  def perform
+    fail SyntaxError
+  end
+end
+
 class DummyRailsOpsOp
   class_attribute :results
   self.results = Concurrent::Array.new
