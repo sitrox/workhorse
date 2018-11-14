@@ -1,6 +1,6 @@
 # Workhorse Change log
 
-## 0.3.6 - unreleased
+## 0.3.6 - 2018-11-14
 
 * Makes sure all exceptions are caught and handled properly, not only exceptions
   deriving from `StandardError`. In previous releases, this prevented some
