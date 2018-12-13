@@ -150,6 +150,7 @@ class Workhorse::WorkerTest < WorkhorseTest
   def test_order_with_priorities
     Workhorse.enqueue BasicJob.new(some_param: 6, sleep_time: 0), priority: 4
     Workhorse.enqueue BasicJob.new(some_param: 4, sleep_time: 0), priority: 3
+    sleep 1
     Workhorse.enqueue BasicJob.new(some_param: 5, sleep_time: 0), priority: 3
     Workhorse.enqueue BasicJob.new(some_param: 3, sleep_time: 0), priority: 2
     Workhorse.enqueue BasicJob.new(some_param: 2, sleep_time: 0), priority: 1
