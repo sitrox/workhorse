@@ -1,5 +1,9 @@
 # Workhorse Change log
 
+## 0.3.7 – 2018-12-13
+
+* Fixed Oracle DB compatibility issues for jobs in multiple queues
+
 ## 0.3.6 – 2018-11-14
 
 * Makes sure all exceptions are caught and handled properly, not only exceptions
