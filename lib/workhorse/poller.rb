@@ -95,7 +95,7 @@ module Workhorse
       union_parts = []
       valid_queues.each do |queue|
         # Start with a fresh select, as we now know the allowed queues
-        select = valid_ordered_select
+        select = valid_ordered_select_id
         select = select.where(table[:queue].eq(queue))
 
         # Get the maximum amount possible for no-queue jobs. This gives us the
@@ -127,7 +127,8 @@ module Workhorse
       else
         select = Arel::SelectManager.new(ActiveRecord::Base, Arel.sql(union_query_sql))
       end
-      select = order(select.project(Arel.star))
+      select = table.project(Arel.star).where(table[:id].in(select.project(:id)))
+      select = order(select)
 
       # Limit number of records
       select = agnostic_limit(select, limit)
@@ -145,12 +146,12 @@ module Workhorse
       return Workhorse::DbJob.find_by_sql(select.to_sql)
     end
 
-    # Returns a fresh Arel select manager containing all waiting jobs, ordered
-    # with {#order}.
+    # Returns a fresh Arel select manager containing the id of all waiting jobs,
+    # ordered with {#order}.
     #
     # @return [Arel::SelectManager] the select manager
-    def valid_ordered_select
-      select = table.project(table[Arel.star])
+    def valid_ordered_select_id
+      select = table.project(table[:id])
       select = select.where(table[:state].eq(:waiting))
       select = select.where(table[:perform_at].lteq(Time.now).or(table[:perform_at].eq(nil)))
       return order(select)
@@ -185,7 +186,7 @@ module Workhorse
     #
     # @return [Array] an array of unique queue names
     def valid_queues
-      select = valid_ordered_select
+      select = valid_ordered_select_id
 
       # Restrict queues that are currently in progress
       bad_states = [Workhorse::DbJob::STATE_LOCKED, Workhorse::DbJob::STATE_STARTED]
