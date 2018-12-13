@@ -110,14 +110,17 @@ module Workhorse
 
       # Combine the jobs of each queue in a giant UNION chain. Arel does not
       # support this directly, as it does not generate parentheses around the
-      # subselects.
-      # Furthermore, add the alias directly instead of using Arel `as`, because
-      # it uses the keyword 'AS' in SQL generated for Oracle, which is invalid
-      # for table aliases.
+      # subselects. The parentheses are necessary because of the order clauses
+      # contained within.
+      # Additionally, each of the subselects and the final union select is given
+      # an alias to comply with MySQL requirements.
+      # These aliases are added directly instead of using Arel `as`, because it
+      # uses the keyword 'AS' in SQL generated for Oracle, which is invalid for
+      # table aliases.
       union_query_sql = '('
-      union_query_sql += '(' + union_parts.shift.to_sql + ')'
-      union_parts.each do |part|
-        union_query_sql += ' UNION (' + part.to_sql + ')'
+      union_query_sql += 'SELECT * FROM (' + union_parts.shift.to_sql + ') union_0'
+      union_parts.each_with_index do |part, idx|
+        union_query_sql += ' UNION SELECT * FROM (' + part.to_sql + ") union_#{idx + 1}"
       end
       union_query_sql += ') subselect'
 
