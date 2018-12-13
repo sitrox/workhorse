@@ -8,5 +8,5 @@ before_install:
   - mysql -e 'CREATE DATABASE workhorse;'
 script:
  - bundle install
- - bundle exec rake test
+ - bundle exec rake test TESTOPTS='--verbose'
  - bundle exec rubocop
