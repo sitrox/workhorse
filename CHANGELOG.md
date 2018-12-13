@@ -1,31 +1,31 @@
 # Workhorse Change log
 
-## 0.3.6 - 2018-11-14
+## 0.3.6 – 2018-11-14
 
 * Makes sure all exceptions are caught and handled properly, not only exceptions
   deriving from `StandardError`. In previous releases, this prevented some
   exceptions like syntax errors to be handled properly.
 
-## 0.3.5 - 2018-10-22
+## 0.3.5 – 2018-10-22
 
 * Adds global callback `on_exception` that allows custom exception handling /
   exception notification.
 
-## 0.3.4 - 2018-09-24
+## 0.3.4 – 2018-09-24
 
-* *Fixes #14
+* Fixes #14
 
 * Fixes crucial bug where multiple jobs of the same queue could be executed
   simultaneously.
 
 * Makes `Workhorse::DbJob` attributes accessible for earlier versions of rails.
 
-## 0.3.3 - 2018-02-26
+## 0.3.3 – 2018-02-26
 
 * Adds missing require for `concurrent` library that is required in some
   versions of Rails
 
-## 0.3.2 - 2018-02-23
+## 0.3.2 – 2018-02-23
 
 * Fixes a migration bug
 
