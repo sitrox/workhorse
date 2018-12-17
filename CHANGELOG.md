@@ -1,6 +1,6 @@
 # Workhorse Change log
 
-## 0.3.7 – 2018-12-13
+## 0.3.7 – 2018-12-17
 
 * Fixed Oracle DB compatibility issues for jobs in multiple queues
 
