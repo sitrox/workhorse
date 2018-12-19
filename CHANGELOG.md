@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.3.8 – 2018-12-19
+
 * Fixed incompatibility in the combination of Oracle DB and Arel < 7.0.0
 
 ## 0.3.7 – 2018-12-17
