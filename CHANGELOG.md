@@ -1,5 +1,9 @@
 # Workhorse Change log
 
+## Unreleased
+
+* Fixed incompatibility in the combination of Oracle DB and Arel < 7.0.0
+
 ## 0.3.7 – 2018-12-17
 
 * Fixed Oracle DB compatibility issues for jobs in multiple queues

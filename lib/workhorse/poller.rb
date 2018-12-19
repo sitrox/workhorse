@@ -140,7 +140,11 @@ module Workhorse
       # Oracle SQL. As MySQL is able to lock the records without this additional
       # complication, only do this when using the Oracle backend.
       if @is_oracle
-        select = Arel::SelectManager.new(Arel.sql('(' + select.to_sql + ')'))
+        if AREL_GTE_7
+          select = Arel::SelectManager.new(Arel.sql('(' + select.to_sql + ')'))
+        else
+          select = Arel::SelectManager.new(ActiveRecord::Base, Arel.sql('(' + select.to_sql + ')'))
+        end
         select = table.project(Arel.star).where(table[:id].in(select.project(:id)))
       end
 
