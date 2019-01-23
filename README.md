@@ -267,4 +267,4 @@ Please consult the [FAQ](FAQ.md).
 
 ## Copyright
 
-Copyright © 2018 Sitrox. See `LICENSE` for further details.
+Copyright © 2019 Sitrox. See `LICENSE` for further details.
