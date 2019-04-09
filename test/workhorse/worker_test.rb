@@ -162,10 +162,10 @@ class Workhorse::WorkerTest < WorkhorseTest
   end
 
   def test_polling_interval
-    w = Workhorse::Worker.new(polling_interval: 1)
-    w = Workhorse::Worker.new(polling_interval: 1.1)
+    assert Workhorse::Worker.new(polling_interval: 1)
+    assert Workhorse::Worker.new(polling_interval: 1.1)
     err = assert_raises do
-      w = Workhorse::Worker.new(polling_interval: 1.12)
+      Workhorse::Worker.new(polling_interval: 1.12)
     end
     assert_equal 'Polling interval must be a multiple of 0.1.', err.message
   end
