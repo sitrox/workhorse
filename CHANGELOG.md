@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+* Fixed error where jobs without queue were blocked by a locked/running job
+  that also was without a queue
+
 ## 0.3.8 – 2018-12-19
 
 * Fixed incompatibility in the combination of Oracle DB and Arel < 7.0.0

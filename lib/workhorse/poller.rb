@@ -187,21 +187,23 @@ module Workhorse
     # Returns an Array of queue names for which a job may be posted
     #
     # This is done in multiple steps. First, all queues with jobs that are in
-    # progress are removed. Second, restrict to only queues for which we may
-    # post jobs. Third, extract the queue names of the remaining queues and
-    # return them in an Array.
+    # progress are removed, with the exception of the nil queue. Second, we
+    # restrict to only queues for which we may post jobs. Third, we extract the
+    # queue names of the remaining queues and return them in an Array.
     #
     # @return [Array] an array of unique queue names
     def valid_queues
       select = valid_ordered_select_id
 
-      # Restrict queues that are currently in progress
+      # Restrict queues that are currently in progress, except for the nil
+      # queue, where jobs may run in parallel
       bad_states = [Workhorse::DbJob::STATE_LOCKED, Workhorse::DbJob::STATE_STARTED]
-      bad_queries_select = table.project(table[:queue])
-                                .where(table[:state].in(bad_states))
+      bad_queues_select = table.project(table[:queue])
+                               .where(table[:queue].not_eq(nil))
+                               .where(table[:state].in(bad_states))
       # .distinct is not chainable in older Arel versions
-      bad_queries_select.distinct
-      select = select.where(table[:queue].not_in(bad_queries_select))
+      bad_queues_select.distinct
+      select = select.where(table[:queue].not_in(bad_queues_select))
 
       # Restrict queues to valid ones as indicated by the options given to the
       # worker
