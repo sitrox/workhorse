@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.3.9 – 2019-03-09
+
 * Fixed error where jobs without queue were blocked by a locked/running job
   that also was without a queue
 
