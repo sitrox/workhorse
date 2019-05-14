@@ -3,7 +3,7 @@
 
 # Workhorse
 
-Multi-threaded job backend with database queuing for ruby.
+Multi-threaded job backend with database queuing for ruby. Battle-tested and ready for production-use.
 
 ## Introduction
 

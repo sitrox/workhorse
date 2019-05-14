@@ -11,7 +11,7 @@ task :gemspec do
     spec.test_files    = spec.files.grep(%r{^(test|spec|features)/})
     spec.require_paths = ['lib']
 
-    spec.add_development_dependency 'bundler', '~> 1.3'
+    spec.add_development_dependency 'bundler'
     spec.add_development_dependency 'rake'
     spec.add_development_dependency 'rubocop', '0.51.0'
     spec.add_development_dependency 'minitest'
