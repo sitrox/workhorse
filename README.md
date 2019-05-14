@@ -240,6 +240,23 @@ Workhorse::Daemon::ShellHandler.run count: 5 do
 end
 ```
 
+### Instant repolling
+
+Per default, each worker only polls in the given interval. This means that if
+you schedule, for example, 50 jobs at once and have a polling interval of 1
+minute with a queue size of 1, the poller would tackle the first job and then
+wait for a whole minute until the next poll. This would mean that these 50 jobs
+would take at least 50 minutes to be executed, even if they only take a few
+seconds each.
+
+This is where *instant repolling* comes into play: Using the worker option
+`instant_repolling`, you can force the poller to automatically re-poll the
+database whenever a job has been performed. It then goes back to the usual
+polling interval.
+
+This setting is recommended for all setups and may eventually be enabled by
+default.
+
 ## Exception handling
 
 Per default, exceptions occurring in a worker thread will only be visible in the
