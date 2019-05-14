@@ -35,12 +35,12 @@ module Workhorse
     # Resets job to state "waiting" and clears all meta fields
     # set by workhorse in course of processing this job.
     #
-    # This is only allowed if the job is in a "dead-end-state" ("succeeded",
-    # "failed"), as it is safe to do so because workhorse won't touch these
-    # jobs. Set "force" to true in order to reset the job without checking for
-    # its state. If you do so, make sure that the job is not still being
-    # processed by a worker. If possible, shutdown all workers before performing
-    # a forced reset.
+    # This is only allowed if the job is in a final state ("succeeded" or
+    # "failed"), as only those jobs are safe to modify; workhorse will not touch
+    # these jobs. To reset a job without checking the state it is in, set
+    # "force" to true. Prior to doing so, ensure that the job is not still being
+    # processed by a worker. If possible, shut down all workers before
+    # performing a forced reset.
     #
     # After the job is reset, it will be performed again. If you reset a job
     # that has already been performed ("succeeded") or partially performed

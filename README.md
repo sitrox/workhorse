@@ -300,7 +300,7 @@ DbJob.failed
 ### Resetting jobs
 
 Jobs in a state other than `waiting` are either being processed or else already
-in a dead-end state such as `succeeded` and won't be performed again. Workhorse
+in a final state such as `succeeded` and won't be performed again. Workhorse
 provides an API method for resetting jobs in the following cases:
 
 * A job has succeeded or failed (states `succeeded` and `failed`) and needs to
@@ -315,7 +315,7 @@ provides an API method for resetting jobs in the following cases:
 * A job is stuck in state `locked` or `started` and the corresponding worker
   (check the database field `locked_by`) is not running anymore, i.e. due to a
   database connection loss or an unexpected worker crash. In these cases, the
-  job won't be processed ever and, if the job is in a queue, the entire queue is
+  job will never be processed, and, if the job is in a queue, the entire queue is
   considered to be locked and no further jobs will be processed in this queue.
 
   In these cases, make sure the worker is stopped and perform a forced reset:
@@ -324,7 +324,7 @@ provides an API method for resetting jobs in the following cases:
   db_job.reset!(true)
   ```
 
-Performing a reset will reset the job to state `waiting` and it will be
+Performing a reset will reset the job state to `waiting` and it will be
 processed again. All meta fields will be reset as well. See inline documentation
 of `Workhorse::DbJob#reset!` for more details.
 
