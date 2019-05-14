@@ -57,15 +57,5 @@ module Workhorse
         fail "Job #{id} is not in state #{states.inspect} but in state #{state.inspect}."
       end
     end
-
-    def assert_locked_by!(worker_id)
-      assert_state! STATE_WAITING
-
-      if locked_by.nil?
-        fail "Job #{id} is not locked by any worker."
-      elsif locked_by != worker_id
-        fail "Job #{id} is locked by another worker (#{locked_by})."
-      end
-    end
   end
 end
