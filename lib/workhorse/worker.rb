@@ -9,6 +9,7 @@ module Workhorse
     attr_reader :polling_interval
     attr_reader :mutex
     attr_reader :logger
+    attr_reader :instant_repolling
     attr_reader :poller
 
     # Instantiates and starts a new worker with the given arguments and then
@@ -35,16 +36,19 @@ module Workhorse
     #   worker properly on INT and TERM signals.
     # @param quiet [Boolean] If this is set to `false`, the worker will also log
     #   to STDOUT.
+    # @param instant_repolling [Boolean] If this is set to `true`, the worker
+    #   immediately re-poll for new jobs when a job execution has finished.
     # @param logger [Logger] An optional logger the worker will append to. This
     #   can be any instance of ruby's `Logger` but is commonly set to
     #   `Rails.logger`.
-    def initialize(queues: [], pool_size: nil, polling_interval: 300, auto_terminate: true, quiet: true, logger: nil)
+    def initialize(queues: [], pool_size: nil, polling_interval: 300, auto_terminate: true, quiet: true, instant_repolling: false, logger: nil)
       @queues = queues
       @pool_size = pool_size || queues.size + 1
       @polling_interval = polling_interval
       @auto_terminate = auto_terminate
       @state = :initialized
       @quiet = quiet
+      @instant_repolling = instant_repolling
 
       @mutex = Mutex.new
       @pool = Pool.new(@pool_size)
@@ -84,6 +88,14 @@ module Workhorse
       end
     end
 
+    # Called by performer when a job has succeeded.
+    #
+    # @param poll_time Time Time when the poll was issued that lead to
+    #   performing this job
+    def job_succeeded(poll_time)
+      @poller.instant_repoll!(poll_time) if instant_repolling
+    end
+
     def assert_state!(state)
       fail "Expected worker to be in state #{state} but current state is #{self.state}." unless self.state == state
     end
@@ -121,14 +133,14 @@ module Workhorse
       @pool.idle
     end
 
-    def perform(db_job)
+    def perform(db_job, poll_time)
       mutex.synchronize do
         assert_state! :running
         log "Posting job #{db_job.id} to thread pool"
 
         @pool.post do
           begin
-            Workhorse::Performer.new(db_job, self).perform
+            Workhorse::Performer.new(db_job, self, poll_time).perform
           rescue Exception => e
             log %(#{e.message}\n#{e.backtrace.join("\n")}), :error
           end

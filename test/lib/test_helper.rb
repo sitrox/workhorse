@@ -11,6 +11,14 @@ class WorkhorseTest < ActiveSupport::TestCase
 
   protected
 
+  def capture_log(level: :debug)
+    io = StringIO.new
+    logger = Logger.new(io, level: level)
+    yield logger
+    io.close
+    return io.string
+  end
+
   def work(time = 2, options = {})
     options[:pool_size] ||= 5
     options[:polling_interval] ||= 1

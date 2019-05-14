@@ -67,4 +67,54 @@ class Workhorse::PollerTest < WorkhorseTest
 
     assert_equal [nil], w.poller.send(:valid_queues)
   end
+
+  def test_with_instant_repolling
+    Workhorse::DbJob.delete_all
+
+    3.times do
+      Workhorse.enqueue BasicJob.new(sleep_time: 0)
+    end
+
+    assert_equal 3, Workhorse::DbJob.where(state: :waiting).count
+
+    log = capture_log do |logger|
+      work 2, instant_repolling: true, polling_interval: 5, pool_size: 1, logger: logger
+    end
+
+    assert_repolling_logged 3, log
+    assert_equal 3, Workhorse::DbJob.where(state: :succeeded).count
+  end
+
+  def test_no_instant_repoll_if_poll_since
+    Workhorse::DbJob.delete_all
+    Workhorse.enqueue BasicJob.new(sleep_time: 1)
+
+    log = capture_log do |logger|
+      work 1.5, instant_repolling: true, polling_interval: 0.5, pool_size: 1, logger: logger
+    end
+
+    assert_repolling_logged 0, log
+    assert_equal 1, Workhorse::DbJob.where(state: :succeeded).count
+  end
+
+  def test_without_instant_repolling
+    Workhorse::DbJob.delete_all
+
+    3.times do
+      Workhorse.enqueue BasicJob.new(sleep_time: 0)
+    end
+
+    log = capture_log do |logger|
+      work 0.5, instant_repolling: false, polling_interval: 5, pool_size: 1, logger: logger
+    end
+
+    assert_repolling_logged 0, log
+    assert_equal 1, Workhorse::DbJob.where(state: :succeeded).count
+  end
+
+  private
+
+  def assert_repolling_logged(count, log)
+    assert_equal count, log.scan(/Aborting next sleep to perform instant repoll/m).size
+  end
 end
