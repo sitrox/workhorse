@@ -37,7 +37,7 @@ module Workhorse
     # @param quiet [Boolean] If this is set to `false`, the worker will also log
     #   to STDOUT.
     # @param instant_repolling [Boolean] If this is set to `true`, the worker
-    #   immediately re-poll for new jobs when a job execution has finished.
+    #   immediately re-polls for new jobs when a job execution has finished.
     # @param logger [Logger] An optional logger the worker will append to. This
     #   can be any instance of ruby's `Logger` but is commonly set to
     #   `Rails.logger`.
@@ -90,7 +90,7 @@ module Workhorse
 
     # Called by performer when a job has succeeded.
     #
-    # @param poll_time Time Time when the poll was issued that lead to
+    # @param poll_time Time Time when the poll was issued that led to
     #   performing this job
     def job_succeeded(poll_time)
       @poller.instant_repoll!(poll_time) if instant_repolling
