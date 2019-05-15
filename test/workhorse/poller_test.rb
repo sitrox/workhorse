@@ -69,8 +69,6 @@ class Workhorse::PollerTest < WorkhorseTest
   end
 
   def test_with_instant_repolling
-    Workhorse::DbJob.delete_all
-
     3.times do
       Workhorse.enqueue BasicJob.new(sleep_time: 0)
     end
@@ -86,7 +84,6 @@ class Workhorse::PollerTest < WorkhorseTest
   end
 
   def test_no_instant_repoll_if_poll_since
-    Workhorse::DbJob.delete_all
     Workhorse.enqueue BasicJob.new(sleep_time: 1)
 
     log = capture_log do |logger|
@@ -98,8 +95,6 @@ class Workhorse::PollerTest < WorkhorseTest
   end
 
   def test_without_instant_repolling
-    Workhorse::DbJob.delete_all
-
     3.times do
       Workhorse.enqueue BasicJob.new(sleep_time: 0)
     end
@@ -113,6 +108,10 @@ class Workhorse::PollerTest < WorkhorseTest
   end
 
   private
+
+  def setup
+    Workhorse::DbJob.delete_all
+  end
 
   def assert_repolling_logged(count, log)
     assert_equal count, log.scan(/Aborting next sleep to perform instant repoll/m).size
