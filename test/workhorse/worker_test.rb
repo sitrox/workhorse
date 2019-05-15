@@ -5,10 +5,10 @@ class Workhorse::WorkerTest < WorkhorseTest
     with_worker(pool_size: 5, polling_interval: 0.2) do |w|
       assert_equal 5, w.idle
 
-      sleep 0.1
+      sleep 0.05
       Workhorse.enqueue BasicJob.new(sleep_time: 0.2)
 
-      sleep 0.2
+      sleep 0.25
       assert_equal 4, w.idle
 
       sleep 0.2
