@@ -19,6 +19,28 @@ class Workhorse::PoolTest < WorkhorseTest
     end
   end
 
+  def test_on_idle
+    on_idle_calls = Concurrent::AtomicFixnum.new
+
+    with_pool 2 do |p|
+      p.on_idle { on_idle_calls.increment }
+
+      assert_equal 0, on_idle_calls.value
+
+      p.post { sleep 0.2 }
+      p.post { sleep 0.4 }
+
+      sleep 0.1
+      assert_equal 0, on_idle_calls.value
+
+      sleep 0.2
+      assert_equal 1, on_idle_calls.value
+
+      sleep 0.1
+      assert_equal 2, on_idle_calls.value
+    end
+  end
+
   def test_overflow
     with_pool 5 do |p|
       5.times { p.post { sleep 0.2 } }

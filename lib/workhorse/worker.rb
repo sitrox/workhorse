@@ -35,10 +35,12 @@ module Workhorse
     #   worker properly on INT and TERM signals.
     # @param quiet [Boolean] If this is set to `false`, the worker will also log
     #   to STDOUT.
+    # @param instant_repolling [Boolean] If this is set to `true`, the worker
+    #   immediately re-polls for new jobs when a job execution has finished.
     # @param logger [Logger] An optional logger the worker will append to. This
     #   can be any instance of ruby's `Logger` but is commonly set to
     #   `Rails.logger`.
-    def initialize(queues: [], pool_size: nil, polling_interval: 300, auto_terminate: true, quiet: true, logger: nil)
+    def initialize(queues: [], pool_size: nil, polling_interval: 300, auto_terminate: true, quiet: true, instant_repolling: false, logger: nil)
       @queues = queues
       @pool_size = pool_size || queues.size + 1
       @polling_interval = polling_interval
@@ -53,6 +55,10 @@ module Workhorse
 
       unless (@polling_interval / 0.1).round(2).modulo(1) == 0.0
         fail 'Polling interval must be a multiple of 0.1.'
+      end
+
+      if instant_repolling
+        @pool.on_idle { @poller.instant_repoll! }
       end
 
       check_rails_env if defined?(Rails)

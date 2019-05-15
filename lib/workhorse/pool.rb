@@ -14,6 +14,11 @@ module Workhorse
       )
       @mutex = Mutex.new
       @active_threads = Concurrent::AtomicFixnum.new(0)
+      @on_idle = nil
+    end
+
+    def on_idle(&block)
+      @on_idle = block
     end
 
     # Posts a new work unit to the pool.
@@ -32,6 +37,7 @@ module Workhorse
             yield
           ensure
             active_threads.decrement
+            @on_idle&.call
           end
         end
       end
