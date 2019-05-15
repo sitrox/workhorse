@@ -257,6 +257,77 @@ Workhorse.setup do |config|
 end
 ```
 
+## Handling database jobs
+
+Jobs stored in the database can be accessed via the ActiveRecord model
+{Workhorse::DbJob}. This is the model representing a specific job database entry
+and is not to be confused with the actual job class you're enqueueing.
+
+### Obtaining database jobs
+
+DbJobs are returned to you when enqueuing new jobs:
+
+```ruby
+db_job = Workhorse.enqueue(MyJob.new)
+```
+
+You can also obtain a job via its ID that you either get from a returned job
+(see example above) or else by manually querying the database table:
+
+```ruby
+db_job = Workhorse::DbJob.find(42)
+```
+
+Note that database job objects reflect the job at the point in time when the
+database job object has been instantiated. To make sure you're looking at the
+latest job info, use the in-place `reload` method:
+
+```ruby
+db_job.reload
+```
+
+You can also retrieve a list of jobs in a specific state using one of the
+following methods:
+
+```ruby
+DbJob.waiting
+DbJob.locked
+DbJob.started
+DbJob.succeeded
+DbJob.failed
+```
+
+### Resetting jobs
+
+Jobs in a state other than `waiting` are either being processed or else already
+in a final state such as `succeeded` and won't be performed again. Workhorse
+provides an API method for resetting jobs in the following cases:
+
+* A job has succeeded or failed (states `succeeded` and `failed`) and needs to
+  re-run. In these cases, perform a non-forced reset:
+
+  ```ruby
+  db_job.reset!
+  ```
+
+  This is always safe to do, even with workers running.
+
+* A job is stuck in state `locked` or `started` and the corresponding worker
+  (check the database field `locked_by`) is not running anymore, i.e. due to a
+  database connection loss or an unexpected worker crash. In these cases, the
+  job will never be processed, and, if the job is in a queue, the entire queue is
+  considered to be locked and no further jobs will be processed in this queue.
+
+  In these cases, make sure the worker is stopped and perform a forced reset:
+
+  ```ruby
+  db_job.reset!(true)
+  ```
+
+Performing a reset will reset the job state to `waiting` and it will be
+processed again. All meta fields will be reset as well. See inline documentation
+of `Workhorse::DbJob#reset!` for more details.
+
 ## Frequently asked questions
 
 Please consult the [FAQ](FAQ.md).
