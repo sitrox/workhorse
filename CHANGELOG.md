@@ -4,6 +4,8 @@
 
 * Added instruments for clearing DbJob data. (PR #17)
 
+* Added instant repolling feature. (#PR18)
+
 ## 0.3.9 – 2019-03-09
 
 * Fixed error where jobs without queue were blocked by a locked/running job
