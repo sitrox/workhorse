@@ -8,7 +8,6 @@ module Workhorse
       @running = false
       @table = Workhorse::DbJob.arel_table
       @is_oracle = ActiveRecord::Base.connection.adapter_name == 'OracleEnhanced'
-      @last_poll = nil
       @instant_repoll = Concurrent::AtomicBoolean.new(false)
     end
 
@@ -45,11 +44,9 @@ module Workhorse
 
     # Call this to interrupt current sleep and perform the next poll as soon as
     # possible, then resume in the normal polling interval.
-    def instant_repoll!(if_no_poll_since)
-      if @last_poll.nil? || @last_poll <= if_no_poll_since
-        worker.log 'Aborting next sleep to perform instant repoll', :debug
-        @instant_repoll.make_true
-      end
+    def instant_repoll!
+      worker.log 'Aborting next sleep to perform instant repoll', :debug
+      @instant_repoll.make_true
     end
 
     private
@@ -65,7 +62,6 @@ module Workhorse
 
     def poll
       @instant_repoll.make_false
-      @last_poll = Time.now
 
       Workhorse.tx_callback.call do
         # As we are the only thread posting into the worker pool, it is safe to
@@ -81,7 +77,7 @@ module Workhorse
           jobs.each do |job|
             worker.log "Marking job #{job.id} as locked", :debug
             job.mark_locked!(worker.id)
-            worker.perform job, @last_poll
+            worker.perform job
           end
         end
       end

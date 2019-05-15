@@ -9,7 +9,6 @@ module Workhorse
     attr_reader :polling_interval
     attr_reader :mutex
     attr_reader :logger
-    attr_reader :instant_repolling
     attr_reader :poller
 
     # Instantiates and starts a new worker with the given arguments and then
@@ -48,7 +47,6 @@ module Workhorse
       @auto_terminate = auto_terminate
       @state = :initialized
       @quiet = quiet
-      @instant_repolling = instant_repolling
 
       @mutex = Mutex.new
       @pool = Pool.new(@pool_size)
@@ -57,6 +55,10 @@ module Workhorse
 
       unless (@polling_interval / 0.1).round(2).modulo(1) == 0.0
         fail 'Polling interval must be a multiple of 0.1.'
+      end
+
+      if instant_repolling
+        @pool.on_idle { @poller.instant_repoll! }
       end
 
       check_rails_env if defined?(Rails)
@@ -86,14 +88,6 @@ module Workhorse
 
         trap_termination if @auto_terminate
       end
-    end
-
-    # Called by performer when a job has succeeded.
-    #
-    # @param poll_time Time Time when the poll was issued that led to
-    #   performing this job
-    def job_succeeded(poll_time)
-      @poller.instant_repoll!(poll_time) if instant_repolling
     end
 
     def assert_state!(state)
@@ -133,14 +127,14 @@ module Workhorse
       @pool.idle
     end
 
-    def perform(db_job, poll_time)
+    def perform(db_job)
       mutex.synchronize do
         assert_state! :running
         log "Posting job #{db_job.id} to thread pool"
 
         @pool.post do
           begin
-            Workhorse::Performer.new(db_job, self, poll_time).perform
+            Workhorse::Performer.new(db_job, self).perform
           rescue Exception => e
             log %(#{e.message}\n#{e.backtrace.join("\n")}), :error
           end

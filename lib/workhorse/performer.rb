@@ -2,12 +2,9 @@ module Workhorse
   class Performer
     attr_reader :worker
 
-    # @param poll_time Time Time when the poll was issued that lead to
-    #   performing this job
-    def initialize(db_job, worker, poll_time)
+    def initialize(db_job, worker)
       @db_job = db_job
       @worker = worker
-      @poll_time = poll_time
       @started = false
     end
 
@@ -80,11 +77,6 @@ module Workhorse
         log 'Mark succeeded', :debug
         @db_job.mark_succeeded!
       end
-
-      # ---------------------------------------------------------------
-      # Report job as succeeded to worker
-      # ---------------------------------------------------------------
-      worker.job_succeeded(@poll_time)
     end
 
     def log(text, level = :info)
