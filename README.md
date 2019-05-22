@@ -345,13 +345,22 @@ Performing a reset will reset the job state to `waiting` and it will be
 processed again. All meta fields will be reset as well. See inline documentation
 of `Workhorse::DbJob#reset!` for more details.
 
+
+## Using workhorse with Rails / ActiveJob
+
+While workhorse can be used though its custom interface as documented above, it
+is also fully integrated into Rails using `ActiveJob`. See [documentation of
+ActiveJob](https://edgeguides.rubyonrails.org/active_job_basics.html) for more
+information on how to use it.
+
+To use workhorse as your ActiveJob backend, set the `queue_adapter` to
+`workhorse`, either using `config.active_job.queue_adapter` in your application
+configuration or else using `self.queue_adapter` in a job class inheriting from
+`ActiveJob`. See ActiveJob documentation for more details.
+
 ## Frequently asked questions
 
 Please consult the [FAQ](FAQ.md).
-
-## Roadmap
-
-* [ ] ActiveJob integration for Rails
 
 ## Copyright
 

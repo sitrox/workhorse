@@ -18,6 +18,7 @@ task :gemspec do
     spec.add_development_dependency 'mysql2'
     spec.add_development_dependency 'colorize'
     spec.add_development_dependency 'benchmark-ips'
+    spec.add_development_dependency 'activejob'
     spec.add_dependency 'activesupport'
     spec.add_dependency 'activerecord'
     spec.add_dependency 'schemacop', '~> 2.0'
@@ -30,7 +31,7 @@ end
 require 'rake/testtask'
 
 Rake::TestTask.new do |t|
-  t.pattern = 'test/workhorse/**/*_test.rb'
+  t.pattern = 'test/**/*_test.rb'
   t.verbose = false
   t.libs << 'test/lib'
 end

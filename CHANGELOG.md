@@ -1,5 +1,9 @@
 # Workhorse Change log
 
+## Unreleased
+
+* Added support for ActiveJob
+
 ## 0.4.0 - 2019-05-15
 
 * Added instruments for clearing DbJob data. (PR #17)
