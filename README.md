@@ -27,7 +27,7 @@ What it does not do:
   but not in separate processes (unless you manually start multiple worker
   processes).
 * It does not support
-  [timeouts](FAQ.md#why-does-workhorse-not-support-timeouts) and timed execution.
+  [timeouts](FAQ.md#why-does-workhorse-not-support-timeouts).
 
 ## Installation
 
