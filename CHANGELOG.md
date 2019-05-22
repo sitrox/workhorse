@@ -1,6 +1,6 @@
 # Workhorse Change log
 
-## Unreleased
+## 0.5.0 - 2019-05-22
 
 * Added support for ActiveJob
 
