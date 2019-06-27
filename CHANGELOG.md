@@ -1,5 +1,9 @@
 # Workhorse Change log
 
+## 0.5.1 - 2019-06-27
+
+* Add daemon command `kill`
+
 ## 0.5.0 - 2019-05-22
 
 * Added support for ActiveJob
