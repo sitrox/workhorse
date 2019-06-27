@@ -18,6 +18,8 @@ module Workhorse
           exit daemon.start
         when 'stop'
           exit daemon.stop
+        when 'kill'
+          exit daemon.stop(true)
         when 'status'
           exit daemon.status
         when 'watch'
@@ -51,6 +53,9 @@ Options:
 
   stop
     Stop the daemon
+
+  kill
+    Kill the daemon
 
   status
     Query the status of the daemon. Exit with status 1 if any worker is

@@ -41,7 +41,7 @@ module Workhorse
       return code
     end
 
-    def stop
+    def stop(kill = false)
       code = 0
 
       for_each_worker do |worker_id|
@@ -49,7 +49,7 @@ module Workhorse
 
         if pid_file && pid
           puts "Worker ##{worker_id}: Stopping"
-          stop_worker pid_file, pid
+          stop_worker pid_file, pid, kill
         elsif pid_file
           File.delete pid_file
           puts "Worker ##{worker_id}: Already stopped (stale PID file)"
@@ -115,10 +115,12 @@ module Workhorse
       IO.write(pid_file_for(worker_id), pid)
     end
 
-    def stop_worker(pid_file, pid)
+    def stop_worker(pid_file, pid, kill = false)
+      signal = kill ? 'KILL' : 'TERM'
+
       loop do
         begin
-          Process.kill('TERM', pid)
+          Process.kill(signal, pid)
         rescue Errno::ESRCH
           break
         end
