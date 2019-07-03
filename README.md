@@ -224,7 +224,7 @@ For this case, the workhorse install routine automatically creates the file
 The script can be called as follows:
 
 ```bash
-RAILS_ENV=production bundle exec bin/workhorse.rb start|stop|status|watch|restart|usage
+RAILS_ENV=production bundle exec bin/workhorse.rb start|stop|kill|status|watch|restart|usage
 ```
 
 #### Background and customization
