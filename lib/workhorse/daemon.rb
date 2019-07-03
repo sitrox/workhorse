@@ -12,7 +12,7 @@ module Workhorse
       end
     end
 
-    def initialize(pidfile: nil, quiet: false, &block)
+    def initialize(pidfile: nil, quiet: false, &_block)
       @pidfile = pidfile
       @quiet = quiet
       @workers = []
