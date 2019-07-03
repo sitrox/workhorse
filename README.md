@@ -153,25 +153,28 @@ achieving regular execution:
 
    require './config/environment'
 
-   Workhorse::Daemon::ShellHandler.run do
-     worker = Workhorse::Worker.new(pool_size: 5, polling_interval: 10, logger: Rails.logger)
-     scheduler = Rufus::Scheduler.new
+   Workhorse::Daemon::ShellHandler.run do |daemon|
+     # Start scheduler process
+     daemon.worker 'Scheduler' do
+       scheduler = Rufus::Scheduler.new
 
-     worker.start
+       scheduler.cron '0/10 * * * *' do
+         Workhorse.enqueue Workhorse::Jobs::CleanupSucceededJobs.new
+       end
 
-     scheduler.cron '0/10 * * * *' do
-       Workhorse.enqueue Workhorse::Jobs::CleanupSucceededJobs.new
+       Signal.trap 'TERM' do
+         scheduler.shutdown
+       end
+
+       scheduler.join
      end
 
-     Signal.trap 'TERM' do
-       scheduler.shutdown
-       Thread.new do
-         worker.shutdown
-       end.join
+     # Start 5 worker processes with 3 threads each
+     5.times do
+       daemon.worker do
+         Workhorse::Worker.new(pool_size: 3, polling_interval: 10, logger: Rails.logger)
+       end
      end
-
-     scheduler.join
-     worker.wait
    end
    ```
 
@@ -233,10 +236,14 @@ Within the shell handler, you can instantiate, configure, and start a worker as
 described under [Start workers manually](#start-workers-manually):
 
 ```ruby
-Workhorse::Daemon::ShellHandler.run count: 5 do
-  # This will be run 5 times, each time in a separate process. Per process, it
-  # will be able to process 3 jobs concurrently.
-  Workhorse::Worker.start_and_wait(pool_size: 3, logger: Rails.logger)
+Workhorse::Daemon::ShellHandler.run do |daemon|
+  5.times do
+    daemon.worker do
+      # This will be run 5 times, each time in a separate process. Per process, it
+      # will be able to process 3 jobs concurrently.
+      Workhorse::Worker.start_and_wait(pool_size: 3, logger: Rails.logger)
+    end
+  end
 end
 ```
 
