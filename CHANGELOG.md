@@ -1,5 +1,36 @@
 # Workhorse Change log
 
+## 0.6.0 - 2918-07-03
+
+* Adapt {Workhorse::Daemon} to support a specific block for each worker. This
+  allows, for example, to run a scheduler like Rufus in a separate worker
+  process.
+
+  If you're using the daemon class, you will need to restructure your workhorse
+  starting script.
+
+  Since there is no `count` attribute anymore, transfer this:
+
+  ```ruby
+  Workhorse::Daemon::ShellHandler.run count: 5 do
+    # ... worker code
+  end
+  ```
+
+  into this:
+
+  ```ruby
+  Workhorse::Daemon::ShellHandler.run do |daemon|
+    5.times do
+      daemon.worker do
+        # ... worker code
+      end
+    end
+  end
+  ```
+
+  See readme for more information.
+
 ## 0.5.1 - 2019-06-27
 
 * Add daemon command `kill`

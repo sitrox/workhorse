@@ -4,6 +4,7 @@ require 'active_record'
 require 'concurrent'
 
 require 'workhorse/enqueuer'
+require 'workhorse/scoped_env'
 
 module Workhorse
   # Check if the available Arel version is greater or equal than 7.0.0

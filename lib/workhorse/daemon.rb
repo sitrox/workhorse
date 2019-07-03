@@ -1,17 +1,32 @@
 module Workhorse
   class Daemon
-    def initialize(count: 1, pidfile: nil, quiet: false, &block)
-      @count = count
+    class Worker
+      attr_reader :id
+      attr_reader :name
+      attr_reader :block
+
+      def initialize(id, name, &block)
+        @id = id
+        @name = name
+        @block = block
+      end
+    end
+
+    def initialize(pidfile: nil, quiet: false, &block)
       @pidfile = pidfile
       @quiet = quiet
-      @block = block
+      @workers = []
 
-      fail 'Count must be an integer > 0.' unless count.is_a?(Integer) && count > 0
+      yield ScopedEnv.new(self, [:worker])
+
+      @count = @workers.count
+
+      fail 'No workers are defined.' if @count == 1
 
       FileUtils.mkdir_p('tmp/pids')
 
       if @pidfile.nil?
-        @pidfile = count > 1 ? 'tmp/pids/workhorse.%i.pid' : 'tmp/pids/workhorse.pid'
+        @pidfile = @count > 1 ? 'tmp/pids/workhorse.%i.pid' : 'tmp/pids/workhorse.pid'
       elsif @count > 1 && !@pidfile.include?('%s')
         fail 'Pidfile must include placeholder "%s" for worker id when specifying a count > 1.'
       elsif @count == 0 && @pidfile.include?('%s')
@@ -19,22 +34,26 @@ module Workhorse
       end
     end
 
+    def worker(name = 'Job Worker', &block)
+      @workers << Worker.new(@workers.size + 1, name, &block)
+    end
+
     def start
       code = 0
 
-      for_each_worker do |worker_id|
-        pid_file, pid = read_pid(worker_id)
+      for_each_worker do |worker|
+        pid_file, pid = read_pid(worker)
 
         if pid_file && pid
-          warn "Worker ##{worker_id}: Already started (PID #{pid})"
+          warn "Worker ##{worker.id} (#{worker.name}): Already started (PID #{pid})"
           code = 1
         elsif pid_file
           File.delete pid_file
-          puts "Worker ##{worker_id}: Starting (stale pid file)"
-          start_worker worker_id
+          puts "Worker ##{worker.id} (#{worker.name}): Starting (stale pid file)"
+          start_worker worker
         else
-          warn "Worker ##{worker_id}: Starting"
-          start_worker worker_id
+          warn "Worker ##{worker.id} (#{worker.name}): Starting"
+          start_worker worker
         end
       end
 
@@ -44,17 +63,17 @@ module Workhorse
     def stop(kill = false)
       code = 0
 
-      for_each_worker do |worker_id|
-        pid_file, pid = read_pid(worker_id)
+      for_each_worker do |worker|
+        pid_file, pid = read_pid(worker)
 
         if pid_file && pid
-          puts "Worker ##{worker_id}: Stopping"
+          puts "Worker (#{worker.name}) ##{worker.id}: Stopping"
           stop_worker pid_file, pid, kill
         elsif pid_file
           File.delete pid_file
-          puts "Worker ##{worker_id}: Already stopped (stale PID file)"
+          puts "Worker (#{worker.name}) ##{worker.id}: Already stopped (stale PID file)"
         else
-          warn "Worker ##{worker_id}: Already stopped"
+          warn "Worker (#{worker.name}) ##{worker.id}: Already stopped"
           code = 1
         end
       end
@@ -65,16 +84,16 @@ module Workhorse
     def status(quiet: false)
       code = 0
 
-      for_each_worker do |worker_id|
-        pid_file, pid = read_pid(worker_id)
+      for_each_worker do |worker|
+        pid_file, pid = read_pid(worker)
 
         if pid_file && pid
-          puts "Worker ##{worker_id}: Running" unless quiet
+          puts "Worker ##{worker.id} (#{worker.name}): Running" unless quiet
         elsif pid_file
-          warn "Worker ##{worker_id}: Not running (stale PID file)" unless quiet
+          warn "Worker ##{worker.id} (#{worker.name}): Not running (stale PID file)" unless quiet
           code = 1
         else
-          warn "Worker ##{worker_id}: Not running" unless quiet
+          warn "Worker ##{worker.id} (#{worker.name}): Not running" unless quiet
           code = 1
         end
       end
@@ -104,15 +123,15 @@ module Workhorse
     private
 
     def for_each_worker(&block)
-      1.upto(@count, &block)
+      @workers.each(&block)
     end
 
-    def start_worker(worker_id)
+    def start_worker(worker)
       pid = fork do
-        $0 = process_name(worker_id)
-        @block.call
+        $0 = process_name(worker)
+        worker.block.call
       end
-      IO.write(pid_file_for(worker_id), pid)
+      IO.write(pid_file_for(worker), pid)
     end
 
     def stop_worker(pid_file, pid, kill = false)
@@ -131,14 +150,14 @@ module Workhorse
       File.delete(pid_file)
     end
 
-    def process_name(worker_id)
+    def process_name(worker)
       if defined?(Rails)
         path = Rails.root
       else
         path = $PROGRAM_NAME
       end
 
-      return "Workhorse Worker ##{worker_id}: #{path}"
+      return "Workhorse #{worker.name} ##{worker.id}: #{path}"
     end
 
     def process?(pid)
@@ -150,12 +169,12 @@ module Workhorse
       end
     end
 
-    def pid_file_for(worker_id)
-      @pidfile % worker_id
+    def pid_file_for(worker)
+      @pidfile % worker.id
     end
 
-    def read_pid(worker_id)
-      file = pid_file_for(worker_id)
+    def read_pid(worker)
+      file = pid_file_for(worker)
 
       if File.exist?(file)
         pid = IO.read(file).to_i
