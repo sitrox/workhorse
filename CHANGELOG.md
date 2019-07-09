@@ -1,6 +1,10 @@
 # Workhorse Change log
 
-## 0.6.0 - 2918-07-03
+## 0.6.1 - 2019-07-09
+
+* Allow calling `Workhorse.setup` multiple times.
+
+## 0.6.0 - 2019-07-03
 
 * Adapt {Workhorse::Daemon} to support a specific block for each worker. This
   allows, for example, to run a scheduler like Rufus in a separate worker

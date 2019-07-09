@@ -12,8 +12,6 @@ module Workhorse
 
   extend Workhorse::Enqueuer
 
-  @set_up = false
-
   # Returns the performer currently performing the active job. This can only be
   # called from within a job and the same thread.
   def self.performer
@@ -36,9 +34,7 @@ module Workhorse
   self.perform_jobs_in_tx = true
 
   def self.setup
-    fail 'Workhorse is already set up.' if @set_up
     yield self
-    @set_up = true
   end
 end
 
