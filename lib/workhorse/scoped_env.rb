@@ -9,7 +9,7 @@ module Workhorse
     def method_missing(symbol, *args, &block)
       if @methods.include?(symbol)
         @delegation_object.send(symbol, *args, &block)
-      elsif @backup_binding&.respond_to?(symbol)
+      elsif @backup_binding.try(:respond_to?, symbol)
         @backup_binding.send(symbol, *args, &block)
       else
         super

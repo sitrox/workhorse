@@ -37,7 +37,7 @@ module Workhorse
             yield
           ensure
             active_threads.decrement
-            @on_idle&.call
+            @on_idle.try(:call)
           end
         end
       end
