@@ -1,5 +1,9 @@
 # Workhorse Change log
 
+## 0.6.2 - 2019-07-10
+
+* Make compatible with older ruby versions.
+
 ## 0.6.1 - 2019-07-09
 
 * Allow calling `Workhorse.setup` multiple times.
