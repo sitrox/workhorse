@@ -95,7 +95,7 @@ Workhorse allows you to easily queue
 method `Workhorse.enqueue_op`:
 
 ```ruby
-Workhorse.enqueue_op Operations::Jobs::CleanUpDatabase, { quiet: true }, queue: :maintenance, priority: 2
+Workhorse.enqueue_op Operations::Jobs::CleanUpDatabase, { queue: :maintenance, priority: 2 }, quiet: true
 ```
 
 Params passed using the second argument will be used for operation instantiation
