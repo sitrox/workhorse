@@ -8,8 +8,8 @@ Workhorse.setup do |config|
   # Enable and configure this to specify an alternative callback for handling
   # transactions.
   #
-  # config.tx_callback = proc do |&block|
-  #   ActiveRecord::Base.transaction&(&block)
+  # self.tx_callback = proc do |*args, &block|
+  #   ActiveRecord::Base.transaction(*args, &block)
   # end
 
   # Enable and configure this to specify a callback for handling worker

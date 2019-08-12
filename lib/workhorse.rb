@@ -20,8 +20,8 @@ module Workhorse
   end
 
   mattr_accessor :tx_callback
-  self.tx_callback = proc do |&block|
-    ActiveRecord::Base.transaction(&block)
+  self.tx_callback = proc do |*args, &block|
+    ActiveRecord::Base.transaction(*args, &block)
   end
 
   mattr_accessor :on_exception
