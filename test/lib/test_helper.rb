@@ -29,6 +29,12 @@ class WorkhorseTest < ActiveSupport::TestCase
     end
   end
 
+  def mock_poll
+    return Thread.new do
+      Workhorse::Poller.new(MockWorker.new).send(:poll)
+    end
+  end
+
   def with_worker(options = {})
     w = Workhorse::Worker.new(options)
     w.start
@@ -38,6 +44,24 @@ class WorkhorseTest < ActiveSupport::TestCase
       w.shutdown
     end
   end
+end
+
+class MockWorker
+  def initialize(id: :dummy, idle: 5, queues: [])
+    @id = id
+    @idle = idle
+    @queues = queues
+  end
+
+  attr_accessor :idle
+  attr_accessor :id
+  attr_accessor :queues
+
+  def log(text, level = :info)
+    puts "[#{level}] #{text}"
+  end
+
+  def perform(*args); end
 end
 
 ActiveRecord::Base.establish_connection adapter: 'mysql2', database: 'workhorse', username: 'travis', password: '', pool: 10, host: :localhost
