@@ -1,5 +1,10 @@
 # Workhorse Change log
 
+## 0.6.3 - 2019-09-02
+
+* Fix examples in changelog, readme and generator for starting workers. Some of
+  the examples were non-functional after the changes introduced by 0.6.0.
+
 ## 0.6.2 - 2019-07-10
 
 * Make compatible with older ruby versions.
@@ -21,7 +26,7 @@
 
   ```ruby
   Workhorse::Daemon::ShellHandler.run count: 5 do
-    # ... worker code
+    Workhorse::Worker.start_and_wait(pool_size: 1, logger: Rails.logger)
   end
   ```
 
@@ -31,7 +36,7 @@
   Workhorse::Daemon::ShellHandler.run do |daemon|
     5.times do
       daemon.worker do
-        # ... worker code
+        Workhorse::Worker.start_and_wait(pool_size: 1, logger: Rails.logger)
       end
     end
   end

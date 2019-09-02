@@ -172,7 +172,7 @@ achieving regular execution:
      # Start 5 worker processes with 3 threads each
      5.times do
        daemon.worker do
-         Workhorse::Worker.new(pool_size: 3, polling_interval: 10, logger: Rails.logger)
+         Workhorse::Worker.start_and_wait(pool_size: 3, polling_interval: 10, logger: Rails.logger)
        end
      end
    end
