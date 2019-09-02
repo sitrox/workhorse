@@ -64,7 +64,7 @@ class MockWorker
   def perform(*args); end
 end
 
-ActiveRecord::Base.establish_connection adapter: 'mysql2', database: 'workhorse', username: 'travis', password: '', pool: 10, host: :localhost
+ActiveRecord::Base.establish_connection adapter: 'mysql2', database: 'workhorse', username: 'travis', password: '', pool: 30, host: :localhost
 
 require 'db_schema'
 require 'workhorse'

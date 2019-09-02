@@ -63,7 +63,7 @@ module Workhorse
     def poll
       @instant_repoll.make_false
 
-      Workhorse.tx_callback.call do
+      Workhorse.tx_callback.call isolation: :read_committed do
         # As we are the only thread posting into the worker pool, it is safe to
         # get the number of idle threads without mutex synchronization. The
         # actual number of idle workers at time of posting can only be larger

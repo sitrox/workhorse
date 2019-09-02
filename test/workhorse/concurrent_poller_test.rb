@@ -95,6 +95,9 @@ class Workhorse::ConcurrentPollerTest < WorkhorseTest
   # `priority`, `perform_at`, `created_at`, `updated_at`) VALUES ('queue_49',
   # o:FailingTestJob\0', 0, '2019-08-12 16:10:02', '2019-08-12 16:10:02',
   # '2019-08-12 16:10:02')
+  #
+  # TODO: The exception also seems to happen when just polling and not
+  # performing. This has yet to be reproduced using this test.
   def test_with_separate_tx
     threads = []
 
@@ -112,6 +115,70 @@ class Workhorse::ConcurrentPollerTest < WorkhorseTest
         Workhorse.enqueue FailingTestJob.new, queue: "queue_#{i}"
       end
     end
+  ensure
+    threads.each(&:join)
+  end
+
+  def n_test_jonas
+    threads = []
+
+    w1 = Workhorse::Worker.new
+    w2 = Workhorse::Worker.new
+
+    3.times do
+      threads << Thread.new { w1.poller.send(:poll) }
+      threads << Thread.new { w2.poller.send(:poll) }
+    end
+    Workhorse.enqueue FailingTestJob.new, queue: SecureRandom.hex
+    sleep 0.1
+    3.times do
+      threads << Thread.new { w2.poller.send(:poll) }
+      threads << Thread.new { w1.poller.send(:poll) }
+    end
+    sleep 0.1
+    Workhorse.enqueue FailingTestJob.new, queue: SecureRandom.hex
+
+
+
+    # threads << Thread.new do
+    #   work 5, polling_interval: 0.1
+    # end
+    #
+    #
+    # Workhorse.enqueue FailingTestJob.new, queue: "queue_1"
+    #
+    # threads << mock_poll
+    # threads << mock_poll
+    # threads << mock_poll
+    # threads << mock_poll
+    # threads << mock_poll
+    #
+    # Workhorse.enqueue FailingTestJob.new, queue: "queue_2"
+    # threads << mock_poll
+    # threads << mock_poll
+    # Workhorse.enqueue FailingTestJob.new, queue: "queue_3"
+    # threads << mock_poll
+    # Workhorse.enqueue FailingTestJob.new, queue: "queue_4"
+    # Workhorse.enqueue FailingTestJob.new, queue: "queue_5"
+    # Workhorse.enqueue FailingTestJob.new, queue: "queue_5"
+    #
+    # threads << mock_poll
+    #
+    #
+    # # 10.times do
+    # #   threads << Thread.new do
+    # #     work 5, polling_interval: 0.1
+    # #   end
+    # # end
+    #
+    # # 200.times do |i|
+    # #   # Exception only happens when jobs are enqueued in separate transactions
+    # #   Workhorse::DbJob.transaction do
+    # #     # Exception only happens when using separate queues or at least when
+    # #     # using multiple queues
+    # #     Workhorse.enqueue FailingTestJob.new, queue: "queue_#{i}"
+    # #   end
+    # # end
   ensure
     threads.each(&:join)
   end
