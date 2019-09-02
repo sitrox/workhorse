@@ -1,4 +1,4 @@
-# Workhorse Change log
+# Workhorse Changelog
 
 ## 0.6.3 - 2019-09-02
 
