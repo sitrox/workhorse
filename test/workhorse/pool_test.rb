@@ -19,6 +19,40 @@ class Workhorse::PoolTest < WorkhorseTest
     end
   end
 
+  # This tries to reproduce issue #21 where the exception "No live threads left.
+  # Deadlock?" was raised when trying to call `wait` on a pool on which
+  # `shutdown` has not been called yet.
+  def test_issue_22
+    # ---------------------------------------------------------------
+    # Here we forcefully disconnect AR and force all other threads
+    # beside the current to exit, as issue #22 cannot be reproduced
+    # when there are other threads besides the current one around.
+    # ---------------------------------------------------------------
+    ActiveRecord::Base.connection_pool.disconnect
+
+    Thread.list.each do |thread|
+      thread.exit unless thread == Thread.current
+    end
+
+    # ---------------------------------------------------------------
+    # The following resulted in an exception and should now work
+    # without any exception.
+    # ---------------------------------------------------------------
+    assert_nothing_raised do
+      p = Workhorse::Pool.new(1)
+      p.post do
+        sleep 1
+      end
+
+      Thread.new do
+        sleep 2
+        p.shutdown
+      end
+
+      p.wait
+    end
+  end
+
   def test_on_idle
     on_idle_calls = Concurrent::AtomicFixnum.new
 

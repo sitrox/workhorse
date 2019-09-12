@@ -48,8 +48,17 @@ module Workhorse
       @size - @active_threads.value
     end
 
+    # Waits until the pool is shut down. This will wait forever unless you
+    # eventually call shutdown (either before calling `wait` or after it in
+    # another thread).
     def wait
-      @executor.wait_for_termination
+      # Here we use a loop-sleep combination instead of using
+      # ThreadPoolExecutor's `wait_for_termination`. See issue #21 for more
+      # information.
+      loop do
+        break if @executor.shutdown?
+        sleep 0.1
+      end
     end
 
     # Shuts down the pool and waits for termination.
