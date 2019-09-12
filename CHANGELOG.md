@@ -2,7 +2,7 @@
 
 ## 0.6.4 - 2019-10-12
 
-* Fixes #22 where an exception with message `No live threads left. Deadlock?`
+* Fix #22 where an exception with message `No live threads left. Deadlock?`
   could be thrown in the worker processes.
 
 ## 0.6.3 - 2019-09-02
