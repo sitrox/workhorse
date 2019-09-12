@@ -1,5 +1,10 @@
 # Workhorse Changelog
 
+## 0.6.4 - 2019-10-12
+
+* Fixes #22 where an exception with message `No live threads left. Deadlock?`
+  could be thrown in the worker processes.
+
 ## 0.6.3 - 2019-09-02
 
 * Fix examples in changelog, readme and generator for starting workers. Some of
