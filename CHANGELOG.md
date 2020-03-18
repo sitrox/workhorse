@@ -1,5 +1,9 @@
 # Workhorse Changelog
 
+## 0.6.5 - 2020-03-18
+
+* Call `on_exception` callback on errors during polling.
+
 ## 0.6.4 - 2019-10-12
 
 * Fix #22 where an exception with message `No live threads left. Deadlock?`

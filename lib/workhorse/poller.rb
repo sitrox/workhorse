@@ -28,6 +28,7 @@ module Workhorse
           end
         rescue Exception => e
           worker.log %(Poller stopped with exception:\n#{e.message}\n#{e.backtrace.join("\n")})
+          Workhorse.on_exception.call(e)
         end
       end
     end
