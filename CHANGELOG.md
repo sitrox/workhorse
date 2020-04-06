@@ -1,5 +1,9 @@
 # Workhorse Changelog
 
+## 0.6.6 - 2020-04-06
+
+* Fix error `No workers are defined.` when definining exactly 1 worker.
+
 ## 0.6.5 - 2020-03-18
 
 * Call `on_exception` callback on errors during polling.

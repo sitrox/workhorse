@@ -21,7 +21,7 @@ module Workhorse
 
       @count = @workers.count
 
-      fail 'No workers are defined.' if @count == 1
+      fail 'No workers are defined.' if @count < 1
 
       FileUtils.mkdir_p('tmp/pids')
 
