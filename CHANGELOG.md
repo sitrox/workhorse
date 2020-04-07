@@ -1,5 +1,9 @@
 # Workhorse Changelog
 
+## 0.6.7 - 2020-04-07
+
+* Fix error where processes may have mistakenly been detected as running.
+
 ## 0.6.6 - 2020-04-06
 
 * Fix error `No workers are defined.` when definining exactly 1 worker.

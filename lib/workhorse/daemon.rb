@@ -162,7 +162,7 @@ module Workhorse
 
     def process?(pid)
       return begin
-        Process.getpgid(pid)
+        Process.kill(0, pid)
         true
       rescue Errno::ESRCH
         false
