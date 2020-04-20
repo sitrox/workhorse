@@ -365,6 +365,14 @@ To use workhorse as your ActiveJob backend, set the `queue_adapter` to
 configuration or else using `self.queue_adapter` in a job class inheriting from
 `ActiveJob`. See ActiveJob documentation for more details.
 
+## Cleaning up jobs
+
+Per default, jobs remain in the database, no matter in which state. This can
+eventually lead to a very large jobs database. You are advised to clean your
+jobs database on a regular interval. Workhorse provides the job
+`Workhose::Jobs::CleanupSucceededJobs` for this purpose that cleans up all
+succeeded jobs. You can run this using your scheduler in a specific interval.
+
 ## Frequently asked questions
 
 Please consult the [FAQ](FAQ.md).
