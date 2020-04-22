@@ -1,5 +1,10 @@
 # Workhorse Changelog
 
+## 0.6.9 - 2020-04-22
+
+* Fix error where processes may have mistakenly been detected as running (add a
+  further improvement to the fix in 0.6.7).
+
 ## 0.6.8 - 2020-04-07
 
 * Fix bug introduced in 0.6.7 where all processes were detected as running
