@@ -164,7 +164,7 @@ module Workhorse
       return begin
         Process.kill(0, pid)
         true
-      rescue Errno::EPERM
+      rescue Errno::EPERM, Errno::ESRCH
         false
       end
     end
