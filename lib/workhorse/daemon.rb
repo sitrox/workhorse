@@ -131,7 +131,7 @@ module Workhorse
         $0 = process_name(worker)
         worker.block.call
       end
-      IO.write(pid_file_for(worker), pid)
+      File.symlink(pid.to_s, pid_file_for(worker))
     end
 
     def stop_worker(pid_file, pid, kill = false)
@@ -176,8 +176,8 @@ module Workhorse
     def read_pid(worker)
       file = pid_file_for(worker)
 
-      if File.exist?(file)
-        pid = IO.read(file).to_i
+      if File.symlink?(file)
+        pid = File.readlink(file).to_i
         return file, process?(pid) ? pid : nil
       else
         return nil, nil
