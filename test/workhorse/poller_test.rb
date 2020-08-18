@@ -130,6 +130,33 @@ class Workhorse::PollerTest < WorkhorseTest
     assert_equal 25,  used_workers
   end
 
+  def test_connection_loss
+    $thread_conn = nil
+
+    Workhorse.enqueue BasicJob.new(sleep_time: 3)
+
+    t = Thread.new do
+      w = Workhorse::Worker.new(pool_size: 5, polling_interval: 0.1)
+      w.start
+
+      sleep 0.5
+
+      w.poller.define_singleton_method :poll do
+        fail ActiveRecord::StatementInvalid, 'Mysql2::Error: Connection was killed'
+      end
+
+      w.wait
+    end
+
+    assert_nothing_raised do
+      Timeout.timeout(6) do
+        t.join
+      end
+    end
+
+    assert_equal 1, Workhorse::DbJob.succeeded.count
+  end
+
   private
 
   def setup

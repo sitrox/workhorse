@@ -12,6 +12,10 @@ battle before it can be called stable.
   around some deadlock issues as well as an issue where a job was obtained by
   more than one poller.
 
+* Shut down worker if polling encountered any kind of error (running jobs will
+  be completed whenever possible). This leads to potential watcher jobs being
+  able to restore the failed process.
+
 * Make unit test database connection configurable using environment variables
   `DB_NAME`, `DB_USERNAME`, `DB_PASSWORD` and `DB_HOST`. This is only relevant
   if you are working on workhorse and need to run the unit tests.

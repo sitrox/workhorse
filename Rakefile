@@ -19,6 +19,7 @@ task :gemspec do
     spec.add_development_dependency 'colorize'
     spec.add_development_dependency 'benchmark-ips'
     spec.add_development_dependency 'activejob'
+    spec.add_development_dependency 'pry'
     spec.add_dependency 'activesupport'
     spec.add_dependency 'activerecord'
     spec.add_dependency 'schemacop', '~> 2.0'

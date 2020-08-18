@@ -23,15 +23,20 @@ module Workhorse
       @running = true
 
       @thread = Thread.new do
-        begin
-          loop do
-            break unless running?
+        loop do
+          break unless running?
+
+          begin
             poll
             sleep
+          rescue Exception => e
+            worker.log %(Poll encountered exception:\n#{e.message}\n#{e.backtrace.join("\n")})
+            worker.log 'Worker shutting down...'
+            Workhorse.on_exception.call(e)
+            @running = false
+            worker.instance_variable_get(:@pool).shutdown
+            break
           end
-        rescue Exception => e
-          worker.log %(Poller stopped with exception:\n#{e.message}\n#{e.backtrace.join("\n")})
-          Workhorse.on_exception.call(e)
         end
       end
     end
