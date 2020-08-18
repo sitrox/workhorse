@@ -40,7 +40,14 @@ class WorkhorseTest < ActiveSupport::TestCase
   end
 end
 
-ActiveRecord::Base.establish_connection adapter: 'mysql2', database: 'workhorse', username: 'travis', password: '', pool: 10, host: :localhost
+ActiveRecord::Base.establish_connection(
+  adapter:  'mysql2',
+  database: ENV['DB_NAME'] || 'workhorse',
+  username: ENV['DB_USERNAME'] || 'root',
+  password: ENV['DB_PASSWORD'] || '',
+  host:     ENV['DB_HOST'] || '127.0.0.1',
+  pool:     10
+)
 
 require 'db_schema'
 require 'workhorse'

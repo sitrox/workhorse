@@ -1,5 +1,14 @@
 # Workhorse Changelog
 
+## 0.7.0.beta0 - unreleased
+
+This is a stability release that is still experimental and has to be tested in
+battle before it can be called stable.
+
+* Make unit test database connection configurable using environment variables
+  `DB_NAME`, `DB_USERNAME`, `DB_PASSWORD` and `DB_HOST`. This is only relevant
+  if you are working on workhorse and need to run the unit tests.
+
 ## 0.6.9 - 2020-04-22
 
 * Fix error where processes may have mistakenly been detected as running (add a
