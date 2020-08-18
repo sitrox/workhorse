@@ -96,6 +96,40 @@ class Workhorse::PollerTest < WorkhorseTest
     assert_equal 1, Workhorse::DbJob.where(state: :succeeded).count
   end
 
+  def test_already_locked_issue
+    # Create 100 jobs
+    100.times do |i|
+      Workhorse.enqueue BasicJob.new(some_param: i, sleep_time: 0)
+    end
+
+    # Create 25 worker processes that work for 10s each
+    25.times do
+      Process.fork do
+        work 10, pool_size: 1, polling_interval: 0.1
+      end
+    end
+
+    # Create additional 100 jobs that are scheduled while the workers are
+    # already polling (to make sure those are picked up as well)
+    100.times do
+      sleep 0.05
+      Workhorse.enqueue BasicJob.new(sleep_time: 0)
+    end
+
+    # Wait for all forked processes to finish (should take ~10s)
+    Process.waitall
+
+    total = Workhorse::DbJob.count
+    succeeded = Workhorse::DbJob.succeeded.count
+    used_workers = Workhorse::DbJob.lock.pluck(:locked_by).uniq.size
+
+    # Make sure there are 200 jobs, all jobs have succeeded and that all of the
+    # workers have had their turn.
+    assert_equal 200, total
+    assert_equal 200, succeeded
+    assert_equal 25,  used_workers
+  end
+
   private
 
   def setup
