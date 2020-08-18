@@ -5,6 +5,13 @@
 This is a stability release that is still experimental and has to be tested in
 battle before it can be called stable.
 
+* Simplify locking during polling. Other than locking individual jobs, pollers
+  now acquire a global lock. While this can lead to many pollers waiting for
+  each others locks, performing a poll is usually done very quickly and the
+  performance drawback is to be considered neglegible. This change should work
+  around some deadlock issues as well as an issue where a job was obtained by
+  more than one poller.
+
 * Make unit test database connection configurable using environment variables
   `DB_NAME`, `DB_USERNAME`, `DB_PASSWORD` and `DB_HOST`. This is only relevant
   if you are working on workhorse and need to run the unit tests.

@@ -1,5 +1,8 @@
 module Workhorse
   class Poller
+    MIN_LOCK_TIMEOUT = 0.1 # In seconds
+    MAX_LOCK_TIMEOUT = 1.0 # In seconds
+
     attr_reader :worker
     attr_reader :table
 
@@ -61,24 +64,42 @@ module Workhorse
       end
     end
 
+    def with_global_lock(name: :workhorse, timeout: 2, &block)
+      success = Workhorse::DbJob.connection.select_all(
+        "select get_lock(concat(database(), '_#{name}'), #{timeout})"
+      ).first.values.last == 1
+
+      return unless success
+
+      yield
+    ensure
+      if success
+        Workhorse::DbJob.connection.execute("select release_lock(concat(database(), '_#{name}'))")
+      end
+    end
+
     def poll
       @instant_repoll.make_false
 
-      Workhorse.tx_callback.call do
-        # As we are the only thread posting into the worker pool, it is safe to
-        # get the number of idle threads without mutex synchronization. The
-        # actual number of idle workers at time of posting can only be larger
-        # than or equal to the number we get here.
-        idle = worker.idle
+      timeout = [MIN_LOCK_TIMEOUT, [MAX_LOCK_TIMEOUT, worker.polling_interval].min].max
 
-        worker.log "Polling DB for jobs (#{idle} available threads)...", :debug
+      with_global_lock timeout: timeout do
+        Workhorse.tx_callback.call do
+          # As we are the only thread posting into the worker pool, it is safe to
+          # get the number of idle threads without mutex synchronization. The
+          # actual number of idle workers at time of posting can only be larger
+          # than or equal to the number we get here.
+          idle = worker.idle
 
-        unless idle.zero?
-          jobs = queued_db_jobs(idle)
-          jobs.each do |job|
-            worker.log "Marking job #{job.id} as locked", :debug
-            job.mark_locked!(worker.id)
-            worker.perform job
+          worker.log "Polling DB for jobs (#{idle} available threads)...", :debug
+
+          unless idle.zero?
+            jobs = queued_db_jobs(idle)
+            jobs.each do |job|
+              worker.log "Marking job #{job.id} as locked", :debug
+              job.mark_locked!(worker.id)
+              worker.perform job
+            end
           end
         end
       end
@@ -86,16 +107,6 @@ module Workhorse
 
     # Returns an Array of #{Workhorse::DbJob}s that can be started
     def queued_db_jobs(limit)
-      # ---------------------------------------------------------------
-      # Lock all queued jobs that are waiting
-      # ---------------------------------------------------------------
-      Workhorse::DbJob.connection.execute(
-        Workhorse::DbJob.select('null').where(
-          table[:queue].not_eq(nil)
-          .and(table[:state].eq(:waiting))
-        ).lock.to_sql
-      )
-
       # ---------------------------------------------------------------
       # Select jobs to execute
       # ---------------------------------------------------------------
@@ -158,8 +169,6 @@ module Workhorse
         end
         select = table.project(Arel.star).where(table[:id].in(select.project(:id)))
       end
-
-      select = select.lock
 
       return Workhorse::DbJob.find_by_sql(select.to_sql).to_a
     end

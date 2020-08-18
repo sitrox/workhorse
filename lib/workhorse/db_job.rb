@@ -69,7 +69,14 @@ module Workhorse
         fail "Dirty jobs can't be locked."
       end
 
+      # TODO: Remove this debug output
+      # if Workhorse::DbJob.lock.find(id).locked_at
+      #   puts "Already locked (with FOR UPDATE)"
+      # end
+
       if locked_at
+        # TODO: Remove this debug output
+        # puts "Already locked. Job: #{self.id} Worker: #{worker_id}"
         fail "Job #{id} is already locked by #{locked_by.inspect}."
       end
 
