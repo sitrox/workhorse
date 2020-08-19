@@ -74,4 +74,8 @@ production mode.
 
 ## Why does workhorse not support timeouts?
 
-Generic timeout implementations are [a dangerous thing](http://www.mikeperham.com/2015/05/08/timeout-rubys-most-dangerous-api/) in Ruby. This is why we decided against providing this feature in Workhorse and recommend to implement the timeouts inside of your jobs - i.e. via network timeouts.
+Generic timeout implementations are [a dangerous
+thing](http://www.mikeperham.com/2015/05/08/timeout-rubys-most-dangerous-api/)
+in Ruby. This is why we decided against providing this feature in Workhorse and
+recommend to implement the timeouts inside of your jobs - i.e. via network
+timeouts.

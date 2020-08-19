@@ -71,7 +71,9 @@ What it does not do:
 When using Oracle databases, make sure your schema has access to the package
 `DBMS_LOCK`:
 
-```GRANT execute ON DBMS_LOCK TO <schema-name>;```
+```
+GRANT execute ON DBMS_LOCK TO <schema-name>;
+```
 
 ## Queuing jobs
 
@@ -327,7 +329,6 @@ DbJob.started
 DbJob.succeeded
 DbJob.failed
 ```
-
 ### Resetting jobs
 
 Jobs in a state other than `waiting` are either being processed or else already
@@ -358,7 +359,6 @@ provides an API method for resetting jobs in the following cases:
 Performing a reset will reset the job state to `waiting` and it will be
 processed again. All meta fields will be reset as well. See inline documentation
 of `Workhorse::DbJob#reset!` for more details.
-
 
 ## Using workhorse with Rails / ActiveJob
 
