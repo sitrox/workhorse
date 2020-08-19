@@ -1,9 +1,9 @@
 # Workhorse Changelog
 
-## 0.7.0.beta0 - unreleased
+## 1.0.0.beta0 - 2020-08-19
 
 This is a stability release that is still experimental and has to be tested in
-battle before it can be called stable.
+battle before it can be considered stable.
 
 * Simplify locking during polling. Other than locking individual jobs, pollers
   now acquire a global lock. While this can lead to many pollers waiting for
