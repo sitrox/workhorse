@@ -3,6 +3,9 @@ module Workhorse
     MIN_LOCK_TIMEOUT = 0.1 # In seconds
     MAX_LOCK_TIMEOUT = 1.0 # In seconds
 
+    ORACLE_LOCK_MODE = 6           # X_MODE (exclusive)
+    ORACLE_LOCK_HANDLE = 478564848 # Randomly chosen number
+
     attr_reader :worker
     attr_reader :table
 
@@ -70,16 +73,29 @@ module Workhorse
     end
 
     def with_global_lock(name: :workhorse, timeout: 2, &block)
-      success = Workhorse::DbJob.connection.select_all(
-        "select get_lock(concat(database(), '_#{name}'), #{timeout})"
-      ).first.values.last == 1
+      if @is_oracle
+        result = Workhorse::DbJob.connection.select_all(
+          "SELECT DBMS_LOCK.REQUEST(#{ORACLE_LOCK_HANDLE}, #{ORACLE_LOCK_MODE}, #{timeout}) FROM DUAL"
+        ).first.values.last
+
+        success = result == 0
+      else
+        result = Workhorse::DbJob.connection.select_all(
+          "SELECT GET_LOCK(CONCAT(DATABASE(), '_#{name}'), #{timeout})"
+        ).first.values.last
+        success = result == 1
+      end
 
       return unless success
 
       yield
     ensure
       if success
-        Workhorse::DbJob.connection.execute("select release_lock(concat(database(), '_#{name}'))")
+        if @is_oracle
+          Workhorse::DbJob.connection.execute("SELECT DBMS_LOCK.RELEASE(#{ORACLE_LOCK_HANDLE}) FROM DUAL")
+        else
+          Workhorse::DbJob.connection.execute("SELECT RELEASE_LOCK(CONCAT(DATABASE(), '_#{name}'))")
+        end
       end
     end
 
@@ -162,18 +178,6 @@ module Workhorse
 
       # Limit number of records
       select = agnostic_limit(select, limit)
-
-      # Wrap the entire query in an other subselect to enable locking under
-      # Oracle SQL. As MySQL is able to lock the records without this additional
-      # complication, only do this when using the Oracle backend.
-      if @is_oracle
-        if AREL_GTE_7
-          select = Arel::SelectManager.new(Arel.sql('(' + select.to_sql + ')'))
-        else
-          select = Arel::SelectManager.new(ActiveRecord::Base, Arel.sql('(' + select.to_sql + ')'))
-        end
-        select = table.project(Arel.star).where(table[:id].in(select.project(:id)))
-      end
 
       return Workhorse::DbJob.find_by_sql(select.to_sql).to_a
     end

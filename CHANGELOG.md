@@ -20,6 +20,11 @@ battle before it can be called stable.
   `DB_NAME`, `DB_USERNAME`, `DB_PASSWORD` and `DB_HOST`. This is only relevant
   if you are working on workhorse and need to run the unit tests.
 
+**If using oracle:** Make sure to grant execute permission to the package
+`DBMS_LOCK` for your oracle database schema:
+
+```GRANT execute ON DBMS_LOCK TO <schema-name>;```
+
 ## 0.6.9 - 2020-04-22
 
 * Fix error where processes may have mistakenly been detected as running (add a

@@ -66,6 +66,13 @@ What it does not do:
 
    Please customize the initializer and worker script to your liking.
 
+### Oracle
+
+When using Oracle databases, make sure your schema has access to the package
+`DBMS_LOCK`:
+
+```GRANT execute ON DBMS_LOCK TO <schema-name>;```
+
 ## Queuing jobs
 
 ### Basic jobs
