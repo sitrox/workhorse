@@ -1,6 +1,8 @@
 require 'minitest/autorun'
 require 'active_record'
 require 'active_job'
+require 'pry'
+require 'colorize'
 require 'mysql2'
 require 'benchmark'
 require 'jobs'
