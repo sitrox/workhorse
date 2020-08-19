@@ -380,6 +380,35 @@ jobs database on a regular interval. Workhorse provides the job
 `Workhose::Jobs::CleanupSucceededJobs` for this purpose that cleans up all
 succeeded jobs. You can run this using your scheduler in a specific interval.
 
+## Errors during polling / crashed workers
+
+Each worker process includes one thread that polls the database for jobs and
+dispatches them to individual worker threads. In case of an error in the poller
+(usually due to a database connection drop), the poller aborts and gracefully
+shuts down the entire worker. Jobs still being processed by this worker are
+attempted to be completed during this shutdown (which only works if the database
+connection is still active).
+
+This means that you should always have an external *watcher* (usually a
+cronjob), that calls the `workhorse watch` command regularly. This would
+automatically restart crashed worker processes.
+
+## Stuck queues
+
+Jobs in named queues (non-null queues) are always run sequentially. This means
+that if a job in such a queue is stuck in states `locked` or `started` (i.e. due
+to a database connection failure), no more jobs of this queue will be run as the
+entire queue is considered locked to ensure that no jobs of the same queue run
+in parallel.
+
+For this purpose, Workhorse provides the built-in job
+`Workhorse::Jobs::DetectStaleJobsJob` which you are advised schedule on a
+regular basis. It picks up jobs that remained `locked` or `started` (running)
+for more than a certain amount of time. If any of these jobs are found, an
+exception is thrown (which may cause a notification if you configured
+`on_exception` accordingly). See the job's API documentation for more
+information.
+
 ## Frequently asked questions
 
 Please consult the [FAQ](FAQ.md).

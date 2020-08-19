@@ -23,6 +23,12 @@ battle before it can be called stable.
 * Fix misbehaviour where queueless jobs were not picked up by workers as long as
   a named queue was in a locked state.
 
+* Add built-in job `Workhorse::Jobs::DetectStaleJobsJob` which you can schedule.
+  It picks up jobs that remained `locked` or `started` (running) for more than a
+  certain amount of time. If any of these jobs are found, an exception is thrown
+  (which may cause a notification if you configured `on_exception` accordingly).
+  See the job's API documentation for more information.
+
 **If using oracle:** Make sure to grant execute permission to the package
 `DBMS_LOCK` for your oracle database schema:
 

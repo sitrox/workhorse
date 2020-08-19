@@ -1,6 +1,6 @@
 module Workhorse::Jobs
   class CleanupSucceededJobs
-    # Instantiates a new cleanup job
+    # Instantiates a new job.
     #
     # @param max_age [Integer] The maximal age of jobs to retain, in days. Will
     #   be evaluated at perform time.
