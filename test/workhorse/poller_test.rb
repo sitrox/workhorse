@@ -48,6 +48,24 @@ class Workhorse::PollerTest < WorkhorseTest
     assert_equal %w[q1 q2], w.poller.send(:valid_queues)
   end
 
+  def test_valid_queues
+    w = Workhorse::Worker.new(polling_interval: 60)
+
+    assert_equal [], w.poller.send(:valid_queues)
+
+    Workhorse.enqueue BasicJob.new(sleep_time: 2), queue: nil
+
+    assert_equal [nil], w.poller.send(:valid_queues)
+
+    a_job = Workhorse.enqueue BasicJob.new(sleep_time: 2), queue: :a
+
+    assert_equal [nil, 'a'], w.poller.send(:valid_queues)
+
+    a_job.update_attribute :state, :locked
+
+    assert_equal [nil], w.poller.send(:valid_queues)
+  end
+
   def test_no_queues
     w = Workhorse::Worker.new(polling_interval: 60)
     assert_equal [], w.poller.send(:valid_queues)

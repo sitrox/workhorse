@@ -20,6 +20,9 @@ battle before it can be called stable.
   `DB_NAME`, `DB_USERNAME`, `DB_PASSWORD` and `DB_HOST`. This is only relevant
   if you are working on workhorse and need to run the unit tests.
 
+* Fix misbehaviour where queueless jobs were not picked up by workers as long as
+  a named queue was in a locked state.
+
 **If using oracle:** Make sure to grant execute permission to the package
 `DBMS_LOCK` for your oracle database schema:
 

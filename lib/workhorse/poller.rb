@@ -232,7 +232,7 @@ module Workhorse
                                .where(table[:state].in(bad_states))
       # .distinct is not chainable in older Arel versions
       bad_queues_select.distinct
-      select = select.where(table[:queue].not_in(bad_queues_select))
+      select = select.where(table[:queue].not_in(bad_queues_select).or(table[:queue].eq(nil)))
 
       # Restrict queues to valid ones as indicated by the options given to the
       # worker
