@@ -105,6 +105,8 @@ module Workhorse
       timeout = [MIN_LOCK_TIMEOUT, [MAX_LOCK_TIMEOUT, worker.polling_interval].min].max
 
       with_global_lock timeout: timeout do
+        job_ids = []
+
         Workhorse.tx_callback.call do
           # As we are the only thread posting into the worker pool, it is safe to
           # get the number of idle threads without mutex synchronization. The
@@ -119,10 +121,12 @@ module Workhorse
             jobs.each do |job|
               worker.log "Marking job #{job.id} as locked", :debug
               job.mark_locked!(worker.id)
-              worker.perform job
+              job_ids << job.id
             end
           end
         end
+
+        job_ids.each { |job_id| worker.perform(job_id) }
       end
     end
 

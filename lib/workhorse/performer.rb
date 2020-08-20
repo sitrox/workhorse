@@ -2,8 +2,8 @@ module Workhorse
   class Performer
     attr_reader :worker
 
-    def initialize(db_job, worker)
-      @db_job = db_job
+    def initialize(db_job_id, worker)
+      @db_job = Workhorse::DbJob.find(db_job_id)
       @worker = worker
       @started = false
     end

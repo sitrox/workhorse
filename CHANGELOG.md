@@ -1,5 +1,13 @@
 # Workhorse Changelog
 
+## 1.0.0.beta1 - 2020-08-20
+
+This is a stability release that is still experimental and has to be tested in
+battle before it can be considered stable.
+
+* Stop passing ActiveRecord job objects between polling and worker threads to
+  avoid AR race conditions. Now only IDs are passed between threads.
+
 ## 1.0.0.beta0 - 2020-08-19
 
 This is a stability release that is still experimental and has to be tested in
