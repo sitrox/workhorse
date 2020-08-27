@@ -30,6 +30,17 @@ module Workhorse
     # ExceptionNotifier.notify_exception(exception)
   end
 
+  # If set to `true`, the defined `on_exception` will not be called when the
+  # poller encounters an exception and the worker has to be shut down. The
+  # exception will still be logged.
+  mattr_accessor :silence_poller_exceptions
+  self.silence_poller_exceptions = false
+
+  # If set to `true`, the `watch` command won't produce any output. This does
+  # not include warnings such as the "development mode" warning.
+  mattr_accessor :silence_watcher
+  self.silence_watcher = false
+
   mattr_accessor :perform_jobs_in_tx
   self.perform_jobs_in_tx = true
 

@@ -290,6 +290,10 @@ Workhorse.setup do |config|
 end
 ```
 
+Using the settings `config.silence_poller_exceptions` and
+`config.silence_watcher`, you can silence certain exceptions / error outputs
+(both are disabled by default).
+
 ## Handling database jobs
 
 Jobs stored in the database can be accessed via the ActiveRecord model

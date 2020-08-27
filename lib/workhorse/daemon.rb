@@ -38,21 +38,21 @@ module Workhorse
       @workers << Worker.new(@workers.size + 1, name, &block)
     end
 
-    def start
+    def start(quiet: false)
       code = 0
 
       for_each_worker do |worker|
         pid_file, pid = read_pid(worker)
 
         if pid_file && pid
-          warn "Worker ##{worker.id} (#{worker.name}): Already started (PID #{pid})"
+          warn "Worker ##{worker.id} (#{worker.name}): Already started (PID #{pid})" unless quiet
           code = 1
         elsif pid_file
           File.delete pid_file
-          puts "Worker ##{worker.id} (#{worker.name}): Starting (stale pid file)"
+          puts "Worker ##{worker.id} (#{worker.name}): Starting (stale pid file)" unless quiet
           start_worker worker
         else
-          warn "Worker ##{worker.id} (#{worker.name}): Starting"
+          warn "Worker ##{worker.id} (#{worker.name}): Starting" unless quiet
           start_worker worker
         end
       end
@@ -109,7 +109,7 @@ module Workhorse
       end
 
       if should_be_running && status(quiet: true) != 0
-        return start
+        return start(quiet: Workhorse.silence_watcher)
       else
         return 0
       end

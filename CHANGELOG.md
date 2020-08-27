@@ -1,5 +1,11 @@
 # Workhorse Changelog
 
+## 1.0.0.beta2 - 2020-08-27
+
+* Add option `config.silence_poller_exceptions` (default `false`)
+
+* Add option `config.silence_watcher` (default `false`)
+
 ## 1.0.0.beta1 - 2020-08-20
 
 This is a stability release that is still experimental and has to be tested in

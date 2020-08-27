@@ -35,7 +35,7 @@ module Workhorse
           rescue Exception => e
             worker.log %(Poll encountered exception:\n#{e.message}\n#{e.backtrace.join("\n")})
             worker.log 'Worker shutting down...'
-            Workhorse.on_exception.call(e)
+            Workhorse.on_exception.call(e) unless Workhorse.silence_poller_exceptions
             @running = false
             worker.instance_variable_get(:@pool).shutdown
             break
