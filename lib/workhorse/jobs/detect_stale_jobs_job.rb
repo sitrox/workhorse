@@ -22,7 +22,7 @@ module Workhorse::Jobs
         rel = rel.where('locked_at < ?', @locked_to_started_threshold.seconds.ago)
         ids = rel.pluck(:id)
 
-        if ids.size > 0
+        unless ids.empty?
           messages << "Detected #{ids.size} jobs that were locked more than "\
                       "#{@locked_to_started_threshold}s ago and might be stale: #{ids.inspect}."
         end
@@ -34,7 +34,7 @@ module Workhorse::Jobs
         rel = rel.where('started_at < ?', @run_time_threshold.seconds.ago)
         ids = rel.pluck(:id)
 
-        if ids.size > 0
+        unless ids.empty?
           messages << "Detected #{ids.size} jobs that are running for longer than "\
                       "#{@run_time_threshold}s ago and might be stale: #{ids.inspect}."
         end

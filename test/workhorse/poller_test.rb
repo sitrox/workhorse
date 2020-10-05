@@ -48,7 +48,7 @@ class Workhorse::PollerTest < WorkhorseTest
     assert_equal %w[q1 q2], w.poller.send(:valid_queues)
   end
 
-  def test_valid_queues
+  def test_valid_queues_2
     w = Workhorse::Worker.new(polling_interval: 60)
 
     assert_equal [], w.poller.send(:valid_queues)
@@ -148,6 +148,7 @@ class Workhorse::PollerTest < WorkhorseTest
     assert_equal 25,  used_workers
   end
 
+  # rubocop: disable Style/GlobalVars
   def test_connection_loss
     $thread_conn = nil
 
@@ -174,6 +175,7 @@ class Workhorse::PollerTest < WorkhorseTest
 
     assert_equal 1, Workhorse::DbJob.succeeded.count
   end
+  # rubocop: enable Style/GlobalVars
 
   private
 

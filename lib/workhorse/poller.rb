@@ -3,8 +3,8 @@ module Workhorse
     MIN_LOCK_TIMEOUT = 0.1 # In seconds
     MAX_LOCK_TIMEOUT = 1.0 # In seconds
 
-    ORACLE_LOCK_MODE = 6           # X_MODE (exclusive)
-    ORACLE_LOCK_HANDLE = 478564848 # Randomly chosen number
+    ORACLE_LOCK_MODE   = 6           # X_MODE (exclusive)
+    ORACLE_LOCK_HANDLE = 478_564_848 # Randomly chosen number
 
     attr_reader :worker
     attr_reader :table
@@ -72,7 +72,7 @@ module Workhorse
       end
     end
 
-    def with_global_lock(name: :workhorse, timeout: 2, &block)
+    def with_global_lock(name: :workhorse, timeout: 2, &_block)
       if @is_oracle
         result = Workhorse::DbJob.connection.select_all(
           "SELECT DBMS_LOCK.REQUEST(#{ORACLE_LOCK_HANDLE}, #{ORACLE_LOCK_MODE}, #{timeout}) FROM DUAL"
