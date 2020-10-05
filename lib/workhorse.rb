@@ -1,7 +1,8 @@
-require 'socket'
-require 'active_support/all'
 require 'active_record'
+require 'active_support/all'
 require 'concurrent'
+require 'socket'
+require 'uri'
 
 require 'workhorse/enqueuer'
 require 'workhorse/scoped_env'
