@@ -1,5 +1,9 @@
 # Workhorse Changelog
 
+## 1.0.1 - 2020-12-15
+
+* Fix handling of empty pid files
+
 ## 1.0.0 - 2020-09-21
 
 * Stable release, identical to 1.0.0.beta2 but now extensively battle-tested

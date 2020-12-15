@@ -177,7 +177,9 @@ module Workhorse
       file = pid_file_for(worker)
 
       if File.exist?(file)
-        pid = IO.read(file).to_i
+        raw_pid = IO.read(file)
+        return nil, nil if raw_pid.blank?
+        pid = Integer(raw_pid)
         return file, process?(pid) ? pid : nil
       else
         return nil, nil
