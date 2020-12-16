@@ -1,11 +1,12 @@
 module Workhorse
   module Enqueuer
     # Enqueue any object that is serializable and has a `perform` method
-    def enqueue(job, queue: nil, priority: 0, perform_at: Time.now)
+    def enqueue(job, queue: nil, priority: 0, perform_at: Time.now, description: nil)
       return DbJob.create!(
         queue: queue,
         priority: priority,
         perform_at: perform_at,
+        description: description,
         handler: Marshal.dump(job)
       )
     end

@@ -33,6 +33,15 @@ class Workhorse::EnqueuerTest < WorkhorseTest
     assert_equal 1, Workhorse::DbJob.first.priority
   end
 
+  def test_with_description
+    assert_equal 0, Workhorse::DbJob.all.count
+    Workhorse.enqueue BasicJob.new, description: 'Lorem ipsum'
+    assert_equal 1, Workhorse::DbJob.all.count
+
+    db_job = Workhorse::DbJob.first
+    assert_equal 'Lorem ipsum', db_job.description
+  end
+
   def test_op
     Workhorse.enqueue_op DummyRailsOpsOp, { queue: :q1 }, foo: :bar
 

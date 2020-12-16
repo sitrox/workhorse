@@ -18,6 +18,8 @@ ActiveRecord::Schema.define do
     t.integer :priority, null: false
     t.datetime :perform_at, null: true
 
+    t.string :description, null: true
+
     t.timestamps null: false
   end
 
