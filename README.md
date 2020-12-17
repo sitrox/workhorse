@@ -381,7 +381,7 @@ configuration or else using `self.queue_adapter` in a job class inheriting from
 Per default, jobs remain in the database, no matter in which state. This can
 eventually lead to a very large jobs database. You are advised to clean your
 jobs database on a regular interval. Workhorse provides the job
-`Workhose::Jobs::CleanupSucceededJobs` for this purpose that cleans up all
+`Workhorse::Jobs::CleanupSucceededJobs` for this purpose that cleans up all
 succeeded jobs. You can run this using your scheduler in a specific interval.
 
 ## Caveats
