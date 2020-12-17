@@ -1,5 +1,20 @@
 # Workhorse Changelog
 
+## 1.1.0 - 2020-12-17
+
+* Add `description` column to `DbJob`.
+
+If you're upgrading from a previous version, add the `description` column
+to your `DbJob` table, e.g. with such a migration:
+
+```ruby
+class AddDescriptionToWorkhorseDbJobs < ActiveRecord::Migration[6.0]
+  def change
+    add_column :db_jobs, :description, :string, after: :perform_at, null: true
+  end
+end
+```
+
 ## 1.0.1 - 2020-12-15
 
 * Fix handling of empty pid files

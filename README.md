@@ -81,7 +81,7 @@ GRANT execute ON DBMS_LOCK TO <schema-name>;
 
 Workhorse can handle any jobs that support the `perform` method and are
 serializable. To queue a basic job, use the static method `Workhorse.enqueue`.
-You can optionally pass a queue name and a priority.
+You can optionally pass a queue name, a priority and a description (as a string).
 
 ```ruby
 class MyJob
@@ -94,7 +94,7 @@ class MyJob
   end
 end
 
-Workhorse.enqueue MyJob.new('John'), queue: :test, priority: 2
+Workhorse.enqueue MyJob.new('John'), queue: :test, priority: 2, description: 'Basic Job'
 ```
 
 ### RailsOps operations
