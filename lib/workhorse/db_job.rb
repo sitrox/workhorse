@@ -7,7 +7,7 @@ module Workhorse
     STATE_FAILED    = :failed
 
     if respond_to?(:attr_accessible)
-      attr_accessible :queue, :priority, :perform_at, :handler
+      attr_accessible :queue, :priority, :perform_at, :handler, :description
     end
 
     self.table_name = 'jobs'
