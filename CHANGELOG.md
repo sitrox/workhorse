@@ -1,6 +1,6 @@
 # Workhorse Changelog
 
-## 1.1.0 - 2020-12-17
+## 1.1.0 - 2020-12-24
 
 * Add `description` column to `DbJob`.
 
