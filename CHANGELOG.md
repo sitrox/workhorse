@@ -10,7 +10,7 @@ to your `DbJob` table, e.g. with such a migration:
 ```ruby
 class AddDescriptionToWorkhorseDbJobs < ActiveRecord::Migration[6.0]
   def change
-    add_column :db_jobs, :description, :string, after: :perform_at, null: true
+    add_column :jobs, :description, :string, after: :perform_at, null: true
   end
 end
 ```
