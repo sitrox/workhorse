@@ -421,4 +421,4 @@ Please consult the [FAQ](FAQ.md).
 
 ## Copyright
 
-Copyright © 2020 Sitrox. See `LICENSE` for further details.
+Copyright © 2021 Sitrox. See `LICENSE` for further details.
