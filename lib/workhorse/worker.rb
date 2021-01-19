@@ -13,8 +13,8 @@ module Workhorse
 
     # Instantiates and starts a new worker with the given arguments and then
     # waits for its completion (i.e. an interrupt).
-    def self.start_and_wait(*args)
-      worker = new(*args)
+    def self.start_and_wait(**args)
+      worker = new(**args)
       worker.start
       worker.wait
     end

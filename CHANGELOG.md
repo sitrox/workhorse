@@ -1,5 +1,9 @@
 # Workhorse Changelog
 
+## 1.1.1 - 2021-01-19
+
+* Remove deprecation warnings with Ruby 2.7
+
 ## 1.1.0 - 2020-12-24
 
 * Add `description` column to `DbJob`.

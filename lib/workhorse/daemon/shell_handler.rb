@@ -1,6 +1,6 @@
 module Workhorse
   class Daemon::ShellHandler
-    def self.run(options = {}, &block)
+    def self.run(**options, &block)
       unless ARGV.count == 1
         usage
         exit 99
@@ -10,7 +10,7 @@ module Workhorse
       lockfile = File.open(lockfile_path, 'a')
       lockfile.flock(File::LOCK_EX || File::LOCK_NB)
 
-      daemon = Workhorse::Daemon.new(options, &block)
+      daemon = Workhorse::Daemon.new(**options, &block)
 
       begin
         case ARGV.first
