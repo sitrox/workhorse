@@ -1,5 +1,9 @@
 # Workhorse Changelog
 
+## 1.2.1 - 2021-01-27
+
+* Log job description (if given) when performing job
+
 ## 1.2.0 - 2021-01-27
 
 * `Workhorse.enqueue_active_job`

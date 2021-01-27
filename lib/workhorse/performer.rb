@@ -59,6 +59,7 @@ module Workhorse
       # Deserialize and perform job
       # ---------------------------------------------------------------
       log 'Performing', :info
+      log "Description: #{@db_job.description}", :info unless @db_job.description.blank?
 
       if Workhorse.perform_jobs_in_tx
         Workhorse.tx_callback.call do
