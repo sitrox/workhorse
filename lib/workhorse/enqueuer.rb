@@ -12,10 +12,16 @@ module Workhorse
     end
 
     # Enqueue an ActiveJob job
-    def enqueue_active_job(job, perform_at = Time.now)
+    def enqueue_active_job(job, perform_at: Time.now, queue: nil, description: nil)
       wrapper_job = Jobs::RunActiveJob.new(job.serialize)
-      queue = job.queue_name.blank? ? nil : job.queue_name
-      db_job = enqueue(wrapper_job, queue: queue, priority: job.priority || 0, perform_at: Time.at(perform_at))
+      queue ||= job.queue_name if job.queue_name.present?
+      db_job = enqueue(
+        wrapper_job,
+        queue:       queue,
+        priority:    job.priority || 0,
+        perform_at:  Time.at(perform_at),
+        description: description
+      )
       job.provider_job_id = db_job.id
       return db_job
     end

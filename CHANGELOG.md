@@ -1,5 +1,21 @@
 # Workhorse Changelog
 
+## 1.2.0 - 2021-01-27
+
+* `Workhorse.enqueue_active_job`
+  * Change `perform_at` to a keyword arument
+  * Allow passing `:description` and `:queue`
+
+Note that when upgrading, change:
+
+```ruby
+# From
+Workhorse.enqueue_active_job MyJob, 5.minutes.from_now
+
+# To
+Workhorse.enqueue_active_job MyJob, perform_at: 5.minutes.from_now
+```
+
 ## 1.1.1 - 2021-01-19
 
 * Remove deprecation warnings with Ruby 2.7

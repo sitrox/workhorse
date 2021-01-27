@@ -14,8 +14,8 @@ module ActiveJob
         Workhorse.enqueue_active_job(job)
       end
 
-      def enqueue_at(job, timestamp) #:nodoc:
-        Workhorse.enqueue_active_job(job, timestamp)
+      def enqueue_at(job, timestamp = Time.now) #:nodoc:
+        Workhorse.enqueue_active_job(job, perform_at: timestamp)
       end
     end
   end
