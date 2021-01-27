@@ -29,7 +29,6 @@ Gem::Specification.new do |s|
       s.add_development_dependency(%q<pry>.freeze, [">= 0"])
       s.add_runtime_dependency(%q<activesupport>.freeze, [">= 0"])
       s.add_runtime_dependency(%q<activerecord>.freeze, [">= 0"])
-      s.add_runtime_dependency(%q<schemacop>.freeze, ["~> 2.0"])
       s.add_runtime_dependency(%q<concurrent-ruby>.freeze, [">= 0"])
     else
       s.add_dependency(%q<bundler>.freeze, [">= 0"])
@@ -43,7 +42,6 @@ Gem::Specification.new do |s|
       s.add_dependency(%q<pry>.freeze, [">= 0"])
       s.add_dependency(%q<activesupport>.freeze, [">= 0"])
       s.add_dependency(%q<activerecord>.freeze, [">= 0"])
-      s.add_dependency(%q<schemacop>.freeze, ["~> 2.0"])
       s.add_dependency(%q<concurrent-ruby>.freeze, [">= 0"])
     end
   else
@@ -58,7 +56,6 @@ Gem::Specification.new do |s|
     s.add_dependency(%q<pry>.freeze, [">= 0"])
     s.add_dependency(%q<activesupport>.freeze, [">= 0"])
     s.add_dependency(%q<activerecord>.freeze, [">= 0"])
-    s.add_dependency(%q<schemacop>.freeze, ["~> 2.0"])
     s.add_dependency(%q<concurrent-ruby>.freeze, [">= 0"])
   end
 end

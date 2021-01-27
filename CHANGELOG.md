@@ -1,5 +1,9 @@
 # Workhorse Changelog
 
+## 1.2.2 - 2021-01-27
+
+* Remove unused gem dependency to `schemacop`
+
 ## 1.2.1 - 2021-01-27
 
 * Log job description (if given) when performing job

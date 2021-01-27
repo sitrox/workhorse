@@ -22,7 +22,6 @@ task :gemspec do
     spec.add_development_dependency 'pry'
     spec.add_dependency 'activesupport'
     spec.add_dependency 'activerecord'
-    spec.add_dependency 'schemacop', '~> 2.0'
     spec.add_dependency 'concurrent-ruby'
   end
 
