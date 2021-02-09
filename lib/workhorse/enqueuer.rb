@@ -42,7 +42,7 @@ module Workhorse
       end
 
       job = Workhorse::Jobs::RunRailsOp.new(cls, op_args)
-      enqueue job, workhorse_args
+      enqueue job, **workhorse_args
     end
   end
 end

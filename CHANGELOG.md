@@ -1,5 +1,9 @@
 # Workhorse Changelog
 
+## 1.2.3 - 2021-02-09
+
+* Fix warning with ruby 2.7
+
 ## 1.2.2 - 2021-01-27
 
 * Remove unused gem dependency to `schemacop`
