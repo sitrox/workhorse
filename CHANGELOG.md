@@ -1,5 +1,9 @@
 # Workhorse Changelog
 
+## 1.2.4 - 2021-06-08
+
+* Add `workhorse_db_job` load hook
+
 ## 1.2.3 - 2021-02-09
 
 * Fix warning with ruby 2.7

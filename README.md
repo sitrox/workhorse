@@ -384,6 +384,21 @@ jobs database on a regular interval. Workhorse provides the job
 `Workhorse::Jobs::CleanupSucceededJobs` for this purpose that cleans up all
 succeeded jobs. You can run this using your scheduler in a specific interval.
 
+## Load hooks
+
+Using the load hook `:workhorse_db_job`, you can inject custom code into the
+Gem-internal model class `Workhorse::DbJob`, for example:
+
+```ruby
+# config/initializers/workhorse.rb
+
+ActiveSupport.on_load :workhorse_db_job do
+  # Code within this block will be run inside of the model class
+  # Workhorse::DbJob.
+  belongs_to :user
+end
+```
+
 ## Caveats
 
 ### Errors during polling / crashed workers

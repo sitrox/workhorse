@@ -120,4 +120,6 @@ module Workhorse
       end
     end
   end
+
+  ActiveSupport.run_load_hooks(:workhorse_db_job, DbJob)
 end
