@@ -1,4 +1,4 @@
-[![Build Status](https://travis-ci.org/sitrox/workhorse.svg?branch=master)](https://travis-ci.org/sitrox/workhorse)
+[![Build](https://github.com/sitrox/workhorse/actions/workflows/ruby.yml/badge.svg)](https://github.com/sitrox/workhorse/actions/workflows/ruby.yml)
 [![Gem Version](https://badge.fury.io/rb/workhorse.svg)](https://badge.fury.io/rb/workhorse)
 
 # Workhorse
