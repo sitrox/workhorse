@@ -31,6 +31,8 @@ jobs:
       with:
         ruby-version: ${{ matrix.ruby-version }}
         bundler-cache: true
+    - name: Startup database
+      run: sudo /etc/init.d/mysql start
     - name: Setup database
       run: mysql -e 'CREATE DATABASE workhorse;'
     - name: Run rake tests
