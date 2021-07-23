@@ -16,15 +16,14 @@ jobs:
     env:
       DB_DATABASE: workhorse
       DB_USER: root
-      DB_PASSWORD: password
-    services:
-      mysql:
-        image: mysql:5.7
-        env:
-          MYSQL_ROOT_PASSWORD: ${{ env.DB_PASSWORD }}
-        ports:
-          - "3306:3306"
+      DB_PASSWORD: 'root'
+      DB_HOST: localhost
+
     steps:
+    - run: |
+        sudo /etc/init.d/mysql start
+        mysql -e 'CREATE DATABASE workhorse;' -uroot -proot
+        mysql -e 'SHOW DATABASES;' -uroot -proot
     - uses: actions/checkout@v2
     - name: Set up Ruby
       uses: ruby/setup-ruby@v1
