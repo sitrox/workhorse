@@ -20,10 +20,6 @@ jobs:
       DB_HOST: localhost
 
     steps:
-    - run: |
-        sudo /etc/init.d/mysql start
-        mysql -e 'CREATE DATABASE workhorse;' -uroot -proot
-        mysql -e 'SHOW DATABASES;' -uroot -proot
     - uses: actions/checkout@v2
     - name: Set up Ruby
       uses: ruby/setup-ruby@v1
@@ -32,7 +28,8 @@ jobs:
         bundler-cache: true
     - name: Startup database
       run: |
-        mysql -h 127.0.0.1 -u${{ env.DB_USER }} -p${{ env.DB_PASSWORD }} -e 'CREATE DATABASE ${{ env.DB_DATABASE }};'
+        sudo /etc/init.d/mysql start
+        mysql -u${{ env.DB_USER }} -p${{ env.DB_PASSWORD }} -e 'CREATE DATABASE ${{ env.DB_DATABASE }};'
     - name: Run rake tests
       run: bundle exec rake test TESTOPTS='--verbose'
     - name: Run rubocop
