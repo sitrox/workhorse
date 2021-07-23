@@ -20,6 +20,8 @@ jobs:
     services:
       mysql:
         image: mysql:5.7
+        env:
+          MYSQL_ROOT_PASSWORD: ${{ env.DB_PASSWORD }}
         ports:
           - "3306:3306"
     steps:
@@ -32,7 +34,7 @@ jobs:
     - name: Startup database
       run: |
         sudo /etc/init.d/mysql start
-        mysql -e 'CREATE DATABASE ${{ env.DB_DATABASE }};' -u${{ env.DB_USER }} -p${{ env.DB_PASSWORD }}
+        mysql -h 127.0.0.1 -u${{ env.DB_USER }} -p${{ env.DB_PASSWORD }} -e 'CREATE DATABASE ${{ env.DB_DATABASE }};'
     - name: Run rake tests
       run: bundle exec rake test TESTOPTS='--verbose'
     - name: Run rubocop
