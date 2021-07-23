@@ -32,7 +32,7 @@ class WorkhorseTest < ActiveSupport::TestCase
   end
 
   def with_worker(options = {})
-    w = Workhorse::Worker.new(options)
+    w = Workhorse::Worker.new(**options)
     w.start
     begin
       yield(w)
