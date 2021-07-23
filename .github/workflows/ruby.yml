@@ -34,7 +34,7 @@ jobs:
     - name: Startup database
       run: sudo /etc/init.d/mysql start
     - name: Setup database
-      run: mysql -e 'CREATE DATABASE workhorse;'
+      run: mysql -u root -e 'CREATE DATABASE workhorse;'
     - name: Run rake tests
       run: bundle exec rake test TESTOPTS='--verbose'
     - name: Run rubocop
