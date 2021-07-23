@@ -17,8 +17,9 @@ jobs:
       mysql:
         image: mysql:5.7
         env:
-          MYSQL_DB: workhorse
-          MYSQL_ALLOW_EMPTY_PASSWORD: yes
+          DB_DATABASE: workhorse
+          DB_USER: root
+          DB_PASSWORD: password
         ports:
           - "3306:3306"
     steps:
@@ -29,7 +30,9 @@ jobs:
         ruby-version: ${{ matrix.ruby-version }}
         bundler-cache: true
     - name: Startup database
-      run: sudo /etc/init.d/mysql start
+      run: |
+        sudo /etc/init.d/mysql start
+        mysql -e 'CREATE DATABASE ${{ env.DB_DATABASE }};' -u${{ env.DB_USER }} -p${{ env.DB_PASSWORD }}
     - name: Run rake tests
       run: bundle exec rake test TESTOPTS='--verbose'
     - name: Run rubocop
