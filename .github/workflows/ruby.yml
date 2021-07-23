@@ -13,13 +13,13 @@ jobs:
       fail-fast: false
       matrix:
         ruby-version: ['2.5.0', '2.6.2']
+    env:
+      DB_DATABASE: workhorse
+      DB_USER: root
+      DB_PASSWORD: password
     services:
       mysql:
         image: mysql:5.7
-        env:
-          DB_DATABASE: workhorse
-          DB_USER: root
-          DB_PASSWORD: password
         ports:
           - "3306:3306"
     steps:
