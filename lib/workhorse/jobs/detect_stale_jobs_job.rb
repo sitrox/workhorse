@@ -1,18 +1,22 @@
 module Workhorse::Jobs
+  # This job picks up jobs that remained `locked` or `started` (running) for
+  # more than a certain amount of time. If any of these jobs are found, an
+  # exception is thrown (which may cause a notification if you configured
+  # `on_exception` accordingly).
+  #
+  # The thresholds are obtained from the configuration options
+  # {Workhorse.stale_detection_locked_to_started_threshold
+  # config.stale_detection_locked_to_started_threshold} and
+  # {Workhorse.stale_detection_run_time_threshold
+  # config.stale_detection_run_time_threshold}.
   class DetectStaleJobsJob
-    # Instantiates a new stale detection job.
-    #
-    # @param locked_to_started_threshold [Integer] The maximum number of seconds
-    #   a job is allowed to stay 'locked' before this job throws an exception.
-    #   Set this to 0 to skip this check.
-    # @param run_time_threshold [Integer] The maximum number of seconds
-    #   a job is allowed to run before this job throws an exception. Set this to
-    #   0 to skip this check.
-    def initialize(locked_to_started_threshold: 3 * 60, run_time_threshold: 12 * 60)
-      @locked_to_started_threshold = locked_to_started_threshold
-      @run_time_threshold = run_time_threshold
+    # @private
+    def initialize
+      @locked_to_started_threshold = Workhorse.stale_detection_locked_to_started_threshold
+      @run_time_threshold          = Workhorse.stale_detection_run_time_threshold
     end
 
+    # @private
     def perform
       messages = []
 

@@ -1,5 +1,12 @@
 # Workhorse Changelog
 
+## 1.2.5 - 2021-11-01
+
+* Add config settings for configuring {Workhorse::Jobs::DetectStaleJobsJob}:
+
+  * `config.stale_detection_locked_to_started_threshold`
+  * `config.stale_detection_run_time_threshold`
+
 ## 1.2.4 - 2021-06-08
 
 * Add `workhorse_db_job` load hook

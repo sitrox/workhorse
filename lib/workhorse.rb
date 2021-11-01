@@ -45,6 +45,18 @@ module Workhorse
   mattr_accessor :perform_jobs_in_tx
   self.perform_jobs_in_tx = true
 
+  # This setting is for {Workhorse::Jobs::DetectStaleJobsJob} and specifies the
+  # maximum number of seconds a job is allowed to stay 'locked' before this job
+  # throws an exception. Set this to 0 to skip this check.
+  mattr_accessor :stale_detection_locked_to_started_threshold
+  self.stale_detection_locked_to_started_threshold = 3 * 60
+
+  # This setting is for {Workhorse::Jobs::DetectStaleJobsJob} and specifies the
+  # maximum number of seconds a job is allowed to run before this job throws an
+  # exception. Set this to 0 to skip this check.
+  mattr_accessor :stale_detection_run_time_threshold
+  self.stale_detection_run_time_threshold = 12 * 60
+
   def self.setup
     yield self
   end
