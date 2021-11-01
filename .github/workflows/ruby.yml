@@ -1,0 +1,36 @@
+name: Build
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        ruby-version: ['2.5.1', '2.6.2', '2.7.1', '3.0.1']
+    env:
+      DB_DATABASE: workhorse
+      DB_USER: root
+      DB_PASSWORD: 'root'
+      DB_HOST: localhost
+
+    steps:
+    - uses: actions/checkout@v2
+    - name: Set up Ruby
+      uses: ruby/setup-ruby@v1
+      with:
+        ruby-version: ${{ matrix.ruby-version }}
+        bundler-cache: true
+    - name: Startup database
+      run: |
+        sudo /etc/init.d/mysql start
+        mysql -u${{ env.DB_USER }} -p${{ env.DB_PASSWORD }} -e 'CREATE DATABASE ${{ env.DB_DATABASE }};'
+    - name: Run rake tests
+      run: bundle exec rake test TESTOPTS='--verbose'
+    - name: Run rubocop
+      run: bundle exec rubocop

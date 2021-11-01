@@ -1,4 +1,4 @@
-[![Build Status](https://travis-ci.org/sitrox/workhorse.svg?branch=master)](https://travis-ci.org/sitrox/workhorse)
+[![Build](https://github.com/sitrox/workhorse/actions/workflows/ruby.yml/badge.svg)](https://github.com/sitrox/workhorse/actions/workflows/ruby.yml)
 [![Gem Version](https://badge.fury.io/rb/workhorse.svg)](https://badge.fury.io/rb/workhorse)
 
 # Workhorse
@@ -107,10 +107,15 @@ method `Workhorse.enqueue_op`:
 Workhorse.enqueue_op Operations::Jobs::CleanUpDatabase, { queue: :maintenance, priority: 2 }, quiet: true
 ```
 
-Params passed using the second argument will be used for operation instantiation
-at job execution.
+The first argument of the method is the Operation you want to run. Params passed in
+using the second argument will be used by Workhorse and params passed using the
+third argument will be used for operation instantiation at job execution, i.e.:
 
-If you do not want to pass any params to the operation, just omit the second hash:
+```ruby
+Workhorse.enqueue_op <Operation Class Name>, { <Workhorse Options> }, { <RailsOps Options> }
+```
+
+If you do not want to pass any params to the operation, just omit the third hash:
 
 ```ruby
 Workhorse.enqueue_op Operations::Jobs::CleanUpDatabase, queue: :maintenance, priority: 2
