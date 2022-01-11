@@ -124,7 +124,7 @@ module Workhorse
       code = 0
 
       for_each_worker do |worker|
-        pid_file, pid = read_pid(worker)
+        _pid_file, pid = read_pid(worker)
 
         begin
           Process.kill 'HUP', pid
