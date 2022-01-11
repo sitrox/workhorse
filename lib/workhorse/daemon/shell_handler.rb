@@ -26,6 +26,8 @@ module Workhorse
           exit daemon.watch
         when 'restart'
           exit daemon.restart
+        when 'restart-logging'
+          exit daemon.restart_logging
         when 'usage'
           usage
           exit 99
@@ -67,6 +69,10 @@ Options:
 
   restart
     Shortcut for consecutive 'stop' and 'start'.
+
+  restart-logging
+    Re-opens log files, useful e.g. after the log files have been moved or
+    removed by log rotation.
 
   usage
     Show this message

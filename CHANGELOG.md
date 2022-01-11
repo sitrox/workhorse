@@ -1,5 +1,13 @@
 # Workhorse Changelog
 
+## 1.2.6 - 2022-01-11
+
+* Add daemon command `restart-logging`, which sends a `HUP` interrupt to all
+  Workhorse processes which in turn reopen the log files. This is particularly
+  useful to call after log files have been rotated, e.g. using `logrotate`.
+
+  Sitrox reference: #64690.
+
 ## 1.2.5 - 2021-11-01
 
 * Add config settings for configuring {Workhorse::Jobs::DetectStaleJobsJob}:

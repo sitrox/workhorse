@@ -2,6 +2,7 @@ module Workhorse
   class Worker
     LOG_LEVELS = %i[fatal error warn info debug].freeze
     SHUTDOWN_SIGNALS = %w[TERM INT].freeze
+    LOG_REOPEN_SIGNAL = 'HUP'.freeze
 
     attr_reader :queues
     attr_reader :state
@@ -87,6 +88,7 @@ module Workhorse
         log 'Started up'
 
         trap_termination if @auto_terminate
+        trap_log_reopen
       end
     end
 
@@ -149,6 +151,18 @@ module Workhorse
     def check_rails_env
       unless Rails.env.production?
         warn 'WARNING: Always run workhorse workers in production environment. Other environments can lead to unexpected behavior.'
+      end
+    end
+
+    def trap_log_reopen
+      Signal.trap(LOG_REOPEN_SIGNAL) do
+        Thread.new do
+          logger.reopen
+
+          if defined?(ActiveRecord::Base) && ActiveRecord::Base.logger && ActiveRecord::Base.logger != logger
+            ActiveRecord::Base.logger.reopen
+          end
+        end.join
       end
     end
 

@@ -120,6 +120,24 @@ module Workhorse
       return start
     end
 
+    def restart_logging
+      code = 0
+
+      for_each_worker do |worker|
+        pid_file, pid = read_pid(worker)
+
+        begin
+          Process.kill 'HUP', pid
+          puts "Worker (#{worker.name}) ##{worker.id}: Sent signal for restart-logging"
+        rescue Errno::ESRCH
+          warn "Worker (#{worker.name}) ##{worker.id}: Could not send signal for restart-logging, process not found"
+          code = 1
+        end
+      end
+
+      return code
+    end
+
     private
 
     def for_each_worker(&block)
@@ -148,6 +166,10 @@ module Workhorse
       end
 
       File.delete(pid_file)
+    end
+
+    def hup_worker(pid)
+      Process.kill('HUP', pid)
     end
 
     def process_name(worker)
