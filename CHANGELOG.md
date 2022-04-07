@@ -1,5 +1,11 @@
 # Workhorse Changelog
 
+## 1.2.7 - 2022-04-07
+
+* Adapt exit status of shell handler to return with exit code `2` when a worker
+  is in an unexpected status. Previously, this lead to exit code `1` and made it
+  hard to distinguish from fatal errors.
+
 ## 1.2.6 - 2022-01-11
 
 * Add daemon command `restart-logging`, which sends a `HUP` interrupt to all

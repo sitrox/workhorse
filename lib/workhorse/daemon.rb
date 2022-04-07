@@ -46,7 +46,7 @@ module Workhorse
 
         if pid_file && pid
           warn "Worker ##{worker.id} (#{worker.name}): Already started (PID #{pid})" unless quiet
-          code = 1
+          code = 2
         elsif pid_file
           File.delete pid_file
           puts "Worker ##{worker.id} (#{worker.name}): Starting (stale pid file)" unless quiet
@@ -74,7 +74,7 @@ module Workhorse
           puts "Worker (#{worker.name}) ##{worker.id}: Already stopped (stale PID file)"
         else
           warn "Worker (#{worker.name}) ##{worker.id}: Already stopped"
-          code = 1
+          code = 2
         end
       end
 
@@ -91,10 +91,10 @@ module Workhorse
           puts "Worker ##{worker.id} (#{worker.name}): Running" unless quiet
         elsif pid_file
           warn "Worker ##{worker.id} (#{worker.name}): Not running (stale PID file)" unless quiet
-          code = 1
+          code = 2
         else
           warn "Worker ##{worker.id} (#{worker.name}): Not running" unless quiet
-          code = 1
+          code = 2
         end
       end
 
@@ -131,7 +131,7 @@ module Workhorse
           puts "Worker (#{worker.name}) ##{worker.id}: Sent signal for restart-logging"
         rescue Errno::ESRCH
           warn "Worker (#{worker.name}) ##{worker.id}: Could not send signal for restart-logging, process not found"
-          code = 1
+          code = 2
         end
       end
 

@@ -78,8 +78,9 @@ Options:
     Show this message
 
 Exit status:
- 0  if OK,
- 1  if at least one worker has an unexpected status,
+ 0 if OK,
+ 1 on fatal errors outside of workhorse,
+ 2 if at least one worker has an unexpected status,
  99 on all other errors.
 USAGE
     end
