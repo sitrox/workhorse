@@ -61,16 +61,16 @@ class Workhorse::PoolTest < WorkhorseTest
 
       assert_equal 0, on_idle_calls.value
 
-      p.post { sleep 0.2 }
       p.post { sleep 0.4 }
+      p.post { sleep 0.8 }
 
       sleep 0.1
       assert_equal 0, on_idle_calls.value
 
-      sleep 0.2
+      sleep 0.6
       assert_equal 1, on_idle_calls.value
 
-      sleep 0.1
+      sleep 0.9
       assert_equal 2, on_idle_calls.value
     end
   end

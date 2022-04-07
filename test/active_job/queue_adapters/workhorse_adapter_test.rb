@@ -73,7 +73,7 @@ class ActiveJob::QueueAdapters::WorkhorseAdapterTest < WorkhorseTest
     work 0.5, polling_interval: 0.1
     assert_equal 'waiting', Workhorse::DbJob.first.state
 
-    work 1.5, polling_interval: 0.1
+    work 3, polling_interval: 0.1
     assert_equal 'succeeded', Workhorse::DbJob.first.reload.state
   end
 
