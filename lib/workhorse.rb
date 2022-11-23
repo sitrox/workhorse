@@ -31,6 +31,12 @@ module Workhorse
     # ExceptionNotifier.notify_exception(exception)
   end
 
+  # If set to `false`, shell handler (CLI) won't lock commands using a lockfile.
+  # You should generally only disable this if you are performing the locking
+  # yourself (e.g. in a wrapper script).
+  mattr_accessor :lock_shell_commands
+  self.lock_shell_commands = true
+
   # If set to `true`, the defined `on_exception` will not be called when the
   # poller encounters an exception and the worker has to be shut down. The
   # exception will still be logged.

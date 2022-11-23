@@ -1,5 +1,14 @@
 # Workhorse Changelog
 
+## 1.2.8 - 2022-11-23
+
+* Add configuration option `lock_shell_commands`. This defaults to `true` to
+  retain backwards compatibility and allows turning off file locking for shell
+  commands (e.g. for cases where the locking is done outside of workhorse like
+  in a wrapper script).
+
+  Sitrox reference: #106900.
+
 ## 1.2.7 - 2022-04-07
 
 * Adapt exit status of shell handler to return with exit code `2` when a worker

@@ -12,6 +12,10 @@ Workhorse.setup do |config|
   #   ActiveRecord::Base.transaction(*args, &block)
   # end
 
+  # Set this to false in order to disable file-based locking for the Workhorse
+  # shell handlers (all the commands such as 'start', 'stop', ...).
+  # config.lock_shell_commands = true
+
   # Enable and configure this to specify a callback for handling worker
   # exceptions:
   #

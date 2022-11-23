@@ -6,9 +6,13 @@ module Workhorse
         exit 99
       end
 
-      lockfile_path = options.delete(:lockfile) || 'workhorse.lock'
-      lockfile = File.open(lockfile_path, 'a')
-      lockfile.flock(File::LOCK_EX || File::LOCK_NB)
+      if Workhorse.lock_shell_commands
+        lockfile_path = options.delete(:lockfile) || 'workhorse.lock'
+        lockfile = File.open(lockfile_path, 'a')
+        lockfile.flock(File::LOCK_EX || File::LOCK_NB)
+      else
+        lockfile = nil
+      end
 
       daemon = Workhorse::Daemon.new(**options, &block)
 
@@ -40,7 +44,7 @@ module Workhorse
         warn "#{e.message}\n#{e.backtrace.join("\n")}"
         exit 99
       ensure
-        lockfile.flock(File::LOCK_UN)
+        lockfile&.flock(File::LOCK_UN)
       end
     end
 
