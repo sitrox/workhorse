@@ -147,9 +147,17 @@ module Workhorse
     def start_worker(worker)
       pid = fork do
         $0 = process_name(worker)
+
+        # Reopen pipes to prevent #107576
+        STDIN.reopen File.open('/dev/null', 'r')
+        null_out = File.open '/dev/null', 'w'
+        STDOUT.reopen null_out
+        STDERR.reopen null_out
+
         worker.block.call
       end
       IO.write(pid_file_for(worker), pid)
+      Process.detach(pid)
     end
 
     def stop_worker(pid_file, pid, kill = false)

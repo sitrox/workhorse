@@ -1,5 +1,17 @@
 # Workhorse Changelog
 
+## 1.2.9 - 2022-12-08
+
+* Properly detach forked worker processes from parent process to prevent zombie
+  processes
+
+* Reopen STDIN, STDOUT and STDERR pipes to `/dev/null` after forking
+  (daemonizing) worker processes. This detaches from the current TTY which
+  prevents the issue that SSH connections sometimes could not be closed when
+  having daemonized new worker processes.
+
+  Sitrox reference: #107576.
+
 ## 1.2.8 - 2022-11-23
 
 * Add configuration option `lock_shell_commands`. This defaults to `true` to
