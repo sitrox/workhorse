@@ -1,5 +1,12 @@
 # Workhorse Changelog
 
+## 1.2.10 - 2023-01-05
+
+* Attempt to make shutdown of workers more robust by sending both `TERM` and
+  `INT` signals.
+
+  Sitrox reference: #108374.1-1.
+
 ## 1.2.9 - 2022-12-08
 
 * Properly detach forked worker processes from parent process to prevent zombie

@@ -161,11 +161,12 @@ module Workhorse
     end
 
     def stop_worker(pid_file, pid, kill = false)
-      signal = kill ? 'KILL' : 'TERM'
+      signals = kill ? %w[KILL] : %w[TERM INT]
 
       loop do
         begin
-          Process.kill(signal, pid)
+          puts "Sending signals #{signals.inspect}".red
+          signals.each { |signal| Process.kill(signal, pid) }
         rescue Errno::ESRCH
           break
         end
