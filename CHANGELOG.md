@@ -68,7 +68,7 @@
 ## 1.2.0 - 2021-01-27
 
 * `Workhorse.enqueue_active_job`
-  * Change `perform_at` to a keyword arument
+  * Change `perform_at` to a keyword argument
   * Allow passing `:description` and `:queue`
 
 Note that when upgrading, change:
