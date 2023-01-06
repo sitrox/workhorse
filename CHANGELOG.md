@@ -1,5 +1,9 @@
 # Workhorse Changelog
 
+## 1.2.11 - 2023-01-06
+
+* Remove debug output introduced in 1.2.10
+
 ## 1.2.10 - 2023-01-05
 
 * Attempt to make shutdown of workers more robust by sending both `TERM` and

@@ -165,7 +165,6 @@ module Workhorse
 
       loop do
         begin
-          puts "Sending signals #{signals.inspect}".red
           signals.each { |signal| Process.kill(signal, pid) }
         rescue Errno::ESRCH
           break
