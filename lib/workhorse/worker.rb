@@ -139,6 +139,7 @@ module Workhorse
             Workhorse::Performer.new(db_job_id, self).perform
           rescue Exception => e
             log %(#{e.message}\n#{e.backtrace.join("\n")}), :error
+            Workhorse.on_exception.call(e)
           end
         end
       end

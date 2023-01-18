@@ -1,5 +1,12 @@
 # Workhorse Changelog
 
+## 1.2.12 - 2023-01-18
+
+* Call `on_exception` callback on failed `Performer` initialization (e.g. when
+  DB connection is not established).
+
+  Sitrox reference: #109126.21.
+
 ## 1.2.11 - 2023-01-06
 
 * Remove debug output introduced in 1.2.10
