@@ -419,6 +419,24 @@ This means that you should always have an external *watcher* (usually a
 cronjob), that calls the `workhorse watch` command regularly. This would
 automatically restart crashed worker processes.
 
+### Unobtainable Locks
+
+Each Workhorse worker uses a poller to check the database for new jobs. To
+ensure that no job is obtained by more than one worker, a global database lock
+is used. If a worker is killed, it may happen that the lock is not properly
+released, which can cause all pollers to stop working because they cannot
+acquire the lock. This is an edge case, as the locks should typically be
+released properly, even if a worker process is killed using `SIGKILL`.
+
+In the event that this still happens, Workhorse takes the following steps:
+
+- Logs when a lock could not be obtained.
+- Retries acquiring the lock on the next poll.
+- Calls the `on_exception` callback (if configured) after a configurable number of consecutive failures to obtain the lock.
+
+The maximum number of consecutive failures can be configured using
+`config.max_global_lock_fails`, which defaults to 10.
+
 ### Stuck queues
 
 Jobs in named queues (non-null queues) are always run sequentially. This means

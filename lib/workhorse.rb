@@ -20,6 +20,12 @@ module Workhorse
       || fail('No performer is associated with the current thread. This method must always be called inside of a job.')
   end
 
+  # A worker will log an error and, if defined, call the on_exception callback,
+  # if it couldn't obtain the global lock for the specified number of times in a
+  # row.
+  mattr_accessor :max_global_lock_fails
+  self.max_global_lock_fails = 10
+
   mattr_accessor :tx_callback
   self.tx_callback = proc do |*args, &block|
     ActiveRecord::Base.transaction(*args, &block)

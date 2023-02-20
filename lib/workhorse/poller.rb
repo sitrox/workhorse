@@ -15,6 +15,8 @@ module Workhorse
       @table = Workhorse::DbJob.arel_table
       @is_oracle = ActiveRecord::Base.connection.adapter_name == 'OracleEnhanced'
       @instant_repoll = Concurrent::AtomicBoolean.new(false)
+      @global_lock_fails = 0
+      @max_global_lock_fails_reached = false
     end
 
     def running?
@@ -84,6 +86,38 @@ module Workhorse
           "SELECT GET_LOCK(CONCAT(DATABASE(), '_#{name}'), #{timeout})"
         ).first.values.last
         success = result == 1
+      end
+
+      if success
+        @global_lock_fails = 0
+        @max_global_lock_fails_reached = false
+      else
+        @global_lock_fails += 1
+
+        unless @max_global_lock_fails_reached
+          worker.log 'Could not obtain global lock, retrying with next poll.', :warn
+        end
+
+        if @global_lock_fails > Workhorse.max_global_lock_fails && !@max_global_lock_fails_reached
+          @max_global_lock_fails_reached = true
+
+          worker.log 'Could not obtain global lock, retrying with next poll. '\
+                     'This will be the last such message for this worker until '\
+                     'the issue is resolved.', :warn
+
+          message = "Worker reached maximum number of consecutive times (#{Workhorse.max_global_lock_fails}) " \
+                    "where the global lock could no be acquired within the specified timeout (#{timeout}). " \
+                    'A worker that obtained this lock may have crashed without ending the database ' \
+                    'connection properly. On MySQL, use "show processlist;" to see which connection(s) ' \
+                    'is / are holding the lock for a long period of time and consider killing them using '\
+                    "MySQL's \"kill <Id>\" command. This message will be issued only once per worker " \
+                    "and may only be re-triggered if the error happens again *after* the lock has " \
+                    "been solved in the meantime."
+
+          worker.log message
+          exception = StandardError.new(message)
+          Workhorse.on_exception.call(exception)
+        end
       end
 
       return unless success

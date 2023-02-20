@@ -1,5 +1,22 @@
 # Workhorse Changelog
 
+## 1.2.13 - 2023-02-20
+
+* Add the `config.max_global_lock_fails` setting (defaults to 10). If a
+  worker's poller cannot acquire the global lock, an error is logged, and if
+  `config.on_exception` is configured, the error is handled using this callback.
+
+  This change allows you to be aware of essentially defunct worker processes due
+  to a global lock that could not be obtained, for example, because of another
+  worker that was killed without properly releasing the lock. However, this is
+  an edge case because:
+
+  1. The lock is released by Workhorse in an `ensure` block.
+  2. At least MySQL is supposed to release global locks obtained in a connection
+     when that connection is closed.
+
+  Sitrox reference: #110339.
+
 ## 1.2.12 - 2023-01-18
 
 * Call `on_exception` callback on failed `Performer` initialization (e.g. when
