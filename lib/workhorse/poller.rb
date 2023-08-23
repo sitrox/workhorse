@@ -111,8 +111,8 @@ module Workhorse
                     'connection properly. On MySQL, use "show processlist;" to see which connection(s) ' \
                     'is / are holding the lock for a long period of time and consider killing them using '\
                     "MySQL's \"kill <Id>\" command. This message will be issued only once per worker " \
-                    "and may only be re-triggered if the error happens again *after* the lock has " \
-                    "been solved in the meantime."
+                    'and may only be re-triggered if the error happens again *after* the lock has ' \
+                    'been solved in the meantime.'
 
           worker.log message
           exception = StandardError.new(message)
