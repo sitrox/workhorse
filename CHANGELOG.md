@@ -1,5 +1,11 @@
 # Workhorse Changelog
 
+## 1.2.14 - 2023-08-23
+
+* Add documentation for transaction handling.
+
+* Add support for skipping transactions on a per-job basis
+
 ## 1.2.13 - 2023-02-20
 
 * Add the `config.max_global_lock_fails` setting (defaults to 10). If a

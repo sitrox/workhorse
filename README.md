@@ -278,6 +278,57 @@ polling interval.
 This setting is recommended for all setups and may eventually be enabled by
 default.
 
+## Transactions
+
+By default, each job is run in an individual database transaction. An exception
+to this is when performing ActiveJob jobs using `perform_now`, where no
+transaction is created.
+
+### Transaction callback
+
+By default, transactions are created using `ActiveRecord::Base.transaction { ...
+}`. You can customize this using the setting `config.tx_callback` in your
+`config/initializers/workhorse.rb` (see commented out section in the generated
+configuration file).
+
+### Turning off transactions
+
+You can turn off transaction wrapping in the following ways:
+
+- Globally using the setting `config.perform_jobs_in_tx = false` in your
+  `config/initializers/workhorse.rb`. This is not recommended as running jobs
+  without transactions can potentially be harmful.
+
+- On a per-job basis. This is the recommended approach for jobs that either open
+  up their own transaction(s) or jobs that explicitly do not need a transaction
+  for whatever reason.
+
+  Usage of this feature depends on whether you are dealing with an ActiveJob job
+  or a plain Workhorse job class.
+
+  For ActiveJob:
+
+  1. Add the following mixin to your job class (usually `ApplicationJob`):
+
+     ```ruby
+     class ApplicationJob
+       include Workhorse::ActiveJobExtension
+     end
+     ```
+
+  2. Use the DSL-method `skip_tx` inside the job classes where you want to
+     disable transaction wrapping, e.g.:
+
+     ```ruby
+     class MyJob < ApplicationJob
+       skip_tx
+
+       def perform
+         # Something without transaction
+       end
+     end
+     ```
+
 ## Exception handling
 
 Per default, exceptions occurring in a worker thread will only be visible in the

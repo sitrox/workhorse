@@ -6,6 +6,7 @@ require 'uri'
 
 require 'workhorse/enqueuer'
 require 'workhorse/scoped_env'
+require 'workhorse/active_job_extension'
 
 module Workhorse
   # Check if the available Arel version is greater or equal than 7.0.0

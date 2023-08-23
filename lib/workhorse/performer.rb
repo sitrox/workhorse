@@ -61,7 +61,11 @@ module Workhorse
       log 'Performing', :info
       log "Description: #{@db_job.description}", :info unless @db_job.description.blank?
 
-      if Workhorse.perform_jobs_in_tx
+      inner_job_class = deserialized_job.try(:job_class) || deserialized_job.class
+      skip_tx = inner_job_class.try(:skip_tx?)
+      log "SKIP TX: #{skip_tx.inspect}".red, :error
+
+      if Workhorse.perform_jobs_in_tx && !skip_tx
         Workhorse.tx_callback.call do
           deserialized_job.perform
         end
