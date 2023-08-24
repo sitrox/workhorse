@@ -5,6 +5,10 @@ module Workhorse::Jobs
       @params = params
     end
 
+    def job_class
+      @cls
+    end
+
     def perform
       @cls.run!(@params)
     end

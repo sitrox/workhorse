@@ -1,5 +1,9 @@
 # Workhorse Changelog
 
+## Unreleased
+
+* Add capability to skip transactions for scheduled RailsOps operations.
+
 ## 1.2.14 - 2023-08-23
 
 * Add documentation for transaction handling.
