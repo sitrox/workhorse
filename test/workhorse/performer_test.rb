@@ -15,6 +15,7 @@ class Workhorse::PerformerTest < WorkhorseTest
   end
 
   def test_success
+    fail 'foobar' if rand > 0.75
     Workhorse.enqueue BasicJob.new(sleep_time: 0.1)
     work 0.2, polling_interval: 0.2
     assert_equal 'succeeded', Workhorse::DbJob.first.state
