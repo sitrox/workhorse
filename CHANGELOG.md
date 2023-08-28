@@ -1,5 +1,11 @@
 # Workhorse Changelog
 
+## 1.2.16 - 2023-08-28
+
+* Add `retry-step` to actions such that failed unit tests are executed again
+
+  Sitrox reference: #115888
+
 ## 1.2.15 - 2023-08-28
 
 * Add capability to skip transactions for enqueued RailsOps operations.
