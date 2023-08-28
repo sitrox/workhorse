@@ -35,6 +35,7 @@ jobs:
       with:
         timeout_seconds: 120
         retry_on: error
+        max_attempts: 3
         command: bundle exec rake test TESTOPTS='--verbose'
     - name: Run rubocop
       run: bundle exec rubocop
