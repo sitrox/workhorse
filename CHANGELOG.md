@@ -1,6 +1,6 @@
 # Workhorse Changelog
 
-## 1.2.14 - 2023-08-28
+## 1.2.15 - 2023-08-28
 
 * Add capability to skip transactions for enqueued RailsOps operations.
 
