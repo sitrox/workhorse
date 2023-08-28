@@ -303,8 +303,8 @@ You can turn off transaction wrapping in the following ways:
   up their own transaction(s) or jobs that explicitly do not need a transaction
   for whatever reason.
 
-  Usage of this feature depends on whether you are dealing with an ActiveJob job
-  or a plain Workhorse job class.
+  Usage of this feature depends on whether you are dealing with an ActiveJob
+  job, an enqueued RailsOps operation or a plain Workhorse job class.
 
   For ActiveJob:
 
@@ -328,6 +328,29 @@ You can turn off transaction wrapping in the following ways:
        end
      end
      ```
+
+  For enqueuable RailsOps operations:
+
+  1. Add the following static method to your operation class:
+
+     ```ruby
+     class MyOp < RailsOps::Operation
+       def self.skip_tx?
+         true
+       end
+     end
+     ```
+
+  For plain Workhrose job clases:
+
+  1. Add the following static method to your job class:
+
+     ```ruby
+     class MyJob
+       def self.skip_tx?
+         true
+       end
+     end
 
 ## Exception handling
 
