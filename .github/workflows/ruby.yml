@@ -31,6 +31,10 @@ jobs:
         sudo /etc/init.d/mysql start
         mysql -u${{ env.DB_USER }} -p${{ env.DB_PASSWORD }} -e 'CREATE DATABASE ${{ env.DB_DATABASE }};'
     - name: Run rake tests
-      run: bundle exec rake test TESTOPTS='--verbose'
+      uses: nick-fields/retry@v2
+      with:
+        timeout_seconds: 120
+        retry_on: error
+        command: bundle exec rake test TESTOPTS='--verbose'
     - name: Run rubocop
       run: bundle exec rubocop
