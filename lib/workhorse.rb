@@ -17,7 +17,7 @@ module Workhorse
   # Returns the performer currently performing the active job. This can only be
   # called from within a job and the same thread.
   def self.performer
-    Thread.current[:workhorse_current_performer]\
+    Thread.current[:workhorse_current_performer] \
       || fail('No performer is associated with the current thread. This method must always be called inside of a job.')
   end
 
@@ -97,5 +97,5 @@ if RUBY_PLATFORM != 'java'
 end
 
 if defined?(ActiveJob)
-  require 'active_job/queue_adapters/workhorse_adapter.rb'
+  require 'active_job/queue_adapters/workhorse_adapter'
 end

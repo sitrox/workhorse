@@ -10,11 +10,11 @@ module ActiveJob
     #
     #   Rails.application.config.active_job.queue_adapter = :workhorse
     class WorkhorseAdapter
-      def enqueue(job) #:nodoc:
+      def enqueue(job) # :nodoc:
         Workhorse.enqueue_active_job(job)
       end
 
-      def enqueue_at(job, timestamp = Time.now) #:nodoc:
+      def enqueue_at(job, timestamp = Time.now) # :nodoc:
         Workhorse.enqueue_active_job(job, perform_at: timestamp)
       end
     end

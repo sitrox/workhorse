@@ -1,7 +1,7 @@
 task :gemspec do
   gemspec = Gem::Specification.new do |spec|
     spec.name          = 'workhorse'
-    spec.version       = IO.read('VERSION').chomp
+    spec.version       = File.read('VERSION').chomp
     spec.authors       = ['Sitrox']
     spec.summary       = %(
       Multi-threaded job backend with database queuing for ruby.
@@ -13,7 +13,7 @@ task :gemspec do
 
     spec.add_development_dependency 'bundler'
     spec.add_development_dependency 'rake'
-    spec.add_development_dependency 'rubocop', '0.51.0'
+    spec.add_development_dependency 'rubocop', '1.56.2'
     spec.add_development_dependency 'minitest'
     spec.add_development_dependency 'mysql2'
     spec.add_development_dependency 'colorize'
@@ -25,7 +25,7 @@ task :gemspec do
     spec.add_dependency 'concurrent-ruby'
   end
 
-  File.open('workhorse.gemspec', 'w') { |f| f.write(gemspec.to_ruby.strip) }
+  File.write('workhorse.gemspec', gemspec.to_ruby.strip)
 end
 
 require 'rake/testtask'

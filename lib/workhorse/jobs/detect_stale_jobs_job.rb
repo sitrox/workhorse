@@ -27,7 +27,7 @@ module Workhorse::Jobs
         ids = rel.pluck(:id)
 
         unless ids.empty?
-          messages << "Detected #{ids.size} jobs that were locked more than "\
+          messages << "Detected #{ids.size} jobs that were locked more than " \
                       "#{@locked_to_started_threshold}s ago and might be stale: #{ids.inspect}."
         end
       end
@@ -39,7 +39,7 @@ module Workhorse::Jobs
         ids = rel.pluck(:id)
 
         unless ids.empty?
-          messages << "Detected #{ids.size} jobs that are running for longer than "\
+          messages << "Detected #{ids.size} jobs that are running for longer than " \
                       "#{@run_time_threshold}s ago and might be stale: #{ids.inspect}."
         end
       end

@@ -41,7 +41,7 @@ class Workhorse::PollerTest < WorkhorseTest
 
     begin
       fail 'Some exception'
-    rescue => e
+    rescue StandardError => e
       last_job.mark_failed!(e)
     end
 
@@ -148,9 +148,10 @@ class Workhorse::PollerTest < WorkhorseTest
     assert_equal 25,  used_workers
   end
 
-  # rubocop: disable Style/GlobalVars
   def test_connection_loss
+    # rubocop: disable Style/GlobalVars
     $thread_conn = nil
+    # rubocop: enable Style/GlobalVars
 
     Workhorse.enqueue BasicJob.new(sleep_time: 3)
 
@@ -175,7 +176,6 @@ class Workhorse::PollerTest < WorkhorseTest
 
     assert_equal 1, Workhorse::DbJob.succeeded.count
   end
-  # rubocop: enable Style/GlobalVars
 
   def test_clean_stuck_jobs_locked
     [true, false].each do |clean|
@@ -257,8 +257,8 @@ class Workhorse::PollerTest < WorkhorseTest
     @daemon = Workhorse::Daemon.new(pidfile: 'tmp/pids/test%s.pid') do |d|
       d.worker 'Test Worker' do
         Workhorse::Worker.start_and_wait(
-          pool_size:         1,
-          polling_interval:  0.1
+          pool_size:        1,
+          polling_interval: 0.1
         )
       end
     end

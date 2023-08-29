@@ -81,16 +81,14 @@ module Workhorse
           )
 
           # Select all pids
-          job_pids = rel.distinct.pluck(:locked_by_pid).map(&:to_i).to_set
+          job_pids = rel.distinct.pluck(:locked_by_pid).to_set(&:to_i)
 
           # Get pids without active process
           orphaned_pids = job_pids.filter do |pid|
-            begin
-              Process.getpgid(pid)
-              false
-            rescue Errno::ESRCH
-              true
-            end
+            Process.getpgid(pid)
+            false
+          rescue Errno::ESRCH
+            true
           end
 
           # Reset jobs in state 'locked'
@@ -108,14 +106,14 @@ module Workhorse
           rel.where(locked_by_pid: orphaned_pids.to_a, state: Workhorse::DbJob::STATE_STARTED).each do |job|
             worker.log(
               "Job ##{job.id} has been started by PID #{job.locked_by_pid} on host #{job.locked_by_host} " \
-              "but the process is not running anymore. This job has therefore been marked as " \
-              "failed by the Workhorse cleanup logic.",
+              'but the process is not running anymore. This job has therefore been marked as ' \
+              'failed by the Workhorse cleanup logic.',
               :warn
             )
             exception = Exception.new(
               "Job has been started by PID #{job.locked_by_pid} on host #{job.locked_by_host} " \
-              "but the process is not running anymore. This job has therefore been marked as " \
-              "failed by the Workhorse cleanup logic."
+              'but the process is not running anymore. This job has therefore been marked as ' \
+              'failed by the Workhorse cleanup logic.'
             )
             exception.set_backtrace []
             job.mark_failed!(exception)
@@ -160,15 +158,15 @@ module Workhorse
         if @global_lock_fails > Workhorse.max_global_lock_fails && !@max_global_lock_fails_reached
           @max_global_lock_fails_reached = true
 
-          worker.log 'Could not obtain global lock, retrying with next poll. '\
-                     'This will be the last such message for this worker until '\
+          worker.log 'Could not obtain global lock, retrying with next poll. ' \
+                     'This will be the last such message for this worker until ' \
                      'the issue is resolved.', :warn
 
           message = "Worker reached maximum number of consecutive times (#{Workhorse.max_global_lock_fails}) " \
                     "where the global lock could no be acquired within the specified timeout (#{timeout}). " \
                     'A worker that obtained this lock may have crashed without ending the database ' \
                     'connection properly. On MySQL, use "show processlist;" to see which connection(s) ' \
-                    'is / are holding the lock for a long period of time and consider killing them using '\
+                    'is / are holding the lock for a long period of time and consider killing them using ' \
                     "MySQL's \"kill <Id>\" command. This message will be issued only once per worker " \
                     'and may only be re-triggered if the error happens again *after* the lock has ' \
                     'been solved in the meantime.'
@@ -195,7 +193,9 @@ module Workhorse
     def poll
       @instant_repoll.make_false
 
+      # rubocop: disable Style/ComparableClamp
       timeout = [MIN_LOCK_TIMEOUT, [MAX_LOCK_TIMEOUT, worker.polling_interval].min].max
+      # rubocop: enable Style/ComparableClamp
 
       with_global_lock timeout: timeout do
         job_ids = []
@@ -258,9 +258,9 @@ module Workhorse
       # uses the keyword 'AS' in SQL generated for Oracle, which is invalid for
       # table aliases.
       union_query_sql = '('
-      union_query_sql += 'SELECT * FROM (' + union_parts.shift.to_sql + ') union_0'
+      union_query_sql += "SELECT * FROM (#{union_parts.shift.to_sql}) union_0"
       union_parts.each_with_index do |part, idx|
-        union_query_sql += ' UNION SELECT * FROM (' + part.to_sql + ") union_#{idx + 1}"
+        union_query_sql += " UNION SELECT * FROM (#{part.to_sql}) union_#{idx + 1}"
       end
       union_query_sql += ') subselect'
 
@@ -336,7 +336,7 @@ module Workhorse
       unless worker.queues.empty?
         if worker.queues.include?(nil)
           where = table[:queue].eq(nil)
-          remaining_queues = worker.queues.reject(&:nil?)
+          remaining_queues = worker.queues.compact
           unless remaining_queues.empty?
             where = where.or(table[:queue].in(remaining_queues))
           end

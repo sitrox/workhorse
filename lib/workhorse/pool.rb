@@ -6,11 +6,11 @@ module Workhorse
     def initialize(size)
       @size = size
       @executor = Concurrent::ThreadPoolExecutor.new(
-        min_threads: 0,
-        max_threads: @size,
-        max_queue: 0,
+        min_threads:     0,
+        max_threads:     @size,
+        max_queue:       0,
         fallback_policy: :abort,
-        auto_terminate: false
+        auto_terminate:  false
       )
       @mutex = Mutex.new
       @active_threads = Concurrent::AtomicFixnum.new(0)
@@ -33,12 +33,10 @@ module Workhorse
         active_threads.increment
 
         @executor.post do
-          begin
-            yield
-          ensure
-            active_threads.decrement
-            @on_idle.try(:call)
-          end
+          yield
+        ensure
+          active_threads.decrement
+          @on_idle.try(:call)
         end
       end
     end

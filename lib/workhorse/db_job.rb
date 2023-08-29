@@ -6,7 +6,7 @@ module Workhorse
     STATE_SUCCEEDED = :succeeded
     STATE_FAILED    = :failed
 
-    EXP_LOCKED_BY = /^(.*?)\.(\d+?)\.([^.]+)$/
+    EXP_LOCKED_BY = /^(.*?)\.(\d+?)\.([^.]+)$/.freeze
 
     if respond_to?(:attr_accessible)
       attr_accessible :queue, :priority, :perform_at, :handler, :description
@@ -37,7 +37,7 @@ module Workhorse
     # @private
     def self.with_split_locked_by
       select(<<~SQL)
-        #{self.table_name}.*,
+        #{table_name}.*,
 
         -- random string
         substring_index(locked_by, '.', -1) as locked_by_rnd,

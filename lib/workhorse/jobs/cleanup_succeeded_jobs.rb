@@ -18,7 +18,7 @@ module Workhorse::Jobs
     private
 
     def seconds_ago(days)
-      Time.now - days * 24 * 60 * 60
+      Time.now - (days * 24 * 60 * 60)
     end
   end
 end

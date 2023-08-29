@@ -72,7 +72,7 @@ module Workhorse
 
         if pid_file && pid
           puts "Worker (#{worker.name}) ##{worker.id}: Stopping"
-          stop_worker pid_file, pid, kill
+          stop_worker pid_file, pid, kill: kill
         elsif pid_file
           File.delete pid_file
           puts "Worker (#{worker.name}) ##{worker.id}: Already stopped (stale PID file)"
@@ -150,22 +150,24 @@ module Workhorse
 
     def start_worker(worker)
       pid = fork do
+        # rubocop: disable Naming/VariableNumber
         $0 = process_name(worker)
+        # rubocop: enable Naming/VariableNumber
 
         # Reopen pipes to prevent #107576
-        STDIN.reopen File.open('/dev/null', 'r')
+        $stdin.reopen File.open('/dev/null', 'r')
         null_out = File.open '/dev/null', 'w'
-        STDOUT.reopen null_out
-        STDERR.reopen null_out
+        $stdout.reopen null_out
+        $stderr.reopen null_out
 
         worker.block.call
       end
       worker.pid = pid
-      IO.write(pid_file_for(worker), pid)
+      File.write(pid_file_for(worker), pid)
       Process.detach(pid)
     end
 
-    def stop_worker(pid_file, pid, kill = false)
+    def stop_worker(pid_file, pid, kill: false)
       signals = kill ? %w[KILL] : %w[TERM INT]
 
       loop do
@@ -212,8 +214,9 @@ module Workhorse
       file = pid_file_for(worker)
 
       if File.exist?(file)
-        raw_pid = IO.read(file)
+        raw_pid = File.read(file)
         return nil, nil if raw_pid.blank?
+
         pid = Integer(raw_pid)
         return file, process?(pid) ? pid : nil
       else

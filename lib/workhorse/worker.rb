@@ -43,7 +43,7 @@ module Workhorse
     #   `Rails.logger`.
     def initialize(queues: [], pool_size: nil, polling_interval: 300, auto_terminate: true, quiet: true, instant_repolling: false, logger: nil)
       @queues = queues
-      @pool_size = pool_size || queues.size + 1
+      @pool_size = pool_size || (queues.size + 1)
       @polling_interval = polling_interval
       @auto_terminate = auto_terminate
       @state = :initialized
@@ -54,7 +54,7 @@ module Workhorse
       @poller = Workhorse::Poller.new(self)
       @logger = logger
 
-      unless (@polling_interval / 0.1).round(2).modulo(1) == 0.0
+      unless (@polling_interval / 0.1).round(2).modulo(1).zero?
         fail 'Polling interval must be a multiple of 0.1.'
       end
 
@@ -143,12 +143,10 @@ module Workhorse
         log "Posting job #{db_job_id} to thread pool"
 
         @pool.post do
-          begin
-            Workhorse::Performer.new(db_job_id, self).perform
-          rescue Exception => e
-            log %(#{e.message}\n#{e.backtrace.join("\n")}), :error
-            Workhorse.on_exception.call(e)
-          end
+          Workhorse::Performer.new(db_job_id, self).perform
+        rescue Exception => e
+          log %(#{e.message}\n#{e.backtrace.join("\n")}), :error
+          Workhorse.on_exception.call(e)
         end
       end
     rescue Exception => e
