@@ -95,11 +95,23 @@ module Workhorse
 
           # Reset jobs in state 'locked'
           rel.where(locked_by_pid: orphaned_pids.to_a, state: Workhorse::DbJob::STATE_LOCKED).each do |job|
+            worker.log(
+              "Job ##{job.id} has been locked but not yet startet by PID #{job.locked_by_pid} on host " \
+              "#{job.locked_by_host}, but the process is not running anymore. This job has therefore been " \
+              "reset (set to 'waiting') by the Workhorse cleanup logic.",
+              :warn
+            )
             job.reset!(true)
           end
 
           # Mark jobs in state 'started' as failed
           rel.where(locked_by_pid: orphaned_pids.to_a, state: Workhorse::DbJob::STATE_STARTED).each do |job|
+            worker.log(
+              "Job ##{job.id} has been started by PID #{job.locked_by_pid} on host #{job.locked_by_host} " \
+              "but the process is not running anymore. This job has therefore been marked as " \
+              "failed by the Workhorse cleanup logic.",
+              :warn
+            )
             exception = Exception.new(
               "Job has been started by PID #{job.locked_by_pid} on host #{job.locked_by_host} " \
               "but the process is not running anymore. This job has therefore been marked as " \
