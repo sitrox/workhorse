@@ -1,6 +1,11 @@
 # Workhorse Changelog
 
-## 1.2.16 - 2023-08-28
+## 1.2.16 - 2023-08-29
+
+* Add option `config.clean_stuck_jobs` that enabled automatic cleaning of stuck
+  jobs whenever a worker starts up.
+
+  Sitrox reference: #113708
 
 * Add `retry-step` to actions such that failed unit tests are executed again
 

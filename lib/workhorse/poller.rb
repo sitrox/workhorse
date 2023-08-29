@@ -27,6 +27,8 @@ module Workhorse
       fail 'Poller is already running.' if running?
       @running = true
 
+      clean_stuck_jobs! if Workhorse.clean_stuck_jobs
+
       @thread = Thread.new do
         loop do
           break unless running?
@@ -64,6 +66,52 @@ module Workhorse
     end
 
     private
+
+    def clean_stuck_jobs!
+      puts 'CLEANING STUCK JOBS'
+      with_global_lock timeout: MAX_LOCK_TIMEOUT do
+        Workhorse.tx_callback.call do
+          # Basic relation: Fetch jobs locked by current host in state 'locked' or
+          # 'started'
+          rel = Workhorse::DbJob.select('*').from(<<~SQL)
+            (#{Workhorse::DbJob.with_split_locked_by.to_sql}) #{Workhorse::DbJob.table_name}
+          SQL
+          rel.where!(
+            locked_by_host: worker.hostname,
+            state:          [Workhorse::DbJob::STATE_LOCKED, Workhorse::DbJob::STATE_STARTED]
+          )
+
+          # Select all pids
+          job_pids = rel.distinct.pluck(:locked_by_pid).map(&:to_i).to_set
+
+          # Get pids without active process
+          orphaned_pids = job_pids.filter do |pid|
+            begin
+              Process.getpgid(pid)
+              false
+            rescue Errno::ESRCH
+              true
+            end
+          end
+
+          # Reset jobs in state 'locked'
+          rel.where(locked_by_pid: orphaned_pids.to_a, state: Workhorse::DbJob::STATE_LOCKED).each do |job|
+            job.reset!(true)
+          end
+
+          # Mark jobs in state 'started' as failed
+          rel.where(locked_by_pid: orphaned_pids.to_a, state: Workhorse::DbJob::STATE_STARTED).each do |job|
+            exception = Exception.new(
+              "Job has been started by PID #{job.locked_by_pid} on host #{job.locked_by_host} " \
+              "but the process is not running anymore. This job has therefore been marked as " \
+              "failed by the Workhorse cleanup logic."
+            )
+            exception.set_backtrace []
+            job.mark_failed!(exception)
+          end
+        end
+      end
+    end
 
     def sleep
       remaining = worker.polling_interval

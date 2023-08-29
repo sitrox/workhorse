@@ -177,7 +177,93 @@ class Workhorse::PollerTest < WorkhorseTest
   end
   # rubocop: enable Style/GlobalVars
 
+  def test_clean_stuck_jobs_locked
+    [true, false].each do |clean|
+      Workhorse::DbJob.delete_all
+
+      Workhorse.clean_stuck_jobs = clean
+      start_deamon
+      Workhorse.enqueue BasicJob.new(sleep_time: 5)
+      sleep 0.2
+      kill_deamon_workers
+
+      assert_equal 1, Workhorse::DbJob.count
+
+      Workhorse::DbJob.first.update(
+        state:      'locked',
+        started_at: nil
+      )
+
+      Workhorse::Worker.new.poller.send(:clean_stuck_jobs!) if clean
+
+      assert_equal 1, Workhorse::DbJob.count
+
+      Workhorse::DbJob.first.tap do |job|
+        if clean
+          assert_equal 'waiting', job.state
+          assert_nil job.locked_at
+          assert_nil job.locked_by
+          assert_nil job.started_at
+          assert_nil job.last_error
+        else
+          assert_equal 'locked', job.state
+        end
+      end
+    ensure
+      Workhorse.clean_stuck_jobs = false
+    end
+  end
+
+  def test_clean_stuck_jobs_running
+    [true, false].each do |clean|
+      Workhorse::DbJob.delete_all
+
+      Workhorse.clean_stuck_jobs_on_worker_startup = true
+      start_deamon
+      Workhorse.enqueue BasicJob.new(sleep_time: 5)
+      sleep 0.2
+      kill_deamon_workers
+
+      assert_equal 1, Workhorse::DbJob.count
+      assert_equal 'started', Workhorse::DbJob.first.state
+
+      work 0.1 if clean
+
+      assert_equal 1, Workhorse::DbJob.count
+
+      Workhorse::DbJob.first.tap do |job|
+        if clean
+          assert_equal 'failed', job.state
+          assert_match(/started by PID #{@daemon.workers.first.pid}/, job.last_error)
+          assert_match(/on host #{Socket.gethostname}/, job.last_error)
+        else
+          assert_equal 'started', job.state
+        end
+      end
+    ensure
+      Workhorse.clean_stuck_jobs_on_worker_startup = false
+    end
+  end
+
   private
+
+  def kill_deamon_workers
+    @daemon.workers.each do |worker|
+      Process.kill 'KILL', worker.pid
+    end
+  end
+
+  def start_deamon
+    @daemon = Workhorse::Daemon.new(pidfile: 'tmp/pids/test%s.pid') do |d|
+      d.worker 'Test Worker' do
+        Workhorse::Worker.start_and_wait(
+          pool_size:         1,
+          polling_interval:  0.1
+        )
+      end
+    end
+    @daemon.start
+  end
 
   def setup
     Workhorse::DbJob.delete_all

@@ -74,7 +74,15 @@ module Workhorse
     end
 
     def id
-      @id ||= "#{Socket.gethostname}.#{Process.pid}.#{SecureRandom.hex(3)}"
+      @id ||= "#{hostname}.#{pid}.#{SecureRandom.hex(3)}"
+    end
+
+    def pid
+      @pid ||= Process.pid
+    end
+
+    def hostname
+      @hostname ||= Socket.gethostname
     end
 
     # Starts the worker. This call is not blocking - call {wait} for this

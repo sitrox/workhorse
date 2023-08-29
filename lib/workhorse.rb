@@ -58,6 +58,11 @@ module Workhorse
   mattr_accessor :perform_jobs_in_tx
   self.perform_jobs_in_tx = true
 
+  # If enabled, each poller will attempt to clean jobs that are stuck in state
+  # 'locked' or 'running' when it is starting up.
+  mattr_accessor :clean_stuck_jobs
+  self.clean_stuck_jobs = false
+
   # This setting is for {Workhorse::Jobs::DetectStaleJobsJob} and specifies the
   # maximum number of seconds a job is allowed to stay 'locked' before this job
   # throws an exception. Set this to 0 to skip this check.

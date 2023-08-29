@@ -527,6 +527,12 @@ exception is thrown (which may cause a notification if you configured
 `on_exception` accordingly). See the job's API documentation for more
 information.
 
+Starting with Workhorse 1.2.16, there is also a feature that automatically
+checks for stuck jobs (jobs in state `locked` or `started` running on the same
+host where the corresponding PID does not have a process anymore) when starting
+up the worker / poller. This feature can be turned on using the setting
+`config.clean_stuck_jobs`. This is turned off by default.
+
 ## Frequently asked questions
 
 Please consult the [FAQ](FAQ.md).

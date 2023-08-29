@@ -6,6 +6,8 @@ module Workhorse
     STATE_SUCCEEDED = :succeeded
     STATE_FAILED    = :failed
 
+    EXP_LOCKED_BY = /^(.*?)\.(\d+?)\.([^.]+)$/
+
     if respond_to?(:attr_accessible)
       attr_accessible :queue, :priority, :perform_at, :handler, :description
     end
@@ -30,6 +32,31 @@ module Workhorse
 
     def self.failed
       where(state: STATE_FAILED)
+    end
+
+    # @private
+    def self.with_split_locked_by
+      select(<<~SQL)
+        #{self.table_name}.*,
+
+        -- random string
+        substring_index(locked_by, '.', -1) as locked_by_rnd,
+
+        -- pid
+        substring_index(
+          substring_index(locked_by, '.', -2),
+          '.',
+          1
+        ) as locked_by_pid,
+
+        -- get host
+        substring(
+          locked_by,
+          1,
+          length(locked_by) -
+          length(substring_index(locked_by, '.', -2)) - 1
+        ) as locked_by_host
+      SQL
     end
 
     # Resets job to state "waiting" and clears all meta fields

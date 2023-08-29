@@ -4,6 +4,7 @@ module Workhorse
       attr_reader :id
       attr_reader :name
       attr_reader :block
+      attr_accessor :pid
 
       def initialize(id, name, &block)
         @id = id
@@ -11,6 +12,9 @@ module Workhorse
         @block = block
       end
     end
+
+    # @private
+    attr_reader :workers
 
     def initialize(pidfile: nil, quiet: false, &_block)
       @pidfile = pidfile
@@ -156,6 +160,7 @@ module Workhorse
 
         worker.block.call
       end
+      worker.pid = pid
       IO.write(pid_file_for(worker), pid)
       Process.detach(pid)
     end
