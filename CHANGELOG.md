@@ -1,6 +1,6 @@
 # Workhorse Changelog
 
-## 1.2.16 - 2023-08-29
+## Unreleased
 
 * Add option `config.clean_stuck_jobs` that enabled automatic cleaning of stuck
   jobs whenever a worker starts up.
