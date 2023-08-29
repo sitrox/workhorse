@@ -68,7 +68,6 @@ module Workhorse
     private
 
     def clean_stuck_jobs!
-      puts 'CLEANING STUCK JOBS'
       with_global_lock timeout: MAX_LOCK_TIMEOUT do
         Workhorse.tx_callback.call do
           # Basic relation: Fetch jobs locked by current host in state 'locked' or
