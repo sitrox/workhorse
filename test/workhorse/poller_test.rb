@@ -218,7 +218,7 @@ class Workhorse::PollerTest < WorkhorseTest
     [true, false].each do |clean|
       Workhorse::DbJob.delete_all
 
-      Workhorse.clean_stuck_jobs_on_worker_startup = true
+      Workhorse.clean_stuck_jobs = true
       start_deamon
       Workhorse.enqueue BasicJob.new(sleep_time: 5)
       sleep 0.2
@@ -241,7 +241,7 @@ class Workhorse::PollerTest < WorkhorseTest
         end
       end
     ensure
-      Workhorse.clean_stuck_jobs_on_worker_startup = false
+      Workhorse.clean_stuck_jobs = false
     end
   end
 
