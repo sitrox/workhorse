@@ -84,7 +84,7 @@ module Workhorse
           job_pids = rel.distinct.pluck(:locked_by_pid).to_set(&:to_i)
 
           # Get pids without active process
-          orphaned_pids = job_pids.filter do |pid|
+          orphaned_pids = job_pids.select do |pid|
             Process.getpgid(pid)
             false
           rescue Errno::ESRCH
