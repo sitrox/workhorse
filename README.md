@@ -62,6 +62,7 @@ What it does not do:
 
    * A database migration for creating a table named `jobs`
    * The initializer `config/initializers/workhorse.rb` for global configuration
+     * This can be skipped using the `--skip_initializer` flag
    * The daemon worker script `bin/workhorse.rb`
 
    Please customize the initializer and worker script to your liking.
