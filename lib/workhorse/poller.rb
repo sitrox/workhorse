@@ -193,10 +193,7 @@ module Workhorse
     def poll
       @instant_repoll.make_false
 
-      # rubocop: disable Style/ComparableClamp
       timeout = [MIN_LOCK_TIMEOUT, [MAX_LOCK_TIMEOUT, worker.polling_interval].min].max
-      # rubocop: enable Style/ComparableClamp
-
       with_global_lock timeout: timeout do
         job_ids = []
 
