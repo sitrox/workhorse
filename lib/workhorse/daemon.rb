@@ -150,10 +150,7 @@ module Workhorse
 
     def start_worker(worker)
       pid = fork do
-        # rubocop: disable Naming/VariableNumber
         $0 = process_name(worker)
-        # rubocop: enable Naming/VariableNumber
-
         # Reopen pipes to prevent #107576
         $stdin.reopen File.open('/dev/null', 'r')
         null_out = File.open '/dev/null', 'w'

@@ -84,7 +84,7 @@ module Workhorse
           job_pids = rel.distinct.pluck(:locked_by_pid).to_set(&:to_i)
 
           # Get pids without active process
-          orphaned_pids = job_pids.filter do |pid|
+          orphaned_pids = job_pids.select do |pid|
             Process.getpgid(pid)
             false
           rescue Errno::ESRCH
@@ -193,10 +193,7 @@ module Workhorse
     def poll
       @instant_repoll.make_false
 
-      # rubocop: disable Style/ComparableClamp
       timeout = [MIN_LOCK_TIMEOUT, [MAX_LOCK_TIMEOUT, worker.polling_interval].min].max
-      # rubocop: enable Style/ComparableClamp
-
       with_global_lock timeout: timeout do
         job_ids = []
 

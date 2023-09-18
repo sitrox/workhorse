@@ -44,10 +44,10 @@ end
 
 ActiveRecord::Base.establish_connection(
   adapter:  'mysql2',
-  database: ENV['DB_NAME'] || 'workhorse',
-  username: ENV['DB_USERNAME'] || 'root',
-  password: ENV['DB_PASSWORD'] || '',
-  host:     ENV['DB_HOST'] || '127.0.0.1',
+  database: ENV.fetch('DB_NAME', nil) || 'workhorse',
+  username: ENV.fetch('DB_USERNAME', nil) || 'root',
+  password: ENV.fetch('DB_PASSWORD', nil) || '',
+  host:     ENV.fetch('DB_HOST', nil) || '127.0.0.1',
   pool:     10
 )
 

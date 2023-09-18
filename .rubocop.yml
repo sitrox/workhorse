@@ -180,17 +180,9 @@ Naming/BlockForwarding:
   Enabled: true
   EnforcedStyle: explicit
 
-# Don't require gemspec dependencies to be versioned. While it's generally a good
-# idea to require specifying versions of dependencies, we don't want to enforce it.
-Gemspec/DependencyVersion:
-  Enabled: false
-
 Style/HashSyntax:
   # Use `either` style for `EnforcedShorthandyntax` (see #106550)
   EnforcedShorthandSyntax: either
-
-Style/RedundantLineContinuation:
-  Enabled: false
 
 # Allow rescue 'Exception', necessary for Workhorse
 Lint/RescueException:
