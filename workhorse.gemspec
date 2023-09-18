@@ -21,7 +21,7 @@ Gem::Specification.new do |s|
   if s.respond_to? :add_runtime_dependency then
     s.add_development_dependency(%q<bundler>.freeze, [">= 0"])
     s.add_development_dependency(%q<rake>.freeze, [">= 0"])
-    s.add_development_dependency(%q<rubocop>.freeze, ["= 1.56.2"])
+    s.add_development_dependency(%q<rubocop>.freeze, ["~> 1.28.0"])
     s.add_development_dependency(%q<minitest>.freeze, [">= 0"])
     s.add_development_dependency(%q<mysql2>.freeze, [">= 0"])
     s.add_development_dependency(%q<colorize>.freeze, [">= 0"])
@@ -34,7 +34,7 @@ Gem::Specification.new do |s|
   else
     s.add_dependency(%q<bundler>.freeze, [">= 0"])
     s.add_dependency(%q<rake>.freeze, [">= 0"])
-    s.add_dependency(%q<rubocop>.freeze, ["= 1.56.2"])
+    s.add_dependency(%q<rubocop>.freeze, ["~> 1.28.0"])
     s.add_dependency(%q<minitest>.freeze, [">= 0"])
     s.add_dependency(%q<mysql2>.freeze, [">= 0"])
     s.add_dependency(%q<colorize>.freeze, [">= 0"])

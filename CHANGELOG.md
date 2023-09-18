@@ -2,7 +2,7 @@
 
 ## 1.2.16 - 2023-09-18
 
-* Add support for `--skip_initializer` flag to install generator.
+* Add support for `--skip-initializer` flag to install generator.
 
   Sitrox reference: #114673.
 
