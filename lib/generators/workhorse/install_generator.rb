@@ -2,6 +2,9 @@ module Workhorse
   class InstallGenerator < Rails::Generators::Base
     include Rails::Generators::Migration
 
+    class_option :skip_initializer, type: :boolean, default: false,
+                 desc: 'Skip generating the initializer file'
+
     source_root File.expand_path('templates', __dir__)
 
     def self.next_migration_number(_dir)
@@ -18,7 +21,7 @@ module Workhorse
     end
 
     def install_initializer
-      template 'config/initializers/workhorse.rb'
+      template 'config/initializers/workhorse.rb' unless options[:skip_initializer]
     end
   end
 end

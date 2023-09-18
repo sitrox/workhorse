@@ -1,6 +1,10 @@
 # Workhorse Changelog
 
-## Unreleased
+## 1.2.16 - 2023-09-18
+
+* Add support for `--skip_initializer` flag to install generator.
+
+  Sitrox reference: #114673.
 
 * Add option `config.clean_stuck_jobs` that enabled automatic cleaning of stuck
   jobs whenever a worker starts up.
