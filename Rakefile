@@ -13,7 +13,7 @@ task :gemspec do
 
     spec.add_development_dependency 'bundler'
     spec.add_development_dependency 'rake'
-    spec.add_development_dependency 'rubocop', '1.56.2'
+    spec.add_development_dependency 'rubocop', '~> 1.28.0' # Latest version supported with Ruby 2.5
     spec.add_development_dependency 'minitest'
     spec.add_development_dependency 'mysql2'
     spec.add_development_dependency 'colorize'
