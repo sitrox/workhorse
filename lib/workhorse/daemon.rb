@@ -113,10 +113,14 @@ module Workhorse
       end
 
       if should_be_running && status(quiet: true) != 0
-        return start(quiet: Workhorse.silence_watcher)
+        code = start(quiet: Workhorse.silence_watcher)
       else
-        return 0
+        code = 0
       end
+
+      watch_memory! if should_be_running
+
+      return code
     end
 
     def restart
@@ -143,6 +147,30 @@ module Workhorse
     end
 
     private
+
+    def watch_memory!
+      return if Workhorse.max_worker_memory_mb == 0
+
+      for_each_worker do |worker|
+        pid_file, pid = read_pid(worker)
+        next unless pid_file && pid
+
+        memory = memory_for(pid)
+        next unless memory
+
+        if memory > Workhorse.max_worker_memory_mb
+          stop_worker pid_file, pid
+          start_worker worker
+        end
+      end
+    end
+
+    # Returns the memory (RSS) in MB for the given process.
+    def memory_for(pid)
+      mem = `ps -p #{pid} -o rss=`&.strip
+      return nil if mem.blank?
+      return mem.to_i / 1024
+    end
 
     def for_each_worker(&block)
       @workers.each(&block)

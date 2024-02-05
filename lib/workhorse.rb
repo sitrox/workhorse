@@ -75,6 +75,12 @@ module Workhorse
   mattr_accessor :stale_detection_run_time_threshold
   self.stale_detection_run_time_threshold = 12 * 60
 
+  # Maximum memory for a worker in MB. If this memory limit (RSS / resident
+  # size) is reached for a worker process, the 'watch' command will restart said
+  # worker. Set this to 0 disable this feature.
+  mattr_accessor :max_worker_memory_mb
+  self.max_worker_memory_mb = 0
+
   def self.setup
     yield self
   end

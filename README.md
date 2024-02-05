@@ -464,6 +464,29 @@ jobs database on a regular interval. Workhorse provides the job
 `Workhorse::Jobs::CleanupSucceededJobs` for this purpose that cleans up all
 succeeded jobs. You can run this using your scheduler in a specific interval.
 
+## Memory handling
+
+When dealing with jobs that may exhibit a large memory footprint, it's important
+to note that Ruby might not release consumed memory back to the operating
+system. Consequently, your job workers could accumulate a significant amount of
+memory over time. To address this, Workhorse provides the
+`config.max_worker_memory_mb` option.
+
+If `config.max_worker_memory_mb` is set to a value above `0`, the `watch`
+command will check the memory footprint (RSS / resident size) of all worker
+processes. If any worker exceeds the specified footprint, Workhorse will
+silently restart it to ensure proper memory release. This process does not
+produce any output in the `watch` command.
+
+Example configuration:
+
+```ruby
+# config/initializers/workhorse.rb
+Workhorse.setup do |config|
+  config.max_worker_memory_mb = 512 # Set the memory threshold to 512 megabytes
+end
+```
+
 ## Load hooks
 
 Using the load hook `:workhorse_db_job`, you can inject custom code into the

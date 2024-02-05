@@ -1,5 +1,14 @@
 # Workhorse Changelog
 
+## 1.2.17.rc0 - 2024-02-05
+
+* Add option `config.max_worker_memory_mb` for automatic restart of workers
+  exceeding the specified memory threshold using the `watch` command. Default is
+  `0`, deactivating this feature. See [memory
+  handling](README.md#memory-handling) for more information.
+
+  Sitrox reference: #121312.
+
 ## 1.2.16 - 2023-09-18
 
 * Add support for `--skip-initializer` flag to install generator.
