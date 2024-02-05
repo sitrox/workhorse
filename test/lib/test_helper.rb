@@ -5,6 +5,7 @@ require 'pry'
 require 'colorize'
 require 'mysql2'
 require 'benchmark'
+require 'concurrent'
 require 'jobs'
 
 class WorkhorseTest < ActiveSupport::TestCase
