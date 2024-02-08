@@ -34,10 +34,34 @@ end
 
 class WorkhorseTest < ActiveSupport::TestCase
   def setup
+    remove_pids!
+    Workhorse.silence_watcher = true
     Workhorse::DbJob.delete_all
   end
 
   protected
+
+  attr_reader :daemon
+
+  def remove_pids!
+    Dir[Rails.root.join('tmp', 'pids', '*')].each do |file|
+      FileUtils.rm file
+    end
+  end
+
+  def kill(pid)
+    signals = %w[TERM INT]
+
+    loop do
+      begin
+        signals.each { |signal| Process.kill(signal, pid) }
+      rescue Errno::ESRCH
+        break
+      end
+
+      sleep 0.5
+    end
+  end
 
   def capture_log(level: :debug)
     io = StringIO.new
@@ -74,16 +98,43 @@ class WorkhorseTest < ActiveSupport::TestCase
     end
   end
 
+  def with_daemon(workers = 1, &_block)
+    @daemon = Workhorse::Daemon.new(pidfile: 'tmp/pids/test%s.pid') do |d|
+      workers.times do |i|
+        d.worker "Test Worker #{i}" do
+          begin
+            Workhorse::Worker.start_and_wait(
+              pool_size:        1,
+              polling_interval: 0.1
+            )
+          end
+        end
+      end
+    end
+    daemon.start(quiet: true)
+    yield @daemon
+  ensure
+    daemon.stop(quiet: true)
+  end
+
   def with_retries(max = 50, interval: 0.1, &_block)
     runs = 0
 
     loop do
       return yield
-    rescue Minitest::Assertion => e
+    rescue Minitest::Assertion
       fail if runs > max
       sleep interval
       runs += 1
     end
+  end
+
+  def capture_stderr
+    old, $stderr = $stderr, StringIO.new
+    yield
+    $stderr.string
+  ensure
+    $stderr = old
   end
 end
 

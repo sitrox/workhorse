@@ -45,11 +45,14 @@ module Workhorse
     def start(quiet: false)
       code = 0
 
+      # Holds messages in format [[<message>, <severity>]]
+      messages = []
+
       for_each_worker do |worker|
         pid_file, pid, active = read_pid(worker)
 
         if pid_file && pid && active
-          warn "Worker ##{worker.id} (#{worker.name}): Already started (PID #{pid})" unless quiet
+          messages << ["Worker ##{worker.id} (#{worker.name}): Already started (PID #{pid})", 2] unless quiet
           code = 2
         elsif pid_file
           File.delete pid_file
@@ -57,32 +60,41 @@ module Workhorse
           shutdown_file = pid ? Workhorse::Worker.shutdown_file_for(pid) : nil
           shutdown_file = nil if shutdown_file && !File.exist?(shutdown_file)
 
-          puts "Worker ##{worker.id} (#{worker.name}): Starting (stale pid file)" unless quiet || shutdown_file
+          messages << ["Worker ##{worker.id} (#{worker.name}): Starting (stale pid file)", 1] unless quiet || shutdown_file
           start_worker worker
           FileUtils.rm(shutdown_file) if shutdown_file
         else
-          warn "Worker ##{worker.id} (#{worker.name}): Starting" unless quiet
+          messages << ["Worker ##{worker.id} (#{worker.name}): Starting", 1] unless quiet
           start_worker worker
+        end
+      end
+
+      if messages.any?
+        min = messages.min_by(&:last)[1]
+
+        # Only print messages if there is at least one message with severity 1
+        if min == 1
+          messages.each { |(message, _severity)| warn message }
         end
       end
 
       return code
     end
 
-    def stop(kill = false)
+    def stop(kill = false, quiet: false)
       code = 0
 
       for_each_worker do |worker|
         pid_file, pid, active = read_pid(worker)
 
         if pid_file && pid && active
-          puts "Worker (#{worker.name}) ##{worker.id}: Stopping"
+          puts "Worker (#{worker.name}) ##{worker.id}: Stopping" unless quiet
           stop_worker pid_file, pid, kill: kill
         elsif pid_file
           File.delete pid_file
-          puts "Worker (#{worker.name}) ##{worker.id}: Already stopped (stale PID file)"
+          puts "Worker (#{worker.name}) ##{worker.id}: Already stopped (stale PID file)" unless quiet
         else
-          warn "Worker (#{worker.name}) ##{worker.id}: Already stopped"
+          warn "Worker (#{worker.name}) ##{worker.id}: Already stopped" unless quiet
           code = 2
         end
       end

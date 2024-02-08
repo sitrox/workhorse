@@ -1,6 +1,14 @@
 # Workhorse Changelog
 
-## 1.2.17.rc1 - 2024-02-05
+## 1.2.17.rc2 - 2024-02-08
+
+* Remove unnecessary output from `watch` command in certain cases.
+
+  Sitrox reference: #121312.
+
+* Fix, improve and extend automated tests.
+
+## 1.2.17.rc1 - 2024-02-08
 
 * Revamp memory handling:
 

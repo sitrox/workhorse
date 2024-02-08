@@ -181,69 +181,43 @@ class Workhorse::WorkerTest < WorkhorseTest
   end
 
   def test_controlled_shutdown
-    remove_pids!
-
     Workhorse.max_worker_memory_mb = 50
+    with_daemon do
+      pid = with_retries do
+        pid = daemon.workers.first.pid
+        assert_process(pid)
+        pid
+      end
 
-    daemon = start_daemon
+      10.times do
+        Workhorse.enqueue BasicJob.new(sleep_time: 0.1)
 
-    pid = with_retries do
-      pid = daemon.workers.first.pid
-      assert_process(pid)
-      pid
-    end
+        with_retries do
+          assert_equal 'succeeded', Workhorse::DbJob.first.state
+          Workhorse::DbJob.delete_all
+        end
+      end
 
-    10.times do
-      Workhorse.enqueue BasicJob.new(sleep_time: 0.1)
+      Workhorse.enqueue MemHungryJob.new
 
       with_retries do
         assert_equal 'succeeded', Workhorse::DbJob.first.state
-        Workhorse::DbJob.delete_all
+
+        assert File.exist?("tmp/pids/workhorse.#{pid}.shutdown")
+        assert_not_process pid
+      end
+
+      capture_stderr { daemon.watch }
+
+      with_retries do
+        assert_not File.exist?("tmp/pids/workhorse.#{pid}.shutdown")
       end
     end
-
-    Workhorse.enqueue MemHungryJob.new
-
-    with_retries do
-      assert_equal 'succeeded', Workhorse::DbJob.first.state
-
-      assert File.exist?("tmp/pids/workhorse.#{pid}.shutdown")
-      assert_not_process pid
-    end
-
-    daemon.watch
-
-    with_retries do
-      assert_not File.exist?("tmp/pids/workhorse.#{pid}.shutdown")
-    end
   ensure
-    daemon.stop
     Workhorse.max_worker_memory_mb = 0
   end
 
   private
-
-  def remove_pids!
-    Dir[Rails.root.join('tmp', 'pids', '*')].each do |file|
-      FileUtils.rm file
-    end
-  end
-
-  def start_daemon
-    daemon = Workhorse::Daemon.new(pidfile: 'tmp/pids/test%s.pid') do |d|
-      d.worker 'Test Worker' do
-        begin
-          Workhorse::Worker.start_and_wait(
-            pool_size:        1,
-            polling_interval: 0.1,
-            logger:           ActiveSupport::Logger.new('tmp/log.log')
-          )
-        end
-      end
-    end
-    daemon.start
-    return daemon
-  end
 
   def assert_process(pid)
     assert process?(pid), "Process #{pid} expected to be running"
