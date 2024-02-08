@@ -22,7 +22,7 @@ module Workhorse
       Thread.current[:workhorse_current_performer] = self
 
       ActiveRecord::Base.connection_pool.with_connection do
-        if defined?(Rails) && Rails.application && Rails.application.respond_to?(:executor)
+        if defined?(Rails) && Rails.respond_to?(:application) && Rails.application && Rails.application.respond_to?(:executor)
           Rails.application.executor.wrap do
             perform_wrapped
           end
@@ -63,7 +63,6 @@ module Workhorse
 
       inner_job_class = deserialized_job.try(:job_class) || deserialized_job.class
       skip_tx = inner_job_class.try(:skip_tx?)
-      log "SKIP TX: #{skip_tx.inspect}".red, :error
 
       if Workhorse.perform_jobs_in_tx && !skip_tx
         Workhorse.tx_callback.call do

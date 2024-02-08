@@ -466,17 +466,18 @@ succeeded jobs. You can run this using your scheduler in a specific interval.
 
 ## Memory handling
 
-When dealing with jobs that may exhibit a large memory footprint, it's important
-to note that Ruby might not release consumed memory back to the operating
-system. Consequently, your job workers could accumulate a significant amount of
-memory over time. To address this, Workhorse provides the
-`config.max_worker_memory_mb` option.
+When a worker exceeds the memory limit specified by
+`config.max_worker_memory_mb` (assuming it is configured and > 0), it initiates
+a graceful shutdown process by creating a shutdown file named
+`tmp/pids/workhorse.<pid>.shutdown`.
 
-If `config.max_worker_memory_mb` is set to a value above `0`, the `watch`
-command will check the memory footprint (RSS / resident size) of all worker
-processes. If any worker exceeds the specified footprint, Workhorse will
-silently restart it to ensure proper memory release. This process does not
-produce any output in the `watch` command.
+Simultaneously, the `watch` command, if scheduled, monitors the presence of this
+shutdown file. Upon detecting its existence, it silently triggers the restart of
+the shutdown worker and removes the shutdown file to signify that the restart
+process has begun.
+
+This mechanism ensures that workers are automatically restarted without manual
+intervention when memory limits are exceeded.
 
 Example configuration:
 

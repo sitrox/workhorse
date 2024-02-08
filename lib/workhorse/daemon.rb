@@ -46,15 +46,20 @@ module Workhorse
       code = 0
 
       for_each_worker do |worker|
-        pid_file, pid = read_pid(worker)
+        pid_file, pid, active = read_pid(worker)
 
-        if pid_file && pid
+        if pid_file && pid && active
           warn "Worker ##{worker.id} (#{worker.name}): Already started (PID #{pid})" unless quiet
           code = 2
         elsif pid_file
           File.delete pid_file
-          puts "Worker ##{worker.id} (#{worker.name}): Starting (stale pid file)" unless quiet
+
+          shutdown_file = pid ? Workhorse::Worker.shutdown_file_for(pid) : nil
+          shutdown_file = nil if shutdown_file && !File.exist?(shutdown_file)
+
+          puts "Worker ##{worker.id} (#{worker.name}): Starting (stale pid file)" unless quiet || shutdown_file
           start_worker worker
+          FileUtils.rm(shutdown_file) if shutdown_file
         else
           warn "Worker ##{worker.id} (#{worker.name}): Starting" unless quiet
           start_worker worker
@@ -68,9 +73,9 @@ module Workhorse
       code = 0
 
       for_each_worker do |worker|
-        pid_file, pid = read_pid(worker)
+        pid_file, pid, active = read_pid(worker)
 
-        if pid_file && pid
+        if pid_file && pid && active
           puts "Worker (#{worker.name}) ##{worker.id}: Stopping"
           stop_worker pid_file, pid, kill: kill
         elsif pid_file
@@ -89,9 +94,9 @@ module Workhorse
       code = 0
 
       for_each_worker do |worker|
-        pid_file, pid = read_pid(worker)
+        pid_file, pid, active = read_pid(worker)
 
-        if pid_file && pid
+        if pid_file && pid && active
           puts "Worker ##{worker.id} (#{worker.name}): Running" unless quiet
         elsif pid_file
           warn "Worker ##{worker.id} (#{worker.name}): Not running (stale PID file)" unless quiet
@@ -113,14 +118,10 @@ module Workhorse
       end
 
       if should_be_running && status(quiet: true) != 0
-        code = start(quiet: Workhorse.silence_watcher)
+        return start(quiet: Workhorse.silence_watcher)
       else
-        code = 0
+        return 0
       end
-
-      watch_memory! if should_be_running
-
-      return code
     end
 
     def restart
@@ -132,7 +133,9 @@ module Workhorse
       code = 0
 
       for_each_worker do |worker|
-        _pid_file, pid = read_pid(worker)
+        _pid_file, pid, active = read_pid(worker)
+
+        next unless pid && active
 
         begin
           Process.kill 'HUP', pid
@@ -147,30 +150,6 @@ module Workhorse
     end
 
     private
-
-    def watch_memory!
-      return if Workhorse.max_worker_memory_mb == 0
-
-      for_each_worker do |worker|
-        pid_file, pid = read_pid(worker)
-        next unless pid_file && pid
-
-        memory = memory_for(pid)
-        next unless memory
-
-        if memory > Workhorse.max_worker_memory_mb
-          stop_worker pid_file, pid
-          start_worker worker
-        end
-      end
-    end
-
-    # Returns the memory (RSS) in MB for the given process.
-    def memory_for(pid)
-      mem = `ps -p #{pid} -o rss=`&.strip
-      return nil if mem.blank?
-      return mem.to_i / 1024
-    end
 
     def for_each_worker(&block)
       @workers.each(&block)
@@ -237,16 +216,21 @@ module Workhorse
 
     def read_pid(worker)
       file = pid_file_for(worker)
+      pid = nil
+      active = false
 
       if File.exist?(file)
         raw_pid = File.read(file)
-        return nil, nil if raw_pid.blank?
 
-        pid = Integer(raw_pid)
-        return file, process?(pid) ? pid : nil
+        unless raw_pid.blank?
+          pid = Integer(raw_pid)
+          active = process?(pid)
+        end
       else
         return nil, nil
       end
+
+      return file, pid, active
     end
   end
 end

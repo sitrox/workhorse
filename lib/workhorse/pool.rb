@@ -2,6 +2,7 @@ module Workhorse
   # Abstraction layer of a simple thread pool implementation used by the worker.
   class Pool
     attr_reader :mutex
+    attr_reader :active_threads
 
     def initialize(size)
       @size = size

@@ -36,6 +36,15 @@ class SyntaxErrorJob
   end
 end
 
+class MemHungryJob
+  class_attribute :data
+
+  # Should consume roughly 1GB of memory.
+  def perform
+    self.class.data = 'x' * 250.megabytes
+  end
+end
+
 class DummyRailsOpsOp
   class_attribute :results
   self.results = Concurrent::Array.new

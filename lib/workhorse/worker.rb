@@ -20,6 +20,12 @@ module Workhorse
       worker.wait
     end
 
+    # @private
+    def self.shutdown_file_for(pid)
+      return nil unless defined?(Rails)
+      Rails.root.join('tmp', 'pids', "workhorse.#{pid}.shutdown")
+    end
+
     # Instantiates a new worker. The worker is not automatically started.
     #
     # @param queues [Array] The queues you want this worker to process. If an
@@ -51,7 +57,7 @@ module Workhorse
 
       @mutex = Mutex.new
       @pool = Pool.new(@pool_size)
-      @poller = Workhorse::Poller.new(self)
+      @poller = Workhorse::Poller.new(self, proc { check_memory })
       @logger = logger
 
       unless (@polling_interval / 0.1).round(2).modulo(1).zero?
@@ -154,6 +160,37 @@ module Workhorse
     end
 
     private
+
+    def check_memory
+      mem = current_memory_consumption
+
+      unless mem
+        log "Could not determine memory consumption of worker with pid #{pid}"
+        return false
+      end
+
+      max = Workhorse.max_worker_memory_mb
+      exceeded = max > 0 && current_memory_consumption > max
+
+      return true unless exceeded
+
+      if defined?(Rails)
+        FileUtils.touch self.class.shutdown_file_for(pid)
+      end
+
+      log "Worker process #{id.inspect} memory consumption (RSS) of #{mem}MB exceeds "\
+          "configured per-worker limit of #{max}MB and is now being shut down. Make sure "\
+          'that your worker processes are watched (e.g. using the "watch"-command) for ' \
+          'this worker to be restarted automatically.'
+
+      return false
+    end
+
+    def current_memory_consumption
+      mem = `ps -p #{pid} -o rss=`&.strip
+      return nil if mem.blank?
+      return mem.to_i / 1024
+    end
 
     def check_rails_env
       unless Rails.env.production?

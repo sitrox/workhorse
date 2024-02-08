@@ -9,7 +9,7 @@ module Workhorse
     attr_reader :worker
     attr_reader :table
 
-    def initialize(worker)
+    def initialize(worker, before_poll = proc { true })
       @worker = worker
       @running = false
       @table = Workhorse::DbJob.arel_table
@@ -17,6 +17,7 @@ module Workhorse
       @instant_repoll = Concurrent::AtomicBoolean.new(false)
       @global_lock_fails = 0
       @max_global_lock_fails_reached = false
+      @before_poll = before_poll
     end
 
     def running?
@@ -34,6 +35,12 @@ module Workhorse
           break unless running?
 
           begin
+            unless @before_poll.call
+              Thread.new { worker.shutdown }
+              sleep
+              next
+            end
+
             poll
             sleep
           rescue Exception => e

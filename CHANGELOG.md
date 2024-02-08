@@ -1,5 +1,22 @@
 # Workhorse Changelog
 
+## 1.2.17.rc1 - 2024-02-05
+
+* Revamp memory handling:
+
+  * Change memory handling for workers to automatically shut down themselves
+    upon exceeding `config.max_worker_memory_mb` (if configured and > 0),
+    triggering the creation of a shutdown file
+    (`tmp/pids/workhorse.<pid>.shutdown`).
+  * Have the `watch` command, if scheduled, silently restart the shutdown worker
+    and remove the shutdown file.
+  * The presence of the shutdown file informs the watcher to produce output or
+    remain silent.
+  * Implement this adjustment to limit `watch` command output to error cases,
+    facilitating seamless cron integration for notification purposes.
+
+  Sitrox reference: #121312.
+
 ## 1.2.17.rc0 - 2024-02-05
 
 * Add option `config.max_worker_memory_mb` for automatic restart of workers
