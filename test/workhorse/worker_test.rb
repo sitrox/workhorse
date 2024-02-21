@@ -181,7 +181,7 @@ class Workhorse::WorkerTest < WorkhorseTest
   end
 
   def test_controlled_shutdown
-    Workhorse.max_worker_memory_mb = 50
+    Workhorse.max_worker_memory_mb = 100
     with_daemon do
       pid = with_retries do
         pid = daemon.workers.first.pid

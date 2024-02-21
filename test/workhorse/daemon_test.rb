@@ -16,6 +16,9 @@ class Workhorse::DaemonTest < WorkhorseTest
       # Kill first worker
       Process.kill 'KILL', daemon.workers.first.pid
 
+      # Short sleep to let the `KILL` propagate
+      sleep 0.2
+
       # Watch
       assert_watch_output(
         'Worker #1 (Test Worker 0): Starting (stale pid file)',
