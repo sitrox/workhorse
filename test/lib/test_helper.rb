@@ -102,12 +102,10 @@ class WorkhorseTest < ActiveSupport::TestCase
     @daemon = Workhorse::Daemon.new(pidfile: 'tmp/pids/test%s.pid') do |d|
       workers.times do |i|
         d.worker "Test Worker #{i}" do
-          begin
-            Workhorse::Worker.start_and_wait(
-              pool_size:        1,
-              polling_interval: 0.1
-            )
-          end
+          Workhorse::Worker.start_and_wait(
+            pool_size:        1,
+            polling_interval: 0.1
+          )
         end
       end
     end
@@ -130,7 +128,8 @@ class WorkhorseTest < ActiveSupport::TestCase
   end
 
   def capture_stderr
-    old, $stderr = $stderr, StringIO.new
+    old = $stderr
+    $stderr = StringIO.new
     yield
     $stderr.string
   ensure

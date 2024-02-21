@@ -31,7 +31,7 @@ class Workhorse::DaemonTest < WorkhorseTest
     with_daemon 2 do
       # Kill first worker
       kill daemon.workers.first.pid
-      FileUtils.rm "tmp/pids/test1.pid"
+      FileUtils.rm 'tmp/pids/test1.pid'
 
       # Watch
       assert_watch_output(
@@ -62,7 +62,7 @@ class Workhorse::DaemonTest < WorkhorseTest
     with_daemon 4 do
       # Worker 0: Kill, remove PID
       kill daemon.workers[0].pid
-      FileUtils.rm "tmp/pids/test1.pid"
+      FileUtils.rm 'tmp/pids/test1.pid'
 
       # Worker 1: Kill, keep PID
       kill daemon.workers[1].pid

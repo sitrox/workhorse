@@ -26,22 +26,32 @@ jobs:
       DB_HOST: localhost
 
     steps:
-    - uses: actions/checkout@v2
-    - name: Set up Ruby
-      uses: ruby/setup-ruby@v1
-      with:
-        ruby-version: ${{ matrix.ruby-version }}
-        bundler-cache: true
-    - name: Startup database
-      run: |
-        sudo /etc/init.d/mysql start
-        mysql -u${{ env.DB_USER }} -p${{ env.DB_PASSWORD }} -e 'CREATE DATABASE ${{ env.DB_DATABASE }};'
-    - name: Run rake tests
-      uses: nick-fields/retry@v2
-      with:
-        timeout_seconds: 120
-        retry_on: error
-        max_attempts: 3
-        command: bundle exec rake test TESTOPTS='--verbose'
-    - name: Run rubocop
-      run: bundle exec rubocop
+      - uses: actions/checkout@v2
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: ${{ matrix.ruby-version }}
+          bundler-cache: true
+      - name: Startup database
+        run: |
+          sudo /etc/init.d/mysql start
+          mysql -u${{ env.DB_USER }} -p${{ env.DB_PASSWORD }} -e 'CREATE DATABASE ${{ env.DB_DATABASE }};'
+      - name: Run rake tests
+        uses: nick-fields/retry@v2
+        with:
+          timeout_seconds: 120
+          retry_on: error
+          max_attempts: 3
+          command: bundle exec rake test TESTOPTS='--verbose'
+
+  linters:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: 2.5.1
+          bundler-cache: true
+      - name: Run rubocop
+        run: bundle exec rubocop
