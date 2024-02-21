@@ -1,5 +1,9 @@
 # Workhorse Changelog
 
+## 1.2.17 - 2024-02-21
+
+* Stable release based on previous RC releases.
+
 ## 1.2.17.rc2 - 2024-02-08
 
 * Remove unnecessary output from `watch` command in certain cases.
