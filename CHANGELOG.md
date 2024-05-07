@@ -1,5 +1,11 @@
 # Workhorse Changelog
 
+## 1.2.18 - 2024-05-07
+
+* Fix compatibility with `ruby < 2.5`
+
+  Sitrox reference: #124538.
+
 ## 1.2.17 - 2024-02-21
 
 * Stable release based on previous RC releases.

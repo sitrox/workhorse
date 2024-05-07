@@ -92,10 +92,12 @@ module Workhorse
 
           # Get pids without active process
           orphaned_pids = job_pids.select do |pid|
-            Process.getpgid(pid)
-            false
-          rescue Errno::ESRCH
-            true
+            begin
+              Process.getpgid(pid)
+              false
+            rescue Errno::ESRCH
+              true
+            end
           end
 
           # Reset jobs in state 'locked'
