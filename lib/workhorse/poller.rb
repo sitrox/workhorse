@@ -141,60 +141,62 @@ module Workhorse
     end
 
     def with_global_lock(name: :workhorse, timeout: 2, &_block)
-      if @is_oracle
-        result = Workhorse::DbJob.connection.select_all(
-          "SELECT DBMS_LOCK.REQUEST(#{ORACLE_LOCK_HANDLE}, #{ORACLE_LOCK_MODE}, #{timeout}) FROM DUAL"
-        ).first.values.last
-
-        success = result == 0
-      else
-        result = Workhorse::DbJob.connection.select_all(
-          "SELECT GET_LOCK(CONCAT(DATABASE(), '_#{name}'), #{timeout})"
-        ).first.values.last
-        success = result == 1
-      end
-
-      if success
-        @global_lock_fails = 0
-        @max_global_lock_fails_reached = false
-      else
-        @global_lock_fails += 1
-
-        unless @max_global_lock_fails_reached
-          worker.log 'Could not obtain global lock, retrying with next poll.', :warn
-        end
-
-        if @global_lock_fails > Workhorse.max_global_lock_fails && !@max_global_lock_fails_reached
-          @max_global_lock_fails_reached = true
-
-          worker.log 'Could not obtain global lock, retrying with next poll. ' \
-                     'This will be the last such message for this worker until ' \
-                     'the issue is resolved.', :warn
-
-          message = "Worker reached maximum number of consecutive times (#{Workhorse.max_global_lock_fails}) " \
-                    "where the global lock could no be acquired within the specified timeout (#{timeout}). " \
-                    'A worker that obtained this lock may have crashed without ending the database ' \
-                    'connection properly. On MySQL, use "show processlist;" to see which connection(s) ' \
-                    'is / are holding the lock for a long period of time and consider killing them using ' \
-                    "MySQL's \"kill <Id>\" command. This message will be issued only once per worker " \
-                    'and may only be re-triggered if the error happens again *after* the lock has ' \
-                    'been solved in the meantime.'
-
-          worker.log message
-          exception = StandardError.new(message)
-          Workhorse.on_exception.call(exception)
-        end
-      end
-
-      return unless success
-
-      yield
-    ensure
-      if success
+      begin
         if @is_oracle
-          Workhorse::DbJob.connection.execute("SELECT DBMS_LOCK.RELEASE(#{ORACLE_LOCK_HANDLE}) FROM DUAL")
+          result = Workhorse::DbJob.connection.select_all(
+            "SELECT DBMS_LOCK.REQUEST(#{ORACLE_LOCK_HANDLE}, #{ORACLE_LOCK_MODE}, #{timeout}) FROM DUAL"
+          ).first.values.last
+
+          success = result == 0
         else
-          Workhorse::DbJob.connection.execute("SELECT RELEASE_LOCK(CONCAT(DATABASE(), '_#{name}'))")
+          result = Workhorse::DbJob.connection.select_all(
+            "SELECT GET_LOCK(CONCAT(DATABASE(), '_#{name}'), #{timeout})"
+          ).first.values.last
+          success = result == 1
+        end
+
+        if success
+          @global_lock_fails = 0
+          @max_global_lock_fails_reached = false
+        else
+          @global_lock_fails += 1
+
+          unless @max_global_lock_fails_reached
+            worker.log 'Could not obtain global lock, retrying with next poll.', :warn
+          end
+
+          if @global_lock_fails > Workhorse.max_global_lock_fails && !@max_global_lock_fails_reached
+            @max_global_lock_fails_reached = true
+
+            worker.log 'Could not obtain global lock, retrying with next poll. ' \
+              'This will be the last such message for this worker until ' \
+              'the issue is resolved.', :warn
+
+            message = "Worker reached maximum number of consecutive times (#{Workhorse.max_global_lock_fails}) " \
+              "where the global lock could no be acquired within the specified timeout (#{timeout}). " \
+              'A worker that obtained this lock may have crashed without ending the database ' \
+              'connection properly. On MySQL, use "show processlist;" to see which connection(s) ' \
+              'is / are holding the lock for a long period of time and consider killing them using ' \
+              "MySQL's \"kill <Id>\" command. This message will be issued only once per worker " \
+              'and may only be re-triggered if the error happens again *after* the lock has ' \
+              'been solved in the meantime.'
+
+            worker.log message
+            exception = StandardError.new(message)
+            Workhorse.on_exception.call(exception)
+          end
+        end
+
+        return unless success
+
+        yield
+      ensure
+        if success
+          if @is_oracle
+            Workhorse::DbJob.connection.execute("SELECT DBMS_LOCK.RELEASE(#{ORACLE_LOCK_HANDLE}) FROM DUAL")
+          else
+            Workhorse::DbJob.connection.execute("SELECT RELEASE_LOCK(CONCAT(DATABASE(), '_#{name}'))")
+          end
         end
       end
     end

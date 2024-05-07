@@ -34,10 +34,12 @@ module Workhorse
         active_threads.increment
 
         @executor.post do
-          yield
-        ensure
-          active_threads.decrement
-          @on_idle.try(:call)
+          begin
+            yield
+          ensure
+            active_threads.decrement
+            @on_idle.try(:call)
+          end
         end
       end
     end

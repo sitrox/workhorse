@@ -9,41 +9,45 @@ module Workhorse
     end
 
     def perform
-      fail 'Performer can only run once.' if @started
-      @started = true
-      perform!
-    rescue Exception => e
-      Workhorse.on_exception.call(e)
+      begin
+        fail 'Performer can only run once.' if @started
+        @started = true
+        perform!
+      rescue Exception => e
+        Workhorse.on_exception.call(e)
+      end
     end
 
     private
 
     def perform!
-      Thread.current[:workhorse_current_performer] = self
+      begin
+        Thread.current[:workhorse_current_performer] = self
 
-      ActiveRecord::Base.connection_pool.with_connection do
-        if defined?(Rails) && Rails.respond_to?(:application) && Rails.application && Rails.application.respond_to?(:executor)
-          Rails.application.executor.wrap do
+        ActiveRecord::Base.connection_pool.with_connection do
+          if defined?(Rails) && Rails.respond_to?(:application) && Rails.application && Rails.application.respond_to?(:executor)
+            Rails.application.executor.wrap do
+              perform_wrapped
+            end
+          else
             perform_wrapped
           end
-        else
-          perform_wrapped
         end
-      end
-    rescue Exception => e
-      # ---------------------------------------------------------------
-      # Mark job as failed
-      # ---------------------------------------------------------------
-      log %(#{e.message}\n#{e.backtrace.join("\n")}), :error
+      rescue Exception => e
+        # ---------------------------------------------------------------
+        # Mark job as failed
+        # ---------------------------------------------------------------
+        log %(#{e.message}\n#{e.backtrace.join("\n")}), :error
 
-      Workhorse.tx_callback.call do
-        log 'Mark failed', :debug
-        @db_job.mark_failed!(e)
-      end
+        Workhorse.tx_callback.call do
+          log 'Mark failed', :debug
+          @db_job.mark_failed!(e)
+        end
 
-      fail e
-    ensure
-      Thread.current[:workhorse_current_performer] = nil
+        fail e
+      ensure
+        Thread.current[:workhorse_current_performer] = nil
+      end
     end
 
     def perform_wrapped

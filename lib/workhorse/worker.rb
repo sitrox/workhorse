@@ -144,19 +144,23 @@ module Workhorse
     end
 
     def perform(db_job_id)
-      mutex.synchronize do
-        assert_state! :running
-        log "Posting job #{db_job_id} to thread pool"
+      begin
+        mutex.synchronize do
+          assert_state! :running
+          log "Posting job #{db_job_id} to thread pool"
 
-        @pool.post do
-          Workhorse::Performer.new(db_job_id, self).perform
-        rescue Exception => e
-          log %(#{e.message}\n#{e.backtrace.join("\n")}), :error
-          Workhorse.on_exception.call(e)
+          @pool.post do
+            begin
+              Workhorse::Performer.new(db_job_id, self).perform
+            rescue Exception => e
+              log %(#{e.message}\n#{e.backtrace.join("\n")}), :error
+              Workhorse.on_exception.call(e)
+            end
+          end
         end
+      rescue Exception => e
+        Workhorse.on_exception.call(e)
       end
-    rescue Exception => e
-      Workhorse.on_exception.call(e)
     end
 
     private
