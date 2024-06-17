@@ -67,8 +67,6 @@ module Workhorse
       if instant_repolling
         @pool.on_idle { @poller.instant_repoll! }
       end
-
-      check_rails_env if defined?(Rails)
     end
 
     def log(text, level = :info)
@@ -194,12 +192,6 @@ module Workhorse
       mem = `ps -p #{pid} -o rss=`&.strip
       return nil if mem.blank?
       return mem.to_i / 1024
-    end
-
-    def check_rails_env
-      unless Rails.env.production?
-        warn 'WARNING: Always run workhorse workers in production environment. Other environments can lead to unexpected behavior.'
-      end
     end
 
     def trap_log_reopen

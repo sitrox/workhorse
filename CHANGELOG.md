@@ -1,5 +1,11 @@
 # Workhorse Changelog
 
+## Unreleased - 2024-06-17
+
+* Fix rails environment check
+
+  Sitrox reference: #125593.
+
 ## 1.2.19 - 2024-05-07
 
 * Fix further compatibility issues with `ruby < 2.5`

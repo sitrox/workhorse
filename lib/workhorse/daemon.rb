@@ -168,6 +168,8 @@ module Workhorse
     end
 
     def start_worker(worker)
+      check_rails_env if defined?(Rails)
+
       pid = fork do
         $0 = process_name(worker)
         # Reopen pipes to prevent #107576
@@ -243,6 +245,12 @@ module Workhorse
       end
 
       return file, pid, active
+    end
+
+    def check_rails_env
+      unless Rails.env.production?
+        warn 'WARNING: Always run workhorse workers in production environment. Other environments can lead to unexpected behavior.'
+      end
     end
   end
 end
