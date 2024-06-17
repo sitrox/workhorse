@@ -1,6 +1,6 @@
 # Workhorse Changelog
 
-## Unreleased - 2024-06-17
+## 1.2.20 - 2024-06-17
 
 * Fix rails environment check
 
