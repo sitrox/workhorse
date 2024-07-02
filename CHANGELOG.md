@@ -1,5 +1,11 @@
 # Workhorse Changelog
 
+## Unreleased - 2024-07-02
+
+* Add active record release to `create_table_jobs` migration
+
+  Sitrox reference: #126612.
+
 ## 1.2.20 - 2024-06-17
 
 * Fix rails environment check
