@@ -1,6 +1,6 @@
 # Workhorse Changelog
 
-## Unreleased - 2024-07-02
+## 1.2.21 - 2024-07-02
 
 * Add active record release to `create_table_jobs` migration
 
