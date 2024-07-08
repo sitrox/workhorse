@@ -9,7 +9,7 @@ module Workhorse
     end
 
     def perform
-      begin
+      begin # rubocop:disable Style/RedundantBegin
         fail 'Performer can only run once.' if @started
         @started = true
         perform!
@@ -21,7 +21,7 @@ module Workhorse
     private
 
     def perform!
-      begin
+      begin # rubocop:disable Style/RedundantBegin
         Thread.current[:workhorse_current_performer] = self
 
         ActiveRecord::Base.connection_pool.with_connection do

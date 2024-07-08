@@ -34,7 +34,7 @@ module Workhorse
         active_threads.increment
 
         @executor.post do
-          begin
+          begin # rubocop:disable Style/RedundantBegin
             yield
           ensure
             active_threads.decrement

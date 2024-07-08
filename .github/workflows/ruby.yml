@@ -40,7 +40,7 @@ jobs:
         uses: nick-fields/retry@v2
         with:
           timeout_seconds: 120
-          retry_on: error
+          retry_on: any
           max_attempts: 3
           command: bundle exec rake test TESTOPTS='--verbose'
 
