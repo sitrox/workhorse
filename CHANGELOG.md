@@ -1,5 +1,11 @@
 # Workhorse Changelog
 
+## unreleased - 2024-07-08
+
+* Change `retry-on` in actions to `any`: also retry when the action hits a timeout
+
+* Comply with RuboCop
+
 ## 1.2.21 - 2024-07-02
 
 * Add active record release to `create_table_jobs` migration
