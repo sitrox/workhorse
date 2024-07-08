@@ -92,7 +92,7 @@ module Workhorse
 
           # Get pids without active process
           orphaned_pids = job_pids.select do |pid|
-            begin
+            begin # rubocop:disable Style/RedundantBegin
               Process.getpgid(pid)
               false
             rescue Errno::ESRCH
@@ -141,7 +141,7 @@ module Workhorse
     end
 
     def with_global_lock(name: :workhorse, timeout: 2, &_block)
-      begin
+      begin # rubocop:disable Style/RedundantBegin
         if @is_oracle
           result = Workhorse::DbJob.connection.select_all(
             "SELECT DBMS_LOCK.REQUEST(#{ORACLE_LOCK_HANDLE}, #{ORACLE_LOCK_MODE}, #{timeout}) FROM DUAL"
@@ -169,17 +169,17 @@ module Workhorse
             @max_global_lock_fails_reached = true
 
             worker.log 'Could not obtain global lock, retrying with next poll. ' \
-              'This will be the last such message for this worker until ' \
-              'the issue is resolved.', :warn
+                       'This will be the last such message for this worker until ' \
+                       'the issue is resolved.', :warn
 
             message = "Worker reached maximum number of consecutive times (#{Workhorse.max_global_lock_fails}) " \
-              "where the global lock could no be acquired within the specified timeout (#{timeout}). " \
-              'A worker that obtained this lock may have crashed without ending the database ' \
-              'connection properly. On MySQL, use "show processlist;" to see which connection(s) ' \
-              'is / are holding the lock for a long period of time and consider killing them using ' \
-              "MySQL's \"kill <Id>\" command. This message will be issued only once per worker " \
-              'and may only be re-triggered if the error happens again *after* the lock has ' \
-              'been solved in the meantime.'
+                      "where the global lock could no be acquired within the specified timeout (#{timeout}). " \
+                      'A worker that obtained this lock may have crashed without ending the database ' \
+                      'connection properly. On MySQL, use "show processlist;" to see which connection(s) ' \
+                      'is / are holding the lock for a long period of time and consider killing them using ' \
+                      "MySQL's \"kill <Id>\" command. This message will be issued only once per worker " \
+                      'and may only be re-triggered if the error happens again *after* the lock has ' \
+                      'been solved in the meantime.'
 
             worker.log message
             exception = StandardError.new(message)
