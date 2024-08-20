@@ -1,10 +1,14 @@
 # Workhorse Changelog
 
-## unreleased - 2024-07-08
+## 1.2.22 - 2024-08-20
 
 * Change `retry-on` in actions to `any`: also retry when the action hits a timeout
 
 * Comply with RuboCop
+
+* Skip `at_exit` handlers when exiting in ShellHandler
+
+  Sitrox reference: #128333.
 
 ## 1.2.21 - 2024-07-02
 
