@@ -19,22 +19,22 @@ module Workhorse
       begin
         case ARGV.first
         when 'start'
-          exit! daemon.start
+          exit daemon.start
         when 'stop'
-          exit! daemon.stop
+          exit daemon.stop
         when 'kill'
-          exit! daemon.stop(true)
+          exit daemon.stop(true)
         when 'status'
-          exit! daemon.status
+          exit daemon.status
         when 'watch'
-          exit! daemon.watch
+          exit daemon.watch
         when 'restart'
-          exit! daemon.restart
+          exit daemon.restart
         when 'restart-logging'
-          exit! daemon.restart_logging
+          exit daemon.restart_logging
         when 'usage'
           usage
-          exit! 99
+          exit 99
         else
           usage
         end

@@ -1,12 +1,23 @@
 # Workhorse Changelog
 
+## 1.2.23 - 2024-08-26
+
+* Fix bug introduced in 1.2.22 where the lock file would not be released. This
+  is done by reverting the changes for `at_exit` handlers. Make sure the Gem
+  'debug' is not loaded (e.g. via `gem 'debug', environment: :development`) for
+  workhorse processes.
+
+  Sitrox reference: #128709.
+
 ## 1.2.22 - 2024-08-20
 
 * Change `retry-on` in actions to `any`: also retry when the action hits a timeout
 
 * Comply with RuboCop
 
-* Skip `at_exit` handlers when exiting in ShellHandler
+* Skip `at_exit` handlers when exiting in ShellHandler. This ensures
+  compatibility with the `debug` gem, which whould otherwise hang when using the
+  Workhorse shell handler.
 
   Sitrox reference: #128333.
 
