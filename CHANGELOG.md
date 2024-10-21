@@ -1,5 +1,9 @@
 # Workhorse Changelog
 
+## 1.2.24 - 2024-10-21
+
+* Fix compatibility with ActiveJob 7.2.x
+
 ## 1.2.23 - 2024-08-26
 
 * Fix bug introduced in 1.2.22 where the lock file would not be released. This
