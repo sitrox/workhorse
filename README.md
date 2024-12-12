@@ -33,7 +33,7 @@ What it does not do:
 
 ### Requirements
 
-* Ruby `>= 2.0.0`
+* Ruby `>= 3.0` (may work with earlier versions but is untested)
 * Rails `>= 3.2`
 * A database and table handler that properly supports row-level locking (such as
   MySQL with InnoDB, PostgreSQL, or Oracle).

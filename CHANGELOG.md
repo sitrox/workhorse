@@ -1,5 +1,11 @@
 # Workhorse Changelog
 
+## Unreleased
+
+* Drop support for Ruby < 3.0
+
+* Improve reliability of automated tests
+
 ## 1.2.24 - 2024-10-21
 
 * Fix compatibility with ActiveJob 7.2.x
