@@ -38,9 +38,6 @@ jobs:
           mysql database: ${{ env.DB_DATABASE }}
           mysql user: ${{ env.DB_USER }}
           mysql password: ${{ env.DB_PASSWORD }}
-      - name: Create database
-        run: |
-          mysql -u${{ env.DB_USER }} -p${{ env.DB_PASSWORD }} -P 3306 -h 127.0.0.1 -e 'CREATE DATABASE ${{ env.DB_DATABASE }};'
       - name: Run rake tests
         uses: nick-fields/retry@v2
         with:
