@@ -40,6 +40,9 @@ jobs:
           mysql password: ${{ env.DB_PASSWORD }}
       - name: Run rake tests
         uses: nick-fields/retry@v2
+        env:
+          DB_HOST: 127.0.0.1
+          DB_PORT: 3306
         with:
           timeout_seconds: 120
           retry_on: any
