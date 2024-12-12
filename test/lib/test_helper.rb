@@ -51,7 +51,11 @@ class WorkhorseTest < ActiveSupport::TestCase
       SELECT ID FROM INFORMATION_SCHEMA.PROCESSLIST WHERE ID != CONNECTION_ID()
     SQL
 
-    pids.each { |pid| Workhorse::DbJob.connection.execute("KILL #{pid}") }
+    begin
+      pids.each { |pid| Workhorse::DbJob.connection.execute("KILL QUERY #{pid}") }
+    rescue Mysql2::Error
+      # Ignore
+    end
 
     Workhorse::DbJob.connection.execute('SELECT RELEASE_ALL_LOCKS()')
   end
