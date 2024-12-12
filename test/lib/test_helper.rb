@@ -35,6 +35,7 @@ end
 class WorkhorseTest < ActiveSupport::TestCase
   def setup
     remove_pids!
+    clear_locks_and_db_threads!
     Workhorse.silence_watcher = true
     Workhorse::DbJob.delete_all
   end
@@ -42,6 +43,21 @@ class WorkhorseTest < ActiveSupport::TestCase
   protected
 
   attr_reader :daemon
+
+  def clear_locks_and_db_threads!
+    Workhorse::DbJob.connection.execute("INSTALL SONAME 'metadata_lock_info'")
+
+    Workhorse::DbJob.connection.execute('SELECT RELEASE_ALL_LOCKS()')
+
+    locking_pids = Workhorse::DbJob.connection.execute(<<~SQL.squish).to_a.flatten
+      SELECT THREAD_ID FROM information_schema.metadata_lock_info
+      WHERE THREAD_ID != connection_id()
+    SQL
+
+    locking_pids.each { |pid| Workhorse::DbJob.connection.execute("KILL #{pid}") }
+
+    Workhorse::DbJob.connection.execute('SELECT RELEASE_ALL_LOCKS()')
+  end
 
   def remove_pids!
     Dir[Rails.root.join('tmp', 'pids', '*')].each do |file|
@@ -74,6 +90,7 @@ class WorkhorseTest < ActiveSupport::TestCase
   def work(time = 2, options = {})
     options[:pool_size] ||= 5
     options[:polling_interval] ||= 1
+    options[:auto_terminate] = options.fetch(:auto_terminate, false)
 
     with_worker(options) do
       sleep time
@@ -81,6 +98,8 @@ class WorkhorseTest < ActiveSupport::TestCase
   end
 
   def work_until(max: 50, interval: 0.1, **options, &block)
+    options[:auto_terminate] = options.fetch(:auto_terminate, false)
+
     w = Workhorse::Worker.new(**options)
     w.start
     return with_retries(max, interval: interval, &block)
@@ -143,6 +162,7 @@ ActiveRecord::Base.establish_connection(
   username: ENV.fetch('DB_USERNAME', nil) || 'root',
   password: ENV.fetch('DB_PASSWORD', nil) || '',
   host:     ENV.fetch('DB_HOST', nil) || '127.0.0.1',
+  port:     ENV.fetch('DB_PORT', nil) || 3306,
   pool:     10
 )
 

@@ -3,17 +3,13 @@ require 'test_helper'
 class Workhorse::DbJobTest < WorkhorseTest
   def test_reset_succeeded
     job = Workhorse.enqueue(BasicJob.new(sleep_time: 0))
-    work 0.5
-    job.reload
-    assert_equal 'succeeded', job.state
-
+    work_until { assert_equal 'succeeded', job.reload.state }
     job.reset!
-
-    assert_clean job
+    assert_clean job.reload
   end
 
   def test_reset_failed
-    job = Workhorse.enqueue FailingTestJob
+    job = Workhorse.enqueue FailingTestJob.new
     work 0.5
     job.reload
     assert_equal 'failed', job.state

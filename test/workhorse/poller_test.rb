@@ -219,26 +219,27 @@ class Workhorse::PollerTest < WorkhorseTest
     [true, false].each do |clean|
       Workhorse::DbJob.delete_all
 
-      Workhorse.clean_stuck_jobs = true
+      Workhorse.clean_stuck_jobs = clean
       with_daemon do
         Workhorse.enqueue BasicJob.new(sleep_time: 5)
-        sleep 0.2
+
+        with_retries do
+          assert_equal 'started', Workhorse::DbJob.first.state
+        end
+
         kill_deamon_workers
 
-        assert_equal 1, Workhorse::DbJob.count
         assert_equal 'started', Workhorse::DbJob.first.state
 
-        work 0.1 if clean
-
-        assert_equal 1, Workhorse::DbJob.count
-
-        Workhorse::DbJob.first.tap do |job|
-          if clean
-            assert_equal 'failed', job.state
-            assert_match(/started by PID #{daemon.workers.first.pid}/, job.last_error)
-            assert_match(/on host #{Socket.gethostname}/, job.last_error)
-          else
-            assert_equal 'started', job.state
+        work_until do
+          Workhorse::DbJob.first.tap do |job|
+            if clean
+              assert_equal 'failed', job.state
+              assert_match(/started by PID #{daemon.workers.first.pid}/, job.last_error)
+              assert_match(/on host #{Socket.gethostname}/, job.last_error)
+            else
+              assert_equal 'started', job.state
+            end
           end
         end
       end

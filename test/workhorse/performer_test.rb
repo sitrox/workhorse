@@ -21,7 +21,7 @@ class Workhorse::PerformerTest < WorkhorseTest
   end
 
   def test_exception
-    Workhorse.enqueue FailingTestJob
+    Workhorse.enqueue FailingTestJob.new
     work 0.2, polling_interval: 0.2
     assert_equal 'failed', Workhorse::DbJob.first.state
   end
