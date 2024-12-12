@@ -28,10 +28,17 @@ task :gemspec do
   File.write('workhorse.gemspec', gemspec.to_ruby.strip)
 end
 
+require_relative './test/lib/testbench'
+
 require 'rake/testtask'
 
-Rake::TestTask.new do |t|
-  t.pattern = 'test/**/*_test.rb'
-  t.verbose = false
+# Rake::TestTask.new do |t|
+#   t.pattern = 'test/**/*_test.rb'
+#   t.verbose = false
+#   t.libs << 'test/lib'
+# end
+
+Testbench::Task.new do |t|
+  t.libs << 'lib'
   t.libs << 'test/lib'
 end

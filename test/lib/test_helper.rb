@@ -1,4 +1,4 @@
-require 'minitest/autorun'
+#require 'minitest/autorun'
 require 'active_record'
 require 'active_job'
 require 'pry'
@@ -32,8 +32,10 @@ class Rails
   end
 end
 
-class WorkhorseTest < ActiveSupport::TestCase
-  def setup
+class WorkhorseTest < Testbench::Test
+  abstract
+
+  setup do
     remove_pids!
     Workhorse.silence_watcher = true
     Workhorse::DbJob.delete_all
@@ -120,7 +122,7 @@ class WorkhorseTest < ActiveSupport::TestCase
 
     loop do
       return yield
-    rescue Minitest::Assertion
+    rescue Testbench::AssertionError
       fail if runs > max
       sleep interval
       runs += 1
