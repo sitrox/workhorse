@@ -40,7 +40,7 @@ jobs:
           mysql password: ${{ env.DB_PASSWORD }}
       - name: Create database
         run: |
-          mysql -u${{ env.DB_USER }} -p${{ env.DB_PASSWORD }} -e 'CREATE DATABASE ${{ env.DB_DATABASE }};'
+          mysql -u${{ env.DB_USER }} -p${{ env.DB_PASSWORD }} -P 3306 -e 'CREATE DATABASE ${{ env.DB_DATABASE }};'
       - name: Run rake tests
         uses: nick-fields/retry@v2
         with:
