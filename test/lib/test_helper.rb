@@ -53,7 +53,7 @@ class WorkhorseTest < ActiveSupport::TestCase
 
     begin
       pids.each { |pid| Workhorse::DbJob.connection.execute("KILL QUERY #{pid}") }
-    rescue Mysql2::Error
+    rescue ActiveRecord::StatementInvalid
       # Ignore
     end
 
