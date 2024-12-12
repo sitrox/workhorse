@@ -45,16 +45,13 @@ class WorkhorseTest < ActiveSupport::TestCase
   attr_reader :daemon
 
   def clear_locks_and_db_threads!
-    Workhorse::DbJob.connection.execute("INSTALL SONAME 'metadata_lock_info'")
-
     Workhorse::DbJob.connection.execute('SELECT RELEASE_ALL_LOCKS()')
 
-    locking_pids = Workhorse::DbJob.connection.execute(<<~SQL.squish).to_a.flatten
-      SELECT THREAD_ID FROM information_schema.metadata_lock_info
-      WHERE THREAD_ID != connection_id()
+    pids = Workhorse::DbJob.connection.execute(<<~SQL.squish).to_a.flatten
+      SELECT ID FROM INFORMATION_SCHEMA.PROCESSLIST WHERE ID != CONNECTION_ID()
     SQL
 
-    locking_pids.each { |pid| Workhorse::DbJob.connection.execute("KILL #{pid}") }
+    pids.each { |pid| Workhorse::DbJob.connection.execute("KILL #{pid}") }
 
     Workhorse::DbJob.connection.execute('SELECT RELEASE_ALL_LOCKS()')
   end
