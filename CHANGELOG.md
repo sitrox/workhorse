@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-* Drop support for Ruby < 3.0
+* Drop official support for Ruby < 3.0
 
 * Improve reliability of automated tests
 
