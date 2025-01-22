@@ -16,7 +16,6 @@ task :gemspec do
     spec.add_development_dependency 'rubocop', '~> 1.28.0' # Latest version supported with Ruby 2.5
     spec.add_development_dependency 'minitest'
     spec.add_development_dependency 'mysql2'
-    spec.add_development_dependency 'colorize'
     spec.add_development_dependency 'benchmark-ips'
     spec.add_development_dependency 'activejob'
     spec.add_development_dependency 'pry'
