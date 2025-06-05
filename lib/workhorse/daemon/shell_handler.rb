@@ -19,32 +19,32 @@ module Workhorse
       begin
         case ARGV.first
         when 'start'
-          exit daemon.start
+          status = daemon.start
         when 'stop'
-          exit daemon.stop
+          status = daemon.stop
         when 'kill'
-          exit daemon.stop(true)
+          status = daemon.stop(true)
         when 'status'
-          exit daemon.status
+          status = daemon.status
         when 'watch'
-          exit daemon.watch
+          status = daemon.watch
         when 'restart'
-          exit daemon.restart
+          status = daemon.restart
         when 'restart-logging'
-          exit daemon.restart_logging
+          status = daemon.restart_logging
         when 'usage'
           usage
-          exit 99
+          status = 0
         else
           usage
+          status = 99
         end
-
-        exit 0
       rescue StandardError => e
         warn "#{e.message}\n#{e.backtrace.join("\n")}"
-        exit 99
+        status = 99
       ensure
         lockfile&.flock(File::LOCK_UN)
+        exit! status
       end
     end
 
