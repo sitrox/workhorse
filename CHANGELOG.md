@@ -4,14 +4,16 @@
 
 * Drop official support for Ruby < 3.0
 
-* Improve reliability of automated tests
-
 * Skip `at_exit` handlers again (as introduced in 1.2.22) when exiting in
   ShellHandler but still release lock file to fix issue originally fixed in
   1.2.23. This ensures compatibility with the `debug` gem, which would
   otherwise hang when using the Workhorse shell handler.
 
   Sitrox reference: #128333.
+
+* Improve reliability of worker shutdown
+
+* Improve reliability of automated tests
 
 ## 1.2.24 - 2024-10-21
 

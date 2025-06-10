@@ -206,9 +206,9 @@ module Workhorse
 
       timeout = [MIN_LOCK_TIMEOUT, [MAX_LOCK_TIMEOUT, worker.polling_interval].min].max
       with_global_lock timeout: timeout do
-        job_ids = []
-
         Workhorse.tx_callback.call do
+          job_ids = []
+
           # As we are the only thread posting into the worker pool, it is safe to
           # get the number of idle threads without mutex synchronization. The
           # actual number of idle workers at time of posting can only be larger
@@ -225,9 +225,14 @@ module Workhorse
               job_ids << job.id
             end
           end
-        end
 
-        job_ids.each { |job_id| worker.perform(job_id) }
+          unless running?
+            worker.log 'Rolling back transaction to unlock jobs, as worker has been shut down in the meantime'
+            fail ActiveRecord::Rollback
+          end
+
+          job_ids.each { |job_id| worker.perform(job_id) }
+        end
       end
     end
 
