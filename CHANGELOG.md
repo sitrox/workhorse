@@ -1,5 +1,9 @@
 # Workhorse Changelog
 
+## 1.3.0.rc2 - 2025-06-10
+
+* Update development dependencies
+
 ## 1.3.0.rc1 - 2025-06-10
 
 * Move internal development dependencies to Gemfile and lock version of
