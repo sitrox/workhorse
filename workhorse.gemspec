@@ -16,7 +16,7 @@ Gem::Specification.new do |s|
 
   s.specification_version = 4
 
-  s.add_runtime_dependency(%q<activesupport>.freeze, [">= 0"])
-  s.add_runtime_dependency(%q<activerecord>.freeze, [">= 0"])
+  s.add_runtime_dependency(%q<activesupport>.freeze, [">= 7.0.0"])
+  s.add_runtime_dependency(%q<activerecord>.freeze, [">= 7.0.0"])
   s.add_runtime_dependency(%q<concurrent-ruby>.freeze, [">= 0"])
 end

@@ -11,8 +11,8 @@ task :gemspec do
     spec.test_files    = spec.files.grep(%r{^(test|spec|features)/})
     spec.require_paths = ['lib']
 
-    spec.add_dependency 'activesupport'
-    spec.add_dependency 'activerecord'
+    spec.add_dependency 'activesupport', '>= 7.0.0'
+    spec.add_dependency 'activerecord', '>= 7.0.0'
     spec.add_dependency 'concurrent-ruby'
   end
 

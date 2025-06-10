@@ -1,5 +1,9 @@
 # Workhorse Changelog
 
+## 1.3.0.rc3 - 2025-06-10
+
+* Require Rails 7.0.0 or later
+
 ## 1.3.0.rc2 - 2025-06-10
 
 * Update development dependencies
