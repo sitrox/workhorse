@@ -116,6 +116,9 @@ module Workhorse
       # final state this worker can be in.
       return if @state == :shutdown
 
+      # TODO: There is a race-condition with this shutdown:
+      #  - If the poller is currently locking a job, it may call
+      #    "worker.perform", which in turn tries to synchronize the same mutex.
       mutex.synchronize do
         assert_state! :running
 
