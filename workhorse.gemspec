@@ -1,9 +1,9 @@
 # -*- encoding: utf-8 -*-
-# stub: workhorse 1.3.0.rc0 ruby lib
+# stub: workhorse 1.3.0.rc1 ruby lib
 
 Gem::Specification.new do |s|
   s.name = "workhorse".freeze
-  s.version = "1.3.0.rc0"
+  s.version = "1.3.0.rc1"
 
   s.required_rubygems_version = Gem::Requirement.new("> 1.3.1".freeze) if s.respond_to? :required_rubygems_version=
   s.require_paths = ["lib".freeze]
@@ -16,14 +16,6 @@ Gem::Specification.new do |s|
 
   s.specification_version = 4
 
-  s.add_development_dependency(%q<bundler>.freeze, [">= 0"])
-  s.add_development_dependency(%q<rake>.freeze, [">= 0"])
-  s.add_development_dependency(%q<rubocop>.freeze, ["~> 1.28.0"])
-  s.add_development_dependency(%q<minitest>.freeze, [">= 0"])
-  s.add_development_dependency(%q<mysql2>.freeze, [">= 0"])
-  s.add_development_dependency(%q<benchmark-ips>.freeze, [">= 0"])
-  s.add_development_dependency(%q<activejob>.freeze, [">= 0"])
-  s.add_development_dependency(%q<pry>.freeze, [">= 0"])
   s.add_runtime_dependency(%q<activesupport>.freeze, [">= 0"])
   s.add_runtime_dependency(%q<activerecord>.freeze, [">= 0"])
   s.add_runtime_dependency(%q<concurrent-ruby>.freeze, [">= 0"])
