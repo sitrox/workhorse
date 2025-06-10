@@ -363,8 +363,10 @@ module Workhorse
       # Get the names of all valid queues. The extra project here allows
       # selecting the last value in each row of the resulting array and getting
       # the queue name.
+      select.projections = []
       queues = select.project(:queue)
-      return Workhorse::DbJob.find_by_sql(queues.to_sql).map(&:queue).uniq
+
+      return Workhorse::DbJob.connection.execute(queues.distinct.to_sql).to_a.flatten
     end
   end
 end

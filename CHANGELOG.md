@@ -13,6 +13,8 @@
 
 * Improve reliability of worker shutdown
 
+* Improve reliability and efficiency of polling mechanism
+
 * Improve reliability of automated tests
 
 ## 1.2.24 - 2024-10-21
