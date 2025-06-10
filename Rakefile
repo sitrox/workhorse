@@ -11,14 +11,6 @@ task :gemspec do
     spec.test_files    = spec.files.grep(%r{^(test|spec|features)/})
     spec.require_paths = ['lib']
 
-    spec.add_development_dependency 'bundler'
-    spec.add_development_dependency 'rake'
-    spec.add_development_dependency 'rubocop', '~> 1.28.0' # Latest version supported with Ruby 2.5
-    spec.add_development_dependency 'minitest'
-    spec.add_development_dependency 'mysql2'
-    spec.add_development_dependency 'benchmark-ips'
-    spec.add_development_dependency 'activejob'
-    spec.add_development_dependency 'pry'
     spec.add_dependency 'activesupport'
     spec.add_dependency 'activerecord'
     spec.add_dependency 'concurrent-ruby'
