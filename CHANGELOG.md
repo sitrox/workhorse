@@ -1,6 +1,6 @@
 # Workhorse Changelog
 
-## 1.3.0 - 2025-06-10
+## 1.3.0.rc0 - 2025-06-10
 
 * Drop official support for Ruby < 3.0
 
