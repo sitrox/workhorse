@@ -1,5 +1,12 @@
 # Workhorse Changelog
 
+## Unreleased
+
+* Fix race-condition in polling mechanism which could result in workers 
+  trying to run a job that is not yet locked.
+
+  Sitrox reference: #128333.
+
 ## 1.3.0.rc3 - 2025-06-10
 
 * Require Rails 7.0.0 or later
