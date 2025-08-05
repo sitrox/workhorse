@@ -1,25 +1,63 @@
 module Workhorse
+  # Main worker class that manages job polling and execution.
+  # Workers poll the database for jobs, manage thread pools for parallel execution,
+  # and handle graceful shutdown and memory monitoring.
+  #
+  # @example Basic worker setup
+  #   worker = Workhorse::Worker.new(
+  #     queues: [:default, :urgent],
+  #     pool_size: 4,
+  #     polling_interval: 30
+  #   )
+  #   worker.start
+  #   worker.wait
+  #
+  # @example Auto-terminating worker
+  #   Workhorse::Worker.start_and_wait(
+  #     queues: [:email, :reports],
+  #     auto_terminate: true
+  #   )
   class Worker
     LOG_LEVELS = %i[fatal error warn info debug].freeze
     SHUTDOWN_SIGNALS = %w[TERM INT].freeze
     LOG_REOPEN_SIGNAL = 'HUP'.freeze
 
+    # @return [Array<Symbol>] The queues this worker processes
     attr_reader :queues
+    
+    # @return [Symbol] Current worker state (:initialized, :running, :shutdown)
     attr_reader :state
+    
+    # @return [Integer] Number of threads in the worker pool
     attr_reader :pool_size
+    
+    # @return [Integer] Polling interval in seconds
     attr_reader :polling_interval
+    
+    # @return [Mutex] Synchronization mutex for thread safety
     attr_reader :mutex
+    
+    # @return [Logger, nil] Optional logger instance
     attr_reader :logger
+    
+    # @return [Workhorse::Poller] The poller instance
     attr_reader :poller
 
     # Instantiates and starts a new worker with the given arguments and then
     # waits for its completion (i.e. an interrupt).
+    #
+    # @param args [Hash] Arguments passed to {#initialize}
+    # @return [void]
     def self.start_and_wait(**args)
       worker = new(**args)
       worker.start
       worker.wait
     end
 
+    # Returns the path to the shutdown file for a given process ID.
+    #
+    # @param pid [Integer] Process ID
+    # @return [String, nil] Path to shutdown file or nil if not in Rails
     # @private
     def self.shutdown_file_for(pid)
       return nil unless defined?(Rails)
@@ -69,6 +107,12 @@ module Workhorse
       end
     end
 
+    # Logs a message with worker ID prefix.
+    #
+    # @param text [String] The message to log
+    # @param level [Symbol] The log level (must be in LOG_LEVELS)
+    # @return [void]
+    # @raise [RuntimeError] If log level is invalid
     def log(text, level = :info)
       text = "[Job worker #{id}] #{text}"
       puts text unless @quiet
@@ -77,20 +121,33 @@ module Workhorse
       logger.send(level, text.strip)
     end
 
+    # Returns the unique identifier for this worker.
+    # Format: hostname.pid.random_hex
+    #
+    # @return [String] Unique worker identifier
     def id
       @id ||= "#{hostname}.#{pid}.#{SecureRandom.hex(3)}"
     end
 
+    # Returns the process ID of this worker.
+    #
+    # @return [Integer] Process ID
     def pid
       @pid ||= Process.pid
     end
 
+    # Returns the hostname of the machine running this worker.
+    #
+    # @return [String] Hostname
     def hostname
       @hostname ||= Socket.gethostname
     end
 
-    # Starts the worker. This call is not blocking - call {wait} for this
+    # Starts the worker. This call is not blocking - call {#wait} for this
     # purpose.
+    #
+    # @return [void]
+    # @raise [RuntimeError] If worker is not in initialized state
     def start
       mutex.synchronize do
         assert_state! :initialized
@@ -104,13 +161,20 @@ module Workhorse
       end
     end
 
+    # Asserts that the worker is in the expected state.
+    #
+    # @param state [Symbol] Expected state
+    # @return [void]
+    # @raise [RuntimeError] If worker is not in expected state
     def assert_state!(state)
       fail "Expected worker to be in state #{state} but current state is #{self.state}." unless self.state == state
     end
 
-    # Shuts down worker and DB poller. Jobs currently beeing processed are
+    # Shuts down worker and DB poller. Jobs currently being processed are
     # properly finished before this method returns. Subsequent calls to this
     # method are ignored.
+    #
+    # @return [void]
     def shutdown
       # This is safe to be checked outside of the mutex as 'shutdown' is the
       # final state this worker can be in.
@@ -131,19 +195,28 @@ module Workhorse
       end
     end
 
-    # Waits until the worker is shut down. This only happens if shutdown gets
+    # Waits until the worker is shut down. This only happens if {#shutdown} gets
     # called - either by another thread or by enabling `auto_terminate` and
     # receiving a respective signal. Use this method to let worker run
-    # undefinitely.
+    # indefinitely.
+    #
+    # @return [void]
     def wait
       @poller.wait
       @pool.wait
     end
 
+    # Returns the number of idle threads in the pool.
+    #
+    # @return [Integer] Number of idle threads
     def idle
       @pool.idle
     end
 
+    # Schedules a job for execution in the thread pool.
+    #
+    # @param db_job_id [Integer] The ID of the {Workhorse::DbJob} to perform
+    # @return [void]
     def perform(db_job_id)
       begin # rubocop:disable Style/RedundantBegin
         mutex.synchronize do
@@ -166,6 +239,10 @@ module Workhorse
 
     private
 
+    # Checks current memory usage and initiates shutdown if limit exceeded.
+    #
+    # @return [Boolean] True if memory is within limits, false if exceeded
+    # @private
     def check_memory
       mem = current_memory_consumption
 
@@ -191,12 +268,20 @@ module Workhorse
       return false
     end
 
+    # Returns current memory consumption in MB.
+    #
+    # @return [Integer, nil] Memory usage in MB or nil if unable to determine
+    # @private
     def current_memory_consumption
       mem = `ps -p #{pid} -o rss=`&.strip
       return nil if mem.blank?
       return mem.to_i / 1024
     end
 
+    # Sets up signal handler for log file reopening (HUP signal).
+    #
+    # @return [void]
+    # @private
     def trap_log_reopen
       Signal.trap(LOG_REOPEN_SIGNAL) do
         Thread.new do
@@ -209,6 +294,10 @@ module Workhorse
       end
     end
 
+    # Sets up signal handlers for graceful termination (TERM/INT signals).
+    #
+    # @return [void]
+    # @private
     def trap_termination
       SHUTDOWN_SIGNALS.each do |signal|
         Signal.trap(signal) do

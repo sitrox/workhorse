@@ -1,4 +1,17 @@
 module Workhorse
+  # ActiveRecord model representing a job in the database.
+  # This class manages the job lifecycle and state transitions within the Workhorse system.
+  #
+  # @example Creating a job
+  #   job = DbJob.create!(
+  #     queue: 'default',
+  #     handler: Marshal.dump(job_instance),
+  #     priority: 0
+  #   )
+  #
+  # @example Querying jobs by state
+  #   waiting_jobs = DbJob.waiting
+  #   failed_jobs = DbJob.failed
   class DbJob < ActiveRecord::Base
     STATE_WAITING   = :waiting
     STATE_LOCKED    = :locked
@@ -14,26 +27,45 @@ module Workhorse
 
     self.table_name = 'jobs'
 
+    # Returns jobs in waiting state.
+    #
+    # @return [ActiveRecord::Relation] Jobs waiting to be processed
     def self.waiting
       where(state: STATE_WAITING)
     end
 
+    # Returns jobs in locked state.
+    #
+    # @return [ActiveRecord::Relation] Jobs currently locked by workers
     def self.locked
       where(state: STATE_LOCKED)
     end
 
+    # Returns jobs in started state.
+    #
+    # @return [ActiveRecord::Relation] Jobs currently being executed
     def self.started
       where(state: STATE_STARTED)
     end
 
+    # Returns jobs in succeeded state.
+    #
+    # @return [ActiveRecord::Relation] Jobs that completed successfully
     def self.succeeded
       where(state: STATE_SUCCEEDED)
     end
 
+    # Returns jobs in failed state.
+    #
+    # @return [ActiveRecord::Relation] Jobs that failed during execution
     def self.failed
       where(state: STATE_FAILED)
     end
 
+    # Returns a relation with split locked_by field for easier querying.
+    # Extracts host, PID, and random string components from locked_by.
+    #
+    # @return [ActiveRecord::Relation] Relation with additional computed columns
     # @private
     def self.with_split_locked_by
       select(<<~SQL)
@@ -74,6 +106,9 @@ module Workhorse
     # ("failed"), make sure the actions performed in the job are repeatable or
     # have been rolled back. E.g. if the job already wrote something to an
     # external API, it may cause inconsistencies if the job is performed again.
+    #
+    # @param force [Boolean] Whether to force reset without state validation
+    # @raise [RuntimeError] If job is not in a final state and force is false
     def reset!(force = false)
       unless force
         assert_state! STATE_SUCCEEDED, STATE_FAILED
@@ -90,6 +125,10 @@ module Workhorse
       save!
     end
 
+    # Marks the job as locked by a specific worker.
+    #
+    # @param worker_id [String] The ID of the worker locking this job
+    # @raise [RuntimeError] If the job is dirty or already locked
     # @private Only to be used by workhorse
     def mark_locked!(worker_id)
       if changed?
@@ -108,6 +147,9 @@ module Workhorse
       save!
     end
 
+    # Marks the job as started.
+    #
+    # @raise [RuntimeError] If the job is not in locked state
     # @private Only to be used by workhorse
     def mark_started!
       assert_state! STATE_LOCKED
@@ -117,6 +159,10 @@ module Workhorse
       save!
     end
 
+    # Marks the job as failed with the given exception.
+    #
+    # @param exception [Exception] The exception that caused the failure
+    # @raise [RuntimeError] If the job is not in locked or started state
     # @private Only to be used by workhorse
     def mark_failed!(exception)
       assert_state! STATE_LOCKED, STATE_STARTED
@@ -127,6 +173,9 @@ module Workhorse
       save!
     end
 
+    # Marks the job as succeeded.
+    #
+    # @raise [RuntimeError] If the job is not in started state
     # @private Only to be used by workhorse
     def mark_succeeded!
       assert_state! STATE_STARTED
@@ -136,6 +185,10 @@ module Workhorse
       save!
     end
 
+    # Asserts that the job is in one of the specified states.
+    #
+    # @param states [Array<Symbol>] Valid states for the job
+    # @raise [RuntimeError] If the job is not in any of the specified states
     def assert_state!(*states)
       unless states.include?(state.to_sym)
         fail "Job #{id} is not in state #{states.inspect} but in state #{state.inspect}."

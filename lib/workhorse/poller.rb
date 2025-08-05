@@ -1,4 +1,11 @@
 module Workhorse
+  # Database poller that discovers and locks jobs for execution.
+  # Handles job querying, global locking, and job distribution to workers.
+  # Supports both MySQL and Oracle databases with database-specific optimizations.
+  #
+  # @example Basic usage (typically used internally)
+  #   poller = Workhorse::Poller.new(worker, proc { true })
+  #   poller.start
   class Poller
     MIN_LOCK_TIMEOUT = 0.1 # In seconds
     MAX_LOCK_TIMEOUT = 1.0 # In seconds
@@ -6,9 +13,16 @@ module Workhorse
     ORACLE_LOCK_MODE   = 6           # X_MODE (exclusive)
     ORACLE_LOCK_HANDLE = 478_564_848 # Randomly chosen number
 
+    # @return [Workhorse::Worker] The worker this poller serves
     attr_reader :worker
+    
+    # @return [Arel::Table] The jobs table for query building
     attr_reader :table
 
+    # Creates a new poller for the given worker.
+    #
+    # @param worker [Workhorse::Worker] The worker to serve
+    # @param before_poll [Proc] Callback executed before each poll (should return boolean)
     def initialize(worker, before_poll = proc { true })
       @worker = worker
       @running = false
@@ -20,10 +34,17 @@ module Workhorse
       @before_poll = before_poll
     end
 
+    # Checks if the poller is currently running.
+    #
+    # @return [Boolean] True if poller is running
     def running?
       @running
     end
 
+    # Starts the poller in a background thread.
+    #
+    # @return [void]
+    # @raise [RuntimeError] If poller is already running
     def start
       fail 'Poller is already running.' if running?
       @running = true
@@ -55,18 +76,27 @@ module Workhorse
       end
     end
 
+    # Shuts down the poller and waits for completion.
+    #
+    # @return [void]
+    # @raise [RuntimeError] If poller is not running
     def shutdown
       fail 'Poller is not running.' unless running?
       @running = false
       wait
     end
 
+    # Waits for the poller thread to complete.
+    #
+    # @return [void]
     def wait
       @thread.join
     end
 
-    # Call this to interrupt current sleep and perform the next poll as soon as
-    # possible, then resume in the normal polling interval.
+    # Interrupts current sleep and performs the next poll immediately.
+    # After the poll, resumes normal polling interval.
+    #
+    # @return [void]
     def instant_repoll!
       worker.log 'Aborting next sleep to perform instant repoll', :debug
       @instant_repoll.make_true
@@ -74,6 +104,11 @@ module Workhorse
 
     private
 
+    # Cleans up jobs stuck in locked or started states from dead processes.
+    # Only cleans jobs from the current hostname.
+    #
+    # @return [void]
+    # @private
     def clean_stuck_jobs!
       with_global_lock timeout: MAX_LOCK_TIMEOUT do
         Workhorse.tx_callback.call do
@@ -131,6 +166,10 @@ module Workhorse
       end
     end
 
+    # Sleeps for the configured polling interval with instant repoll support.
+    #
+    # @return [void]
+    # @private
     def sleep
       remaining = worker.polling_interval
 
@@ -140,6 +179,14 @@ module Workhorse
       end
     end
 
+    # Executes a block with a global database lock.
+    # Supports both MySQL GET_LOCK and Oracle DBMS_LOCK.
+    #
+    # @param name [Symbol] Lock name identifier
+    # @param timeout [Integer] Lock timeout in seconds
+    # @yield Block to execute while holding the lock
+    # @return [void]
+    # @private
     def with_global_lock(name: :workhorse, timeout: 2, &_block)
       begin # rubocop:disable Style/RedundantBegin
         if @is_oracle
@@ -201,6 +248,10 @@ module Workhorse
       end
     end
 
+    # Performs a single poll cycle to discover and lock jobs.
+    #
+    # @return [void]
+    # @private
     def poll
       @instant_repoll.make_false
 
@@ -236,7 +287,12 @@ module Workhorse
       end
     end
 
-    # Returns an Array of #{Workhorse::DbJob}s that can be started
+    # Returns an array of {Workhorse::DbJob}s that can be started.
+    # Uses complex SQL with UNIONs to respect queue ordering and limits.
+    #
+    # @param limit [Integer] Maximum number of jobs to return
+    # @return [Array<Workhorse::DbJob>] Jobs ready for execution
+    # @private
     def queued_db_jobs(limit)
       # ---------------------------------------------------------------
       # Select jobs to execute

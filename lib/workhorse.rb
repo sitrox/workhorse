@@ -8,58 +8,83 @@ require 'workhorse/enqueuer'
 require 'workhorse/scoped_env'
 require 'workhorse/active_job_extension'
 
+# Main Gem module.
 module Workhorse
   # Check if the available Arel version is greater or equal than 7.0.0
   AREL_GTE_7 = Gem::Version.new(Arel::VERSION) >= Gem::Version.new('7.0.0')
 
   extend Workhorse::Enqueuer
 
-  # Returns the performer currently performing the active job. This can only be
-  # called from within a job and the same thread.
+  # Returns the performer currently performing the active job.
+  # This can only be called from within a job and the same thread.
+  #
+  # @return [Workhorse::Performer] The current performer instance
+  # @raise [RuntimeError] If called outside of a job context
   def self.performer
     Thread.current[:workhorse_current_performer] \
       || fail('No performer is associated with the current thread. This method must always be called inside of a job.')
   end
 
-  # A worker will log an error and, if defined, call the on_exception callback,
-  # if it couldn't obtain the global lock for the specified number of times in a
-  # row.
+  # Maximum number of consecutive global lock failures before triggering error handling.
+  # A {Workhorse::Worker} will log an error and call the {.on_exception} callback if it can't
+  # obtain the global lock for this many times in a row.
+  #
+  # @return [Integer] The maximum number of allowed consecutive lock failures
   mattr_accessor :max_global_lock_fails
   self.max_global_lock_fails = 10
 
+  # Transaction callback used for database operations.
+  # Defaults to ActiveRecord::Base.transaction.
+  #
+  # @return [Proc] The transaction callback
   mattr_accessor :tx_callback
   self.tx_callback = proc do |*args, &block|
     ActiveRecord::Base.transaction(*args, &block)
   end
 
+  # Exception callback called when an exception occurs during job processing.
+  # Override this to integrate with your error reporting system.
+  #
+  # @return [Proc] The exception callback
   mattr_accessor :on_exception
   self.on_exception = proc do |exception|
     # Do something with this exception, i.e.
     # ExceptionNotifier.notify_exception(exception)
   end
 
-  # If set to `false`, shell handler (CLI) won't lock commands using a lockfile.
-  # You should generally only disable this if you are performing the locking
-  # yourself (e.g. in a wrapper script).
+  # Controls whether {Workhorse::Daemon::ShellHandler} commands use lockfiles.
+  # Set to false if you're handling locking yourself (e.g. in a wrapper script).
+  #
+  # @return [Boolean] Whether to lock shell commands
   mattr_accessor :lock_shell_commands
   self.lock_shell_commands = true
 
-  # If set to `true`, the defined `on_exception` will not be called when the
-  # poller encounters an exception and the worker has to be shut down. The
-  # exception will still be logged.
+  # Controls whether to silence exception callbacks for {Workhorse::Poller} exceptions.
+  # When true, {.on_exception} won't be called for poller failures, but exceptions
+  # will still be logged.
+  #
+  # @return [Boolean] Whether to silence poller exception callbacks
   mattr_accessor :silence_poller_exceptions
   self.silence_poller_exceptions = false
 
-  # If set to `true`, the `watch` command won't produce any output. This does
-  # not include warnings such as the "development mode" warning.
+  # Controls output verbosity for the watch command.
+  # When true, the watch command won't produce output (warnings still shown).
+  #
+  # @return [Boolean] Whether to silence watcher output
   mattr_accessor :silence_watcher
   self.silence_watcher = false
 
+  # Controls whether jobs are performed within database transactions.
+  # Individual job classes can override this with skip_tx?.
+  #
+  # @return [Boolean] Whether to perform jobs in transactions
   mattr_accessor :perform_jobs_in_tx
   self.perform_jobs_in_tx = true
 
-  # If enabled, each poller will attempt to clean jobs that are stuck in state
-  # 'locked' or 'running' when it is starting up.
+  # Controls automatic cleanup of stuck jobs on {Workhorse::Poller} startup.
+  # When enabled, pollers will clean jobs stuck in 'locked' or 'running' states.
+  #
+  # @return [Boolean] Whether to clean stuck jobs on startup
   mattr_accessor :clean_stuck_jobs
   self.clean_stuck_jobs = false
 
@@ -75,12 +100,20 @@ module Workhorse
   mattr_accessor :stale_detection_run_time_threshold
   self.stale_detection_run_time_threshold = 12 * 60
 
-  # Maximum memory for a worker in MB. If this memory limit (RSS / resident
-  # size) is reached for a worker process, the 'watch' command will restart said
-  # worker. Set this to 0 disable this feature.
+  # Maximum memory usage per {Workhorse::Worker} process in MB.
+  # When exceeded, the watch command will restart the worker. Set to 0 to disable.
+  #
+  # @return [Integer] Memory limit in megabytes
   mattr_accessor :max_worker_memory_mb
   self.max_worker_memory_mb = 0
 
+  # Configuration method for setting up Workhorse options.
+  #
+  # @yield [self] Configuration block
+  # @example
+  #   Workhorse.setup do |config|
+  #     config.max_global_lock_fails = 5
+  #   end
   def self.setup
     yield self
   end

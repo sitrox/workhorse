@@ -1,11 +1,28 @@
 module Workhorse
+  # Daemon class for managing multiple worker processes.
+  # Provides functionality to start, stop, restart, and monitor worker processes
+  # through a simple Ruby DSL.
   class Daemon
+    # Internal representation of a worker process.
+    # Stores worker metadata and the block to execute.
     class Worker
+      # @return [Integer] The worker's unique ID
       attr_reader :id
+
+      # @return [String] The worker's display name
       attr_reader :name
+
+      # @return [Proc] The block containing the worker's logic
       attr_reader :block
+
+      # @return [Integer, nil] The worker's process ID when running
       attr_accessor :pid
 
+      # Creates a new worker definition.
+      #
+      # @param id [Integer] Unique identifier for this worker
+      # @param name [String] Display name for this worker
+      # @param block [Proc] Code block to execute in the worker process
       def initialize(id, name, &block)
         @id = id
         @name = name
@@ -13,9 +30,16 @@ module Workhorse
       end
     end
 
+    # @return [Array<Worker>] Array of defined workers
     # @private
     attr_reader :workers
 
+    # Creates a new daemon instance.
+    #
+    # @param pidfile [String, nil] Path template for PID files (use %i placeholder for worker ID)
+    # @param quiet [Boolean] Whether to suppress output during operations
+    # @yield [ScopedEnv] Configuration block for defining workers
+    # @raise [RuntimeError] If no workers are defined or pidfile format is invalid
     def initialize(pidfile: nil, quiet: false, &_block)
       @pidfile = pidfile
       @quiet = quiet
@@ -38,10 +62,19 @@ module Workhorse
       end
     end
 
+    # Defines a worker process.
+    #
+    # @param name [String] Display name for the worker
+    # @yield Block containing the worker's execution logic
+    # @return [void]
     def worker(name = 'Job Worker', &block)
       @workers << Worker.new(@workers.size + 1, name, &block)
     end
 
+    # Starts all defined workers.
+    #
+    # @param quiet [Boolean] Whether to suppress status output
+    # @return [Integer] Exit code (0 = success, 2 = some workers already running)
     def start(quiet: false)
       code = 0
 
@@ -81,6 +114,11 @@ module Workhorse
       return code
     end
 
+    # Stops all running workers.
+    #
+    # @param kill [Boolean] Whether to use KILL signal instead of TERM/INT
+    # @param quiet [Boolean] Whether to suppress status output
+    # @return [Integer] Exit code (0 = success, 2 = some workers already stopped)
     def stop(kill = false, quiet: false)
       code = 0
 
@@ -102,6 +140,10 @@ module Workhorse
       return code
     end
 
+    # Checks the status of all workers.
+    #
+    # @param quiet [Boolean] Whether to suppress status output
+    # @return [Integer] Exit code (0 = all running, 2 = some not running)
     def status(quiet: false)
       code = 0
 
@@ -122,6 +164,10 @@ module Workhorse
       return code
     end
 
+    # Watches workers and starts them if they're not running.
+    # In Rails environments, respects the tmp/stop.txt file.
+    #
+    # @return [Integer] Exit code from start operation or 0 if no action needed
     def watch
       if defined?(Rails)
         should_be_running = !File.exist?(Rails.root.join('tmp/stop.txt'))
@@ -136,11 +182,18 @@ module Workhorse
       end
     end
 
+    # Restarts all workers by stopping and then starting them.
+    #
+    # @return [Integer] Exit code from start operation
     def restart
       stop
       return start
     end
 
+    # Sends HUP signal to all workers to restart their logging.
+    # Useful for log rotation without full process restart.
+    #
+    # @return [Integer] Exit code (0 = success, 2 = some signals failed)
     def restart_logging
       code = 0
 
@@ -163,10 +216,20 @@ module Workhorse
 
     private
 
+    # Executes the given block for each defined worker.
+    #
+    # @yield [Worker] Each worker instance
+    # @return [void]
+    # @private
     def for_each_worker(&block)
       @workers.each(&block)
     end
 
+    # Starts a single worker process.
+    #
+    # @param worker [Worker] The worker to start
+    # @return [void]
+    # @private
     def start_worker(worker)
       check_rails_env if defined?(Rails)
 
@@ -185,6 +248,13 @@ module Workhorse
       Process.detach(pid)
     end
 
+    # Stops a single worker process.
+    #
+    # @param pid_file [String] Path to the worker's PID file
+    # @param pid [Integer] The worker's process ID
+    # @param kill [Boolean] Whether to use KILL signal
+    # @return [void]
+    # @private
     def stop_worker(pid_file, pid, kill: false)
       signals = kill ? %w[KILL] : %w[TERM INT]
 
@@ -201,10 +271,20 @@ module Workhorse
       File.delete(pid_file)
     end
 
+    # Sends HUP signal to a worker process.
+    #
+    # @param pid [Integer] The worker's process ID
+    # @return [void]
+    # @private
     def hup_worker(pid)
       Process.kill('HUP', pid)
     end
 
+    # Generates a process name for a worker.
+    #
+    # @param worker [Worker] The worker instance
+    # @return [String] Process name for ps output
+    # @private
     def process_name(worker)
       if defined?(Rails)
         path = Rails.root
@@ -215,6 +295,11 @@ module Workhorse
       return "Workhorse #{worker.name} ##{worker.id}: #{path}"
     end
 
+    # Checks if a process with the given PID is running.
+    #
+    # @param pid [Integer] Process ID to check
+    # @return [Boolean] True if process is running
+    # @private
     def process?(pid)
       return begin
         Process.kill(0, pid)
@@ -224,10 +309,20 @@ module Workhorse
       end
     end
 
+    # Returns the PID file path for a worker.
+    #
+    # @param worker [Worker] The worker instance
+    # @return [String] Path to the PID file
+    # @private
     def pid_file_for(worker)
       @pidfile % worker.id
     end
 
+    # Reads PID information for a worker.
+    #
+    # @param worker [Worker] The worker instance
+    # @return [Array<String, Integer, Boolean>] PID file path, PID, and active status
+    # @private
     def read_pid(worker)
       file = pid_file_for(worker)
       pid = nil
@@ -247,6 +342,10 @@ module Workhorse
       return file, pid, active
     end
 
+    # Warns if not running in production environment.
+    #
+    # @return [void]
+    # @private
     def check_rails_env
       unless Rails.env.production?
         warn 'WARNING: Always run workhorse workers in production environment. Other environments can lead to unexpected behavior.'
