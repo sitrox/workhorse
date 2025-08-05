@@ -75,7 +75,7 @@
 * Comply with RuboCop
 
 * Skip `at_exit` handlers when exiting in ShellHandler. This ensures
-  compatibility with the `debug` gem, which whould otherwise hang when using the
+  compatibility with the `debug` gem, which would otherwise hang when using the
   Workhorse shell handler.
 
   Sitrox reference: #128333.
@@ -325,7 +325,7 @@ battle before it can be considered stable.
 * Simplify locking during polling. Other than locking individual jobs, pollers
   now acquire a global lock. While this can lead to many pollers waiting for
   each others locks, performing a poll is usually done very quickly and the
-  performance drawback is to be considered neglegible. This change should work
+  performance drawback is to be considered negligible. This change should work
   around some deadlock issues as well as an issue where a job was obtained by
   more than one poller.
 

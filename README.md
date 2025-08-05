@@ -342,7 +342,7 @@ You can turn off transaction wrapping in the following ways:
      end
      ```
 
-  For plain Workhrose job clases:
+  For plain Workhorse job classes:
 
   1. Add the following static method to your job class:
 
