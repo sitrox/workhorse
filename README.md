@@ -3,7 +3,7 @@
 
 # Workhorse
 
-Multi-threaded job backend with database queuing for ruby. Battle-tested and ready for production-use.
+Multi-threaded job backend with database queuing for Ruby. Battle-tested and ready for production-use.
 
 ## Introduction
 
@@ -12,7 +12,7 @@ How it works:
 * Jobs are instances of classes that support the `perform` method.
 * Jobs are persisted in the database using ActiveRecord.
 * Each job has a priority, the default being 0. Jobs with higher priorities
-  (lower is higher, 0 the highest) get processed first.
+  (lower numbers have higher priority, with 0 being the highest) get processed first.
 * Each job can be set to execute after a certain date / time.
 * You can start one or more worker processes.
 * Each worker is configurable as to which queue(s) it processes. Jobs in the
@@ -39,7 +39,7 @@ What it does not do:
   MySQL with InnoDB, PostgreSQL, or Oracle).
 * If you are planning on using the daemons handler:
   * An operating system and file system that supports file locking.
-  * MRI ruby (aka "CRuby") as jRuby does not support `fork`. See the
+  * MRI Ruby (aka "CRuby") as jRuby does not support `fork`. See the
     [FAQ](FAQ.md#im-using-jruby-how-can-i-use-the-daemon-handler) for possible workarounds.
 
 ### Installing under Rails
@@ -81,8 +81,8 @@ GRANT execute ON DBMS_LOCK TO <schema-name>;
 ### Basic jobs
 
 Workhorse can handle any jobs that support the `perform` method and are
-serializable. To queue a basic job, use the static method `Workhorse.enqueue`.
-You can optionally pass a queue name, a priority and a description (as a string).
+serializable. To queue a basic job, use `Workhorse.enqueue`.
+You can optionally pass a queue name, a priority, and a description.
 
 ```ruby
 class MyJob
@@ -108,15 +108,15 @@ method `Workhorse.enqueue_op`:
 Workhorse.enqueue_op Operations::Jobs::CleanUpDatabase, { queue: :maintenance, priority: 2 }, quiet: true
 ```
 
-The first argument of the method is the Operation you want to run. Params passed in
-using the second argument will be used by Workhorse and params passed using the
+The first argument of the method is the Operation you want to run. Parameters passed in
+using the second argument will be used by Workhorse and parameters passed using the
 third argument will be used for operation instantiation at job execution, i.e.:
 
 ```ruby
 Workhorse.enqueue_op <Operation Class Name>, { <Workhorse Options> }, { <RailsOps Options> }
 ```
 
-If you do not want to pass any params to the operation, just omit the third hash:
+If you do not want to pass any parameters to the operation, just omit the third hash:
 
 ```ruby
 Workhorse.enqueue_op Operations::Jobs::CleanUpDatabase, queue: :maintenance, priority: 2
@@ -138,9 +138,9 @@ achieving regular execution:
    by scheduling the job before knowing whether the current run will succeed.
    Proceed down this path at your own peril!)
 
-   *Example:* A job that takes 5 seconds to run and is set to reschedule itself
-   after 10 minutes is started at 12:00 sharp. After one hour it will be set to
-   execute at 13:00:30 at the earliest.
+   *Example:* A job that takes 5 seconds to run and reschedules itself every
+   10 minutes. If started at 12:00 sharp, after one hour it will execute at
+   13:00:30 at the earliest due to cumulative execution time.
 
    In its most basic form, the `perform` method of a job would look as follows:
 
@@ -198,7 +198,7 @@ achieving regular execution:
    of which is that only one 'worker' should be started by the ShellHandler.
    Otherwise there would be multiple jobs scheduled at the same time.
 
-   Please refer to the documentation on
+   Please refer to the documentation for
    [rufus-scheduler](https://github.com/jmettraux/rufus-scheduler) (or the
    scheduler of your choice) for further options concerning the timing of the
    jobs.
@@ -227,8 +227,7 @@ Workhorse::Worker.start_and_wait(
 
 See [code documentation](http://www.rubydoc.info/github/sitrox/workhorse/Workhorse%2FWorker:initialize)
 for more information on the arguments. All arguments passed to `start_and_wait`
-are passed to the initialize. All arguments passed to `start_and_wait` are
-in turn passed to the initializer of `Workhorse::Worker`.
+are passed to the initializer of `Workhorse::Worker`.
 
 ### Start workers using a daemon script
 
@@ -264,7 +263,7 @@ end
 
 ### Instant repolling
 
-Per default, each worker only polls in the given interval. This means that if
+By default, each worker only polls in the given interval. This means that if
 you schedule, for example, 50 jobs at once and have a polling interval of 1
 minute with a queue size of 1, the poller would tackle the first job and then
 wait for a whole minute until the next poll. This would mean that these 50 jobs
@@ -287,8 +286,8 @@ transaction is created.
 
 ### Transaction callback
 
-By default, transactions are created using `ActiveRecord::Base.transaction { ...
-}`. You can customize this using the setting `config.tx_callback` in your
+By default, transactions are created using `ActiveRecord::Base.transaction`.
+You can customize this using the setting `config.tx_callback` in your
 `config/initializers/workhorse.rb` (see commented out section in the generated
 configuration file).
 
@@ -352,13 +351,14 @@ You can turn off transaction wrapping in the following ways:
          true
        end
      end
+     ```
 
 ## Exception handling
 
-Per default, exceptions occurring in a worker thread will only be visible in the
+By default, exceptions occurring in a worker thread will only be visible in the
 respective log file, usually `production.log`. If you'd like to perform specific
 actions when an exception arises, set the global option `on_exception` to a
-callback of your linking, e.g.:
+callback of your liking, e.g.:
 
 ```ruby
 # config/initializers/workhorse.rb
@@ -467,7 +467,7 @@ succeeded jobs. You can run this using your scheduler in a specific interval.
 ## Memory handling
 
 When a worker exceeds the memory limit specified by
-`config.max_worker_memory_mb` (assuming it is configured and > 0), it initiates
+`config.max_worker_memory_mb` (assuming it is configured to a value greater than 0), it initiates
 a graceful shutdown process by creating a shutdown file named
 `tmp/pids/workhorse.<pid>.shutdown`.
 
