@@ -257,9 +257,9 @@ module Workhorse
 
       timeout = [MIN_LOCK_TIMEOUT, [MAX_LOCK_TIMEOUT, worker.polling_interval].min].max
       with_global_lock timeout: timeout do
-        Workhorse.tx_callback.call do
-          job_ids = []
+        job_ids = []
 
+        Workhorse.tx_callback.call do
           # As we are the only thread posting into the worker pool, it is safe to
           # get the number of idle threads without mutex synchronization. The
           # actual number of idle workers at time of posting can only be larger
@@ -281,9 +281,14 @@ module Workhorse
             worker.log 'Rolling back transaction to unlock jobs, as worker has been shut down in the meantime'
             fail ActiveRecord::Rollback
           end
-
-          job_ids.each { |job_id| worker.perform(job_id) }
         end
+
+        # This needs to be outside the above transaction because it runs the job
+        # in a new thread which opens a new connection. Even though it would be
+        # non-blocking and thus directly conclude the block and the transaction,
+        # there would still be a risk that the transaction is not committed yet
+        # when the job starts.
+        job_ids.each { |job_id| worker.perform(job_id) } if running?
       end
     end
 
