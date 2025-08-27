@@ -1,6 +1,6 @@
 # Workhorse Changelog
 
-## Unreleased
+## 1.3.0.rc4 - 2025-08-27
 
 * Fix race-condition in polling mechanism which could result in workers 
   trying to run a job that is not yet locked.
