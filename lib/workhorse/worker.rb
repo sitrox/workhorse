@@ -24,22 +24,22 @@ module Workhorse
 
     # @return [Array<Symbol>] The queues this worker processes
     attr_reader :queues
-    
+
     # @return [Symbol] Current worker state (:initialized, :running, :shutdown)
     attr_reader :state
-    
+
     # @return [Integer] Number of threads in the worker pool
     attr_reader :pool_size
-    
+
     # @return [Integer] Polling interval in seconds
     attr_reader :polling_interval
-    
+
     # @return [Mutex] Synchronization mutex for thread safety
     attr_reader :mutex
-    
+
     # @return [Logger, nil] Optional logger instance
     attr_reader :logger
-    
+
     # @return [Workhorse::Poller] The poller instance
     attr_reader :poller
 

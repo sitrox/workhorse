@@ -10,7 +10,7 @@ module Workhorse
   class Pool
     # @return [Mutex] Synchronization mutex for thread safety
     attr_reader :mutex
-    
+
     # @return [Concurrent::AtomicFixnum] Thread-safe counter of active threads
     attr_reader :active_threads
 

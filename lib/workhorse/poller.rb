@@ -15,7 +15,7 @@ module Workhorse
 
     # @return [Workhorse::Worker] The worker this poller serves
     attr_reader :worker
-    
+
     # @return [Arel::Table] The jobs table for query building
     attr_reader :table
 
