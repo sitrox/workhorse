@@ -353,15 +353,22 @@ module Workhorse
       return Workhorse::DbJob.find_by_sql(select.to_sql).to_a
     end
 
+    # Returns a fresh Arel select manager containing the id of all waiting jobs.
+    #
+    # @return [Arel::SelectManager] the select manager
+    def valid_select_id
+      select = table.project(table[:id])
+      select = select.where(table[:state].eq(:waiting))
+      select = select.where(table[:perform_at].lteq(Time.now).or(table[:perform_at].eq(nil)))
+      return select
+    end
+
     # Returns a fresh Arel select manager containing the id of all waiting jobs,
     # ordered with {#order}.
     #
     # @return [Arel::SelectManager] the select manager
     def valid_ordered_select_id
-      select = table.project(table[:id])
-      select = select.where(table[:state].eq(:waiting))
-      select = select.where(table[:perform_at].lteq(Time.now).or(table[:perform_at].eq(nil)))
-      return order(select)
+      return order(valid_select_id)
     end
 
     # Orders the records by execution order (first to last)
@@ -393,7 +400,7 @@ module Workhorse
     #
     # @return [Array] an array of unique queue names
     def valid_queues
-      select = valid_ordered_select_id
+      select = valid_select_id
 
       # Restrict queues that are currently in progress, except for the nil
       # queue, where jobs may run in parallel
