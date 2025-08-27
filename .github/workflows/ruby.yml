@@ -31,6 +31,7 @@ jobs:
         run: |
           sudo /etc/init.d/mysql start
           mysql -u${{ env.DB_USER }} -p${{ env.DB_PASSWORD }} -e 'CREATE DATABASE ${{ env.DB_DATABASE }};'
+          mysql --version
       - name: Run rake tests
         uses: nick-fields/retry@v2
         with:
