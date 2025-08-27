@@ -29,6 +29,7 @@ jobs:
         with:
           ruby-version: ${{ matrix.ruby-version }}
           bundler-cache: true
+          cache-version: 1
       - name: Startup database
         run: |
           sudo /etc/init.d/mysql start
@@ -50,5 +51,6 @@ jobs:
         with:
           ruby-version: 2.5.1
           bundler-cache: true
+          cache-version: 1
       - name: Run rubocop
         run: bundle exec rubocop
