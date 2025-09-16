@@ -1,5 +1,9 @@
 # Workhorse Changelog
 
+## 1.3.0 - 2025-09-16
+
+* Stable release based on previous RC releases.
+
 ## 1.3.0.rc4 - 2025-08-27
 
 * Fix race-condition in polling mechanism which could result in workers 
