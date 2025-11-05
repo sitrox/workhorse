@@ -1,5 +1,19 @@
 # Workhorse Changelog
 
+## 1.3.1 - 2025-11-05
+
+* Adapt shell handler locking behavior depending on command:
+
+  * `usage|<empty string>|<unknown command>`: Does not lock anymore as it
+    only shows the usage information.
+
+  * `watch|kill`: Failing lock. These commands now simply abort if there is
+    already another locking command running.
+
+  * `start|stop|restart|status|restart-logging`: Waiting lock. These commands
+    will wait until other commands are finished. This is equal to the previous
+    behavior.
+
 ## 1.3.0 - 2025-09-16
 
 * Stable release based on previous RC releases.
