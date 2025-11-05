@@ -6,31 +6,33 @@ module Workhorse
         exit 99
       end
 
-      if Workhorse.lock_shell_commands
-        lockfile_path = options.delete(:lockfile) || 'workhorse.lock'
-        lockfile = File.open(lockfile_path, 'a')
-        lockfile.flock(File::LOCK_EX || File::LOCK_NB)
-      else
-        lockfile = nil
-      end
-
+      lockfile_path = options.delete(:lockfile) || 'workhorse.lock'
       daemon = Workhorse::Daemon.new(**options, &block)
+
+      lockfile = nil
 
       begin
         case ARGV.first
         when 'start'
+          lockfile = acquire_lock(lockfile_path, File::LOCK_EX)
           status = daemon.start
         when 'stop'
+          lockfile = acquire_lock(lockfile_path, File::LOCK_EX)
           status = daemon.stop
         when 'kill'
+          lockfile = acquire_lock(lockfile_path, File::LOCK_EX | File::LOCK_NB)
           status = daemon.stop(true)
         when 'status'
+          lockfile = acquire_lock(lockfile_path, File::LOCK_EX)
           status = daemon.status
         when 'watch'
+          lockfile = acquire_lock(lockfile_path, File::LOCK_EX | File::LOCK_NB)
           status = daemon.watch
         when 'restart'
+          lockfile = acquire_lock(lockfile_path, File::LOCK_EX)
           status = daemon.restart
         when 'restart-logging'
+          lockfile = acquire_lock(lockfile_path, File::LOCK_EX)
           status = daemon.restart_logging
         when 'usage'
           usage
@@ -87,6 +89,19 @@ module Workhorse
          2 if at least one worker has an unexpected status,
          99 on all other errors.
       USAGE
+    end
+
+    private
+
+    def self.acquire_lock(lockfile_path, flags)
+      if Workhorse.lock_shell_commands
+        lockfile = File.open(lockfile_path, 'a')
+        lockfile.flock(flags)
+
+        return lockfile
+      end
+
+      return nil
     end
   end
 end
