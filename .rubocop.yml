@@ -2,7 +2,7 @@ AllCops:
   DisplayCopNames: true
   NewCops: enable
   SuggestExtensions: false
-  TargetRubyVersion: 2.5
+  TargetRubyVersion: 3.0
   Exclude:
     - 'local/**/*'
     - 'vendor/**/*'
@@ -122,9 +122,15 @@ Layout/LineLength:
 
 # Prefer variable_1 over variable1 for aesthetic reasons. Do not check symbols,
 # as they often need to be another case for use in external palces (e.g. :md5).
+# $0 is a Ruby special variable for the process name.
+# Test method names often contain numbers (e.g., test_issue_22).
 Naming/VariableNumber:
   EnforcedStyle: snake_case
   CheckSymbols: false
+  AllowedPatterns:
+    - '\$0'
+  Exclude:
+    - 'test/**/*'
 
 # Depending on the surrounding code, even simple if/unless clauses may be more
 # descriptive when on multiple lines.
@@ -187,3 +193,8 @@ Style/HashSyntax:
 # Allow rescue 'Exception', necessary for Workhorse
 Lint/RescueException:
   Enabled: false
+
+# check_memory returns boolean but is not a pure predicate (has side effects)
+Naming/PredicateMethod:
+  AllowedMethods:
+    - check_memory

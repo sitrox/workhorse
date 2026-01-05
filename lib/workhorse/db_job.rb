@@ -19,7 +19,7 @@ module Workhorse
     STATE_SUCCEEDED = :succeeded
     STATE_FAILED    = :failed
 
-    EXP_LOCKED_BY = /^(.*?)\.(\d+?)\.([^.]+)$/.freeze
+    EXP_LOCKED_BY = /^(.*?)\.(\d+?)\.([^.]+)$/
 
     if respond_to?(:attr_accessible)
       attr_accessible :queue, :priority, :perform_at, :handler, :description

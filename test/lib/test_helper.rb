@@ -79,6 +79,20 @@ class WorkhorseTest < ActiveSupport::TestCase
     end
   end
 
+  def wait_for_process_exit(pid, timeout: 5)
+    deadline = Time.now + timeout
+    loop do
+      Process.getpgid(pid)
+      if Time.now > deadline
+        fail "Process #{pid} did not exit within #{timeout} seconds"
+      end
+      sleep 0.01
+      Thread.pass # Give detach threads a chance to reap zombies
+    rescue Errno::ESRCH
+      return # Process is fully gone from process table
+    end
+  end
+
   def capture_log(level: :debug)
     io = StringIO.new
     logger = Logger.new(io, level: level)

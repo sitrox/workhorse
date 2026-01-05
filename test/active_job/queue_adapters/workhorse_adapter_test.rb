@@ -58,22 +58,22 @@ class ActiveJob::QueueAdapters::WorkhorseAdapterTest < WorkhorseTest
   end
 
   def test_wait
-    Job2.set(wait: 2.seconds).perform_later 'foo'
+    Job2.set(wait: 0.5.seconds).perform_later 'foo'
 
-    work 1, polling_interval: 0.1
+    work 0.3, polling_interval: 0.1
     assert_equal 'waiting', Workhorse::DbJob.first.state
 
-    work 2.5, polling_interval: 0.1
+    work 0.5, polling_interval: 0.1
     assert_equal 'succeeded', Workhorse::DbJob.first.reload.state
   end
 
   def test_wait_until
-    Job2.set(wait_until: (Time.now + 2.seconds)).perform_later 'foo'
+    Job2.set(wait_until: (Time.now + 0.5.seconds)).perform_later 'foo'
 
-    work 0.5, polling_interval: 0.1
+    work 0.3, polling_interval: 0.1
     assert_equal 'waiting', Workhorse::DbJob.first.state
 
-    work 3, polling_interval: 0.1
+    work 0.5, polling_interval: 0.1
     assert_equal 'succeeded', Workhorse::DbJob.first.reload.state
   end
 

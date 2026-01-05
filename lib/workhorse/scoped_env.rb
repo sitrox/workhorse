@@ -21,11 +21,11 @@ module Workhorse
     # @param args [Array] Method arguments
     # @param block [Proc, nil] Block to pass to the method
     # @return [Object] Result of the delegated method call
-    def method_missing(symbol, *args, &block)
+    def method_missing(symbol, ...)
       if @methods.include?(symbol)
-        @delegation_object.send(symbol, *args, &block)
+        @delegation_object.send(symbol, ...)
       elsif @backup_binding.try(:respond_to?, symbol)
-        @backup_binding.send(symbol, *args, &block)
+        @backup_binding.send(symbol, ...)
       else
         super
       end

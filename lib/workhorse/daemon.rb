@@ -236,8 +236,8 @@ module Workhorse
       pid = fork do
         $0 = process_name(worker)
         # Reopen pipes to prevent #107576
-        $stdin.reopen File.open('/dev/null', 'r')
-        null_out = File.open '/dev/null', 'w'
+        $stdin.reopen File.open(File::NULL, 'r')
+        null_out = File.open File::NULL, 'w'
         $stdout.reopen null_out
         $stderr.reopen null_out
 

@@ -11,4 +11,4 @@ gem 'minitest'
 gem 'mysql2'
 gem 'pry'
 gem 'rake'
-gem 'rubocop', '~> 1.28.0' # Latest version supported with Ruby 2.5
+gem 'rubocop', '~> 1.60'

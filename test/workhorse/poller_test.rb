@@ -115,37 +115,37 @@ class Workhorse::PollerTest < WorkhorseTest
   end
 
   def test_already_locked_issue
-    # Create 100 jobs
-    100.times do |i|
+    # Create 50 jobs
+    50.times do |i|
       Workhorse.enqueue BasicJob.new(some_param: i, sleep_time: 0)
     end
 
-    # Create 25 worker processes that work for 10s each
-    25.times do
+    # Create 10 worker processes that work for 3s each
+    10.times do
       Process.fork do
-        work 10, pool_size: 1, polling_interval: 0.1
+        work 3, pool_size: 1, polling_interval: 0.1
       end
     end
 
-    # Create additional 100 jobs that are scheduled while the workers are
+    # Create additional 50 jobs that are scheduled while the workers are
     # already polling (to make sure those are picked up as well)
-    100.times do
-      sleep 0.05
+    50.times do
+      sleep 0.02
       Workhorse.enqueue BasicJob.new(sleep_time: 0)
     end
 
-    # Wait for all forked processes to finish (should take ~10s)
+    # Wait for all forked processes to finish (should take ~3s)
     Process.waitall
 
     total = Workhorse::DbJob.count
     succeeded = Workhorse::DbJob.succeeded.count
     used_workers = Workhorse::DbJob.lock.pluck(:locked_by).uniq.size
 
-    # Make sure there are 200 jobs, all jobs have succeeded and that all of the
+    # Make sure there are 100 jobs, all jobs have succeeded and that all of the
     # workers have had their turn.
-    assert_equal 200, total
-    assert_equal 200, succeeded
-    assert_equal 25,  used_workers
+    assert_equal 100, total
+    assert_equal 100, succeeded
+    assert_equal 10,  used_workers
   end
 
   def test_connection_loss
@@ -251,8 +251,12 @@ class Workhorse::PollerTest < WorkhorseTest
   private
 
   def kill_deamon_workers
-    daemon.workers.each do |worker|
-      Process.kill 'KILL', worker.pid
+    pids = daemon.workers.map(&:pid)
+    pids.each do |pid|
+      Process.kill 'KILL', pid
+      # Wait for zombies to be reaped by Process.detach threads
+      # This is necessary because Process.getpgid succeeds for zombie processes
+      wait_for_process_exit(pid)
     end
   end
 

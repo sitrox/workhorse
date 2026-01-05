@@ -1,7 +1,7 @@
 module Workhorse
   class Daemon::ShellHandler
     def self.run(**options, &block)
-      unless ARGV.count == 1
+      unless ARGV.one?
         usage
         exit 99
       end
@@ -90,8 +90,6 @@ module Workhorse
          99 on all other errors.
       USAGE
     end
-
-    private
 
     def self.acquire_lock(lockfile_path, flags)
       if Workhorse.lock_shell_commands

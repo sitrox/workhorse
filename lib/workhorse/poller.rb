@@ -255,7 +255,7 @@ module Workhorse
     def poll
       @instant_repoll.make_false
 
-      timeout = [MIN_LOCK_TIMEOUT, [MAX_LOCK_TIMEOUT, worker.polling_interval].min].max
+      timeout = worker.polling_interval.clamp(MIN_LOCK_TIMEOUT, MAX_LOCK_TIMEOUT)
       with_global_lock timeout: timeout do
         job_ids = []
 
