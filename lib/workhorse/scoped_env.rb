@@ -16,10 +16,9 @@ module Workhorse
     end
 
     # Handles method delegation to the configured objects.
+    # Uses argument forwarding to pass all arguments to the delegated method.
     #
     # @param symbol [Symbol] Method name
-    # @param args [Array] Method arguments
-    # @param block [Proc, nil] Block to pass to the method
     # @return [Object] Result of the delegated method call
     def method_missing(symbol, ...)
       if @methods.include?(symbol)

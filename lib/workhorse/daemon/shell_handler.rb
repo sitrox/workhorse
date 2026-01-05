@@ -101,5 +101,6 @@ module Workhorse
 
       return nil
     end
+    private_class_method :acquire_lock
   end
 end

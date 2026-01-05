@@ -86,6 +86,7 @@ class WorkhorseTest < ActiveSupport::TestCase
       if Time.now > deadline
         fail "Process #{pid} did not exit within #{timeout} seconds"
       end
+
       sleep 0.01
       Thread.pass # Give detach threads a chance to reap zombies
     rescue Errno::ESRCH
