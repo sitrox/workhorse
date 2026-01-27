@@ -253,6 +253,8 @@ module Workhorse
     # @return [void]
     # @private
     def poll
+      return unless worker.accepting_jobs?
+
       @instant_repoll.make_false
 
       timeout = worker.polling_interval.clamp(MIN_LOCK_TIMEOUT, MAX_LOCK_TIMEOUT)
@@ -288,7 +290,9 @@ module Workhorse
         # non-blocking and thus directly conclude the block and the transaction,
         # there would still be a risk that the transaction is not committed yet
         # when the job starts.
-        job_ids.each { |job_id| worker.perform(job_id) } if running?
+        # Also check accepting_jobs? to prevent posting if soft restart was requested
+        # while we were acquiring the lock or querying jobs.
+        job_ids.each { |job_id| worker.perform(job_id) } if running? && worker.accepting_jobs?
       end
     end
 

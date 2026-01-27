@@ -34,6 +34,9 @@ module Workhorse
         when 'restart-logging'
           lockfile = acquire_lock(lockfile_path, File::LOCK_EX)
           status = daemon.restart_logging
+        when 'soft-restart'
+          lockfile = acquire_lock(lockfile_path, File::LOCK_EX)
+          status = daemon.soft_restart
         when 'usage'
           usage
           status = 0
@@ -52,7 +55,7 @@ module Workhorse
 
     def self.usage
       warn <<~USAGE
-        Usage: #{$PROGRAM_NAME} start|stop|status|watch|restart|usage
+        Usage: #{$PROGRAM_NAME} start|stop|status|watch|restart|soft-restart|usage
 
         Options:
 
@@ -79,6 +82,11 @@ module Workhorse
           restart-logging
             Re-opens log files, useful e.g. after the log files have been moved or
             removed by log rotation.
+
+          soft-restart
+            Signals workers to restart gracefully. Idle workers restart
+            immediately; busy workers finish their current job first. Returns
+            immediately (fire-and-forget). Use 'watch' to start fresh workers.
 
           usage
             Show this message

@@ -21,6 +21,7 @@ module Workhorse
     LOG_LEVELS = %i[fatal error warn info debug].freeze
     SHUTDOWN_SIGNALS = %w[TERM INT].freeze
     LOG_REOPEN_SIGNAL = 'HUP'.freeze
+    SOFT_RESTART_SIGNAL = 'USR1'.freeze
 
     # @return [Array<Symbol>] The queues this worker processes
     attr_reader :queues
@@ -97,6 +98,7 @@ module Workhorse
       @pool = Pool.new(@pool_size)
       @poller = Workhorse::Poller.new(self, proc { check_memory })
       @logger = logger
+      @soft_restart_requested = Concurrent::AtomicBoolean.new(false)
 
       unless (@polling_interval / 0.1).round(2).modulo(1).zero?
         fail 'Polling interval must be a multiple of 0.1.'
@@ -158,6 +160,7 @@ module Workhorse
 
         trap_termination if @auto_terminate
         trap_log_reopen
+        trap_soft_restart
       end
     end
 
@@ -211,6 +214,34 @@ module Workhorse
     # @return [Integer] Number of idle threads
     def idle
       @pool.idle
+    end
+
+    # Returns whether this worker is accepting new jobs.
+    # Returns false when a soft restart has been requested.
+    #
+    # @return [Boolean] True if accepting jobs, false otherwise
+    def accepting_jobs?
+      !@soft_restart_requested.true?
+    end
+
+    # Initiates a soft restart of the worker.
+    # Creates a shutdown file for the watch mechanism, then waits for all
+    # currently running jobs to complete before shutting down.
+    # This method returns immediately; shutdown happens asynchronously.
+    #
+    # @return [void]
+    def soft_restart!
+      return if @state == :shutdown
+      return if @soft_restart_requested.true?
+
+      @soft_restart_requested.make_true
+
+      # Create shutdown file for watch to detect
+      shutdown_file = self.class.shutdown_file_for(pid)
+      FileUtils.touch(shutdown_file) if shutdown_file
+
+      # Monitor in a separate thread to avoid blocking the signal handler
+      Thread.new { wait_for_idle_then_shutdown }
     end
 
     # Schedules a job for execution in the thread pool.
@@ -310,6 +341,42 @@ module Workhorse
             shutdown
           end.join
         end
+      end
+    end
+
+    # Sets up signal handler for soft restart (USR1 signal).
+    #
+    # @return [void]
+    # @private
+    def trap_soft_restart
+      Signal.trap(SOFT_RESTART_SIGNAL) do
+        # Start a new thread as certain functionality (such as logging) is not
+        # available from within a trap context.
+        Thread.new do
+          log "\nCaught #{SOFT_RESTART_SIGNAL}, initiating soft restart..."
+          soft_restart!
+        end
+        # Note: Unlike trap_termination, we don't join here because soft_restart!
+        # is designed to be fire-and-forget (it spawns its own monitoring thread).
+      end
+    end
+
+    # Waits for all jobs to complete, then shuts down the worker.
+    # Called asynchronously from soft_restart!.
+    #
+    # @return [void]
+    # @private
+    def wait_for_idle_then_shutdown
+      loop do
+        break if @state == :shutdown
+
+        if idle == @pool_size
+          log 'All jobs completed, shutting down for soft restart'
+          shutdown
+          break
+        end
+
+        Kernel.sleep 0.2
       end
     end
   end

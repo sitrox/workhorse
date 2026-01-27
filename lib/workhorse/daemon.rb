@@ -214,6 +214,32 @@ module Workhorse
       return code
     end
 
+    # Sends USR1 signal to all workers to initiate a soft restart.
+    # Workers will finish their current jobs before shutting down.
+    # The watch mechanism will then start fresh workers.
+    # This method returns immediately (fire-and-forget).
+    #
+    # @return [Integer] Exit code (0 = success, 2 = some signals failed)
+    def soft_restart
+      code = 0
+
+      for_each_worker do |worker|
+        _pid_file, pid, active = read_pid(worker)
+
+        next unless pid && active
+
+        begin
+          Process.kill 'USR1', pid
+          puts "Worker ##{worker.id} (#{worker.name}): Sent soft-restart signal"
+        rescue Errno::ESRCH
+          warn "Worker ##{worker.id} (#{worker.name}): Process not found"
+          code = 2
+        end
+      end
+
+      return code
+    end
+
     private
 
     # Executes the given block for each defined worker.

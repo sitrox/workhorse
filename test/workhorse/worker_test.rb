@@ -69,6 +69,59 @@ class Workhorse::WorkerTest < WorkhorseTest
     end
   end
 
+  def test_soft_restart_when_idle
+    with_worker(pool_size: 2, polling_interval: 0.2) do |w|
+      assert w.accepting_jobs?
+
+      Process.kill 'USR1', Process.pid
+      sleep 0.3
+
+      w.assert_state! :shutdown
+      assert File.exist?(Workhorse::Worker.shutdown_file_for(Process.pid))
+    end
+  ensure
+    FileUtils.rm_f Workhorse::Worker.shutdown_file_for(Process.pid)
+  end
+
+  def test_soft_restart_when_busy_waits_for_job
+    with_worker(pool_size: 1, polling_interval: 0.2) do |w|
+      Workhorse.enqueue BasicJob.new(sleep_time: 0.5)
+      sleep 0.3 # Let job start
+
+      Process.kill 'USR1', Process.pid
+      sleep 0.1
+
+      # Still running but not accepting jobs
+      w.assert_state! :running
+      assert_not w.accepting_jobs?
+
+      sleep 0.5 # Wait for job to finish
+      w.assert_state! :shutdown
+    end
+  ensure
+    FileUtils.rm_f Workhorse::Worker.shutdown_file_for(Process.pid)
+  end
+
+  def test_soft_restart_prevents_new_job_pickup
+    with_worker(pool_size: 1, polling_interval: 0.2) do |w|
+      Workhorse.enqueue BasicJob.new(sleep_time: 0.4)
+      sleep 0.25 # Let job start
+
+      Process.kill 'USR1', Process.pid
+      sleep 0.1
+
+      # Enqueue another job while soft restart is pending
+      Workhorse.enqueue BasicJob.new(sleep_time: 0.1)
+      sleep 0.4 # Wait for first job to finish and worker to shut down
+
+      jobs = Workhorse::DbJob.order(:created_at).to_a
+      assert_equal 'succeeded', jobs[0].state
+      assert_equal 'waiting', jobs[1].state # Not picked up due to soft restart
+    end
+  ensure
+    FileUtils.rm_f Workhorse::Worker.shutdown_file_for(Process.pid)
+  end
+
   def test_no_queues
     enqueue_in_multiple_queues
     work 0.2, polling_interval: 0.2
