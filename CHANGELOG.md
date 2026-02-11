@@ -1,5 +1,15 @@
 # Workhorse Changelog
 
+## 1.4.0.rc0 - 2026-02-11
+
+* Add `soft-restart` daemon command for graceful worker restarts. Sends a
+  `USR1` signal to all workers, causing them to stop accepting new jobs and shut
+  down after completing any currently running job. The caller is not blocked
+  (fire-and-forget). Use in combination with the `watch` command (typically via
+  cron) to automatically start fresh workers after shutdown.
+
+  Sitrox reference: #140281.
+
 ## 1.3.1 - 2025-11-05
 
 * Adapt shell handler locking behavior depending on command:

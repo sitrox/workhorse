@@ -241,7 +241,7 @@ For this case, the workhorse install routine automatically creates the file
 The script can be called as follows:
 
 ```bash
-RAILS_ENV=production bundle exec bin/workhorse.rb start|stop|kill|status|watch|restart|usage
+RAILS_ENV=production bundle exec bin/workhorse.rb start|stop|kill|status|watch|restart|soft-restart|usage
 ```
 
 #### Background and customization
@@ -486,6 +486,33 @@ Example configuration:
 Workhorse.setup do |config|
   config.max_worker_memory_mb = 512 # Set the memory threshold to 512 megabytes
 end
+```
+
+## Soft restart
+
+The `soft-restart` command provides a way to gracefully restart all worker
+processes without interrupting jobs that are currently running. It sends a
+`USR1` signal to each worker, which causes the worker to:
+
+1. Stop accepting new jobs immediately.
+2. Wait for any currently running job to complete.
+3. Shut down and create a shutdown file (`tmp/pids/workhorse.<pid>.shutdown`).
+
+The command returns immediately (fire-and-forget) and does not block the caller.
+
+**Important:** The `soft-restart` command only *stops* workers gracefully. To
+start fresh workers after shutdown, you need the `watch` command running
+(typically via cron). Without `watch`, `soft-restart` behaves like a graceful
+stop with no automatic recovery.
+
+Example usage:
+
+```bash
+# Trigger soft restart
+RAILS_ENV=production bundle exec bin/workhorse.rb soft-restart
+
+# The watch command (e.g. via cron) will automatically start fresh workers
+*/1 * * * * cd /my/app && RAILS_ENV=production bundle exec bin/workhorse.rb watch
 ```
 
 ## Load hooks
