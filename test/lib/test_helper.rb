@@ -161,6 +161,13 @@ class WorkhorseTest < ActiveSupport::TestCase
     end
   end
 
+  def process?(pid)
+    Process.kill(0, pid)
+    true
+  rescue Errno::EPERM, Errno::ESRCH
+    false
+  end
+
   def capture_stderr
     old = $stderr
     $stderr = StringIO.new

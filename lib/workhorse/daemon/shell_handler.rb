@@ -86,7 +86,10 @@ module Workhorse
           soft-restart
             Signals workers to restart gracefully. Idle workers restart
             immediately; busy workers finish their current job first. Returns
-            immediately (fire-and-forget). Use 'watch' to start fresh workers.
+            immediately (fire-and-forget).
+            NOTE: Requires 'watch' (typically via cron) to start fresh workers.
+            Without 'watch', this behaves like a graceful stop with no automatic
+            recovery.
 
           usage
             Show this message

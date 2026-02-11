@@ -279,8 +279,8 @@ module Workhorse
             end
           end
 
-          unless running?
-            worker.log 'Rolling back transaction to unlock jobs, as worker has been shut down in the meantime'
+          unless running? && worker.accepting_jobs?
+            worker.log 'Rolling back transaction to unlock jobs, as worker is no longer accepting jobs'
             fail ActiveRecord::Rollback
           end
         end

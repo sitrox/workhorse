@@ -74,9 +74,8 @@ class Workhorse::WorkerTest < WorkhorseTest
       assert w.accepting_jobs?
 
       Process.kill 'USR1', Process.pid
-      sleep 0.3
 
-      w.assert_state! :shutdown
+      with_retries { assert_equal :shutdown, w.state }
       assert File.exist?(Workhorse::Worker.shutdown_file_for(Process.pid))
     end
   ensure
@@ -86,7 +85,7 @@ class Workhorse::WorkerTest < WorkhorseTest
   def test_soft_restart_when_busy_waits_for_job
     with_worker(pool_size: 1, polling_interval: 0.2) do |w|
       Workhorse.enqueue BasicJob.new(sleep_time: 0.5)
-      sleep 0.3 # Let job start
+      with_retries { assert_equal 'started', Workhorse::DbJob.first.state }
 
       Process.kill 'USR1', Process.pid
       sleep 0.1
@@ -95,8 +94,8 @@ class Workhorse::WorkerTest < WorkhorseTest
       w.assert_state! :running
       assert_not w.accepting_jobs?
 
-      sleep 0.5 # Wait for job to finish
-      w.assert_state! :shutdown
+      # Wait for job to finish and worker to shut down
+      with_retries { assert_equal :shutdown, w.state }
     end
   ensure
     FileUtils.rm_f Workhorse::Worker.shutdown_file_for(Process.pid)
@@ -105,18 +104,55 @@ class Workhorse::WorkerTest < WorkhorseTest
   def test_soft_restart_prevents_new_job_pickup
     with_worker(pool_size: 1, polling_interval: 0.2) do |w|
       Workhorse.enqueue BasicJob.new(sleep_time: 0.4)
-      sleep 0.25 # Let job start
+      with_retries { assert_equal 'started', Workhorse::DbJob.first.state }
 
       Process.kill 'USR1', Process.pid
       sleep 0.1
 
       # Enqueue another job while soft restart is pending
       Workhorse.enqueue BasicJob.new(sleep_time: 0.1)
-      sleep 0.4 # Wait for first job to finish and worker to shut down
 
-      jobs = Workhorse::DbJob.order(:created_at).to_a
+      # Wait for worker to shut down
+      with_retries { assert_equal :shutdown, w.state }
+
+      jobs = Workhorse::DbJob.order(:id).to_a
       assert_equal 'succeeded', jobs[0].state
       assert_equal 'waiting', jobs[1].state # Not picked up due to soft restart
+    end
+  ensure
+    FileUtils.rm_f Workhorse::Worker.shutdown_file_for(Process.pid)
+  end
+
+  def test_soft_restart_double_signal
+    with_worker(pool_size: 1, polling_interval: 0.2) do |w|
+      Workhorse.enqueue BasicJob.new(sleep_time: 0.5)
+      with_retries { assert_equal 'started', Workhorse::DbJob.first.state }
+
+      # Send USR1 twice in rapid succession
+      Process.kill 'USR1', Process.pid
+      Process.kill 'USR1', Process.pid
+      sleep 0.1
+
+      assert_not w.accepting_jobs?
+
+      # Worker should still shut down cleanly (no double-shutdown crash)
+      with_retries { assert_equal :shutdown, w.state }
+      assert File.exist?(Workhorse::Worker.shutdown_file_for(Process.pid))
+    end
+  ensure
+    FileUtils.rm_f Workhorse::Worker.shutdown_file_for(Process.pid)
+  end
+
+  def test_soft_restart_ignored_during_shutdown
+    with_worker(pool_size: 1, polling_interval: 0.2) do |w|
+      Process.kill 'TERM', Process.pid
+      with_retries { assert_equal :shutdown, w.state }
+
+      # Sending USR1 during shutdown should not crash or create shutdown file
+      Process.kill 'USR1', Process.pid
+      sleep 0.1
+
+      assert_not File.exist?(Workhorse::Worker.shutdown_file_for(Process.pid))
     end
   ensure
     FileUtils.rm_f Workhorse::Worker.shutdown_file_for(Process.pid)
@@ -278,13 +314,6 @@ class Workhorse::WorkerTest < WorkhorseTest
 
   def assert_not_process(pid)
     assert_not process?(pid), "Process #{pid} expected to be stopped"
-  end
-
-  def process?(pid)
-    Process.kill(0, pid)
-    true
-  rescue Errno::EPERM, Errno::ESRCH
-    false
   end
 
   def enqueue_in_multiple_queues

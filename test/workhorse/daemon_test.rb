@@ -88,8 +88,10 @@ class Workhorse::DaemonTest < WorkhorseTest
       # Give workers time to fully start and register signal handlers
       sleep 0.5
 
-      elapsed = Benchmark.measure { daemon.soft_restart }.real
-      assert elapsed < 0.5, "soft_restart should return immediately, took #{elapsed}s"
+      result = nil
+      elapsed = Benchmark.measure { result = daemon.soft_restart }.real
+      assert_equal 0, result
+      assert elapsed < 0.1, "soft_restart should return immediately, took #{elapsed}s"
 
       # Wait for shutdown to complete before test cleanup
       daemon.workers.each do |w|
@@ -127,20 +129,34 @@ class Workhorse::DaemonTest < WorkhorseTest
                      "Shutdown file for PID #{pid} should be cleaned up"
         end
 
-        # Workers should be running again
+        # Workers should be running again with different PIDs
         assert_equal 0, daemon.status(quiet: true)
+        new_pids = daemon.workers.map(&:pid)
+        assert_empty(old_pids & new_pids, 'New workers should have different PIDs than old workers')
       end
     end
   end
 
-  private
+  def test_soft_restart_with_dead_worker
+    with_daemon 2 do
+      # Give workers time to fully start and register signal handlers
+      sleep 0.5
 
-  def process?(pid)
-    Process.kill(0, pid)
-    true
-  rescue Errno::EPERM, Errno::ESRCH
-    false
+      # Kill first worker so it's dead when we try to soft_restart
+      Process.kill 'KILL', daemon.workers.first.pid
+      with_retries { assert_not process?(daemon.workers.first.pid) }
+
+      # soft_restart returns 0 because read_pid detects the dead worker as
+      # inactive and skips it (the ESRCH rescue is never reached)
+      result = daemon.soft_restart
+      assert_equal 0, result
+
+      # Second worker should still soft-restart successfully
+      with_retries(150) { assert_not process?(daemon.workers.second.pid) }
+    end
   end
+
+  private
 
   def assert_watch_output(*expected_lines)
     silence_watcher_was = Workhorse.silence_watcher

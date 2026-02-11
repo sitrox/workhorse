@@ -230,9 +230,9 @@ module Workhorse
 
         begin
           Process.kill 'USR1', pid
-          puts "Worker ##{worker.id} (#{worker.name}): Sent soft-restart signal"
+          puts "Worker (#{worker.name}) ##{worker.id}: Sent soft-restart signal"
         rescue Errno::ESRCH
-          warn "Worker ##{worker.id} (#{worker.name}): Process not found"
+          warn "Worker (#{worker.name}) ##{worker.id}: Process not found"
           code = 2
         end
       end

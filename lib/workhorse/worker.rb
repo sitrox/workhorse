@@ -221,27 +221,7 @@ module Workhorse
     #
     # @return [Boolean] True if accepting jobs, false otherwise
     def accepting_jobs?
-      !@soft_restart_requested.true?
-    end
-
-    # Initiates a soft restart of the worker.
-    # Creates a shutdown file for the watch mechanism, then waits for all
-    # currently running jobs to complete before shutting down.
-    # This method returns immediately; shutdown happens asynchronously.
-    #
-    # @return [void]
-    def soft_restart!
-      return if @state == :shutdown
-      return if @soft_restart_requested.true?
-
-      @soft_restart_requested.make_true
-
-      # Create shutdown file for watch to detect
-      shutdown_file = self.class.shutdown_file_for(pid)
-      FileUtils.touch(shutdown_file) if shutdown_file
-
-      # Monitor in a separate thread to avoid blocking the signal handler
-      Thread.new { wait_for_idle_then_shutdown }
+      @soft_restart_requested.false?
     end
 
     # Schedules a job for execution in the thread pool.
@@ -344,6 +324,33 @@ module Workhorse
       end
     end
 
+    # Initiates a soft restart of the worker.
+    # Creates a shutdown file for the watch mechanism, then waits for all
+    # currently running jobs to complete before shutting down.
+    # This method returns immediately; shutdown happens asynchronously.
+    #
+    # @return [void]
+    # @private
+    def soft_restart
+      return if @state == :shutdown
+
+      return unless @soft_restart_requested.make_true
+
+      # Create shutdown file for watch to detect
+      shutdown_file = self.class.shutdown_file_for(pid)
+      FileUtils.touch(shutdown_file) if shutdown_file
+
+      # Monitor in a separate thread to avoid blocking the signal handler
+      @soft_restart_thread = Thread.new do
+        begin
+          wait_for_idle_then_shutdown
+        rescue Exception => e
+          log %(Soft restart error: #{e.message}\n#{e.backtrace.join("\n")}), :error
+          Workhorse.on_exception.call(e)
+        end
+      end
+    end
+
     # Sets up signal handler for soft restart (USR1 signal).
     #
     # @return [void]
@@ -353,16 +360,21 @@ module Workhorse
         # Start a new thread as certain functionality (such as logging) is not
         # available from within a trap context.
         Thread.new do
-          log "\nCaught #{SOFT_RESTART_SIGNAL}, initiating soft restart..."
-          soft_restart!
+          begin
+            log "\nCaught #{SOFT_RESTART_SIGNAL}, initiating soft restart..."
+            soft_restart
+          rescue Exception => e
+            log %(Soft restart signal handler error: #{e.message}\n#{e.backtrace.join("\n")}), :error
+            Workhorse.on_exception.call(e)
+          end
         end
-        # Note: Unlike trap_termination, we don't join here because soft_restart!
+        # Note: Unlike trap_termination, we don't join here because soft_restart
         # is designed to be fire-and-forget (it spawns its own monitoring thread).
       end
     end
 
     # Waits for all jobs to complete, then shuts down the worker.
-    # Called asynchronously from soft_restart!.
+    # Called asynchronously from soft_restart.
     #
     # @return [void]
     # @private
