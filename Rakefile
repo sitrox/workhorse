@@ -6,6 +6,8 @@ task :gemspec do
     spec.summary       = %(
       Multi-threaded job backend with database queuing for ruby.
     )
+    spec.license       = 'MIT'
+    spec.homepage      = 'https://github.com/sitrox/workhorse'
     spec.files         = `git ls-files`.split($INPUT_RECORD_SEPARATOR)
     spec.executables   = []
     spec.test_files    = spec.files.grep(%r{^(test|spec|features)/})
