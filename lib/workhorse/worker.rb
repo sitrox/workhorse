@@ -342,12 +342,10 @@ module Workhorse
 
       # Monitor in a separate thread to avoid blocking the signal handler
       @soft_restart_thread = Thread.new do
-        begin
-          wait_for_idle_then_shutdown
-        rescue Exception => e
-          log %(Soft restart error: #{e.message}\n#{e.backtrace.join("\n")}), :error
-          Workhorse.on_exception.call(e)
-        end
+        wait_for_idle_then_shutdown
+      rescue Exception => e
+        log %(Soft restart error: #{e.message}\n#{e.backtrace.join("\n")}), :error
+        Workhorse.on_exception.call(e)
       end
     end
 
@@ -360,15 +358,13 @@ module Workhorse
         # Start a new thread as certain functionality (such as logging) is not
         # available from within a trap context.
         Thread.new do
-          begin
-            log "\nCaught #{SOFT_RESTART_SIGNAL}, initiating soft restart..."
-            soft_restart
-          rescue Exception => e
-            log %(Soft restart signal handler error: #{e.message}\n#{e.backtrace.join("\n")}), :error
-            Workhorse.on_exception.call(e)
-          end
+          log "\nCaught #{SOFT_RESTART_SIGNAL}, initiating soft restart..."
+          soft_restart
+        rescue Exception => e
+          log %(Soft restart signal handler error: #{e.message}\n#{e.backtrace.join("\n")}), :error
+          Workhorse.on_exception.call(e)
         end
-        # Note: Unlike trap_termination, we don't join here because soft_restart
+        # NOTE: Unlike trap_termination, we don't join here because soft_restart
         # is designed to be fire-and-forget (it spawns its own monitoring thread).
       end
     end
