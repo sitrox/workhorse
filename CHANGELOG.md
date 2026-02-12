@@ -1,5 +1,9 @@
 # Workhorse Changelog
 
+## 1.4.0 - 2026-02-12
+
+* Stable release based on previous RC release.
+
 ## 1.4.0.rc0 - 2026-02-11
 
 * Add `soft-restart` daemon command for graceful worker restarts. Sends a
