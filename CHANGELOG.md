@@ -1,5 +1,21 @@
 # Workhorse Changelog
 
+## 1.4.1 - 2026-xx-xx
+
+* Close inherited lockfile fd in forked worker processes. Previously the
+  lockfile's file descriptor was inherited by children via `fork`, which could
+  prevent the POSIX `flock` from being released if the daemon process exited
+  abnormally.
+
+* Fix `watch` and `kill` commands to actually abort when the lock is
+  unavailable. Previously the `flock` return value with `LOCK_NB` was not
+  checked, so the commands would silently proceed without the lock.
+
+* Add error handling to the `HUP` signal handler for log reopening. Exceptions
+  from `logger.reopen` are now caught and reported via `on_exception`.
+
+  Sitrox reference: #120574.
+
 ## 1.4.0 - 2026-02-12
 
 * Stable release based on previous RC release.
