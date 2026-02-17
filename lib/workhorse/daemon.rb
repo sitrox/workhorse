@@ -34,6 +34,10 @@ module Workhorse
     # @private
     attr_reader :workers
 
+    # @return [File, nil] Lockfile handle to close in forked children
+    # @private
+    attr_accessor :lockfile
+
     # Creates a new daemon instance.
     #
     # @param pidfile [String, nil] Path template for PID files (use %i placeholder for worker ID)
@@ -261,6 +265,8 @@ module Workhorse
 
       pid = fork do
         $0 = process_name(worker)
+        # Close inherited lockfile fd to prevent holding the flock after parent exits
+        @lockfile&.close
         # Reopen pipes to prevent #107576
         $stdin.reopen File.open(File::NULL, 'r')
         null_out = File.open File::NULL, 'w'

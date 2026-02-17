@@ -1,5 +1,7 @@
 module Workhorse
   class Daemon::ShellHandler
+    class LockNotAvailableError < StandardError; end
+
     def self.run(**options, &block)
       unless ARGV.one?
         usage
@@ -15,27 +17,43 @@ module Workhorse
         case ARGV.first
         when 'start'
           lockfile = acquire_lock(lockfile_path, File::LOCK_EX)
+          daemon.lockfile = lockfile
           status = daemon.start
         when 'stop'
           lockfile = acquire_lock(lockfile_path, File::LOCK_EX)
+          daemon.lockfile = lockfile
           status = daemon.stop
         when 'kill'
-          lockfile = acquire_lock(lockfile_path, File::LOCK_EX | File::LOCK_NB)
-          status = daemon.stop(true)
+          begin
+            lockfile = acquire_lock(lockfile_path, File::LOCK_EX | File::LOCK_NB)
+            daemon.lockfile = lockfile
+            status = daemon.stop(true)
+          rescue LockNotAvailableError
+            status = 1
+          end
         when 'status'
           lockfile = acquire_lock(lockfile_path, File::LOCK_EX)
+          daemon.lockfile = lockfile
           status = daemon.status
         when 'watch'
-          lockfile = acquire_lock(lockfile_path, File::LOCK_EX | File::LOCK_NB)
-          status = daemon.watch
+          begin
+            lockfile = acquire_lock(lockfile_path, File::LOCK_EX | File::LOCK_NB)
+            daemon.lockfile = lockfile
+            status = daemon.watch
+          rescue LockNotAvailableError
+            status = 1
+          end
         when 'restart'
           lockfile = acquire_lock(lockfile_path, File::LOCK_EX)
+          daemon.lockfile = lockfile
           status = daemon.restart
         when 'restart-logging'
           lockfile = acquire_lock(lockfile_path, File::LOCK_EX)
+          daemon.lockfile = lockfile
           status = daemon.restart_logging
         when 'soft-restart'
           lockfile = acquire_lock(lockfile_path, File::LOCK_EX)
+          daemon.lockfile = lockfile
           status = daemon.soft_restart
         when 'usage'
           usage
@@ -105,7 +123,12 @@ module Workhorse
     def self.acquire_lock(lockfile_path, flags)
       if Workhorse.lock_shell_commands
         lockfile = File.open(lockfile_path, 'a')
-        lockfile.flock(flags)
+        result = lockfile.flock(flags)
+
+        if result == false
+          lockfile.close
+          fail LockNotAvailableError, 'Could not acquire lock. Is another workhorse command already running?'
+        end
 
         return lockfile
       end

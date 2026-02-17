@@ -296,11 +296,14 @@ module Workhorse
     def trap_log_reopen
       Signal.trap(LOG_REOPEN_SIGNAL) do
         Thread.new do
-          logger.reopen
+          logger&.reopen
 
           if defined?(ActiveRecord::Base) && ActiveRecord::Base.logger && ActiveRecord::Base.logger != logger
             ActiveRecord::Base.logger.reopen
           end
+        rescue Exception => e
+          log %(Log reopen signal handler error: #{e.message}\n#{e.backtrace.join("\n")}), :error
+          Workhorse.on_exception.call(e)
         end.join
       end
     end
