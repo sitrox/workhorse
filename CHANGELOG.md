@@ -1,6 +1,6 @@
 # Workhorse Changelog
 
-## 1.4.1 - 2026-xx-xx
+## 1.4.1 - 2026-02-18
 
 * Close inherited lockfile fd in forked worker processes. Previously the
   lockfile's file descriptor was inherited by children via `fork`, which could
