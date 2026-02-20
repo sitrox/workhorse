@@ -265,6 +265,10 @@ module Workhorse
 
       pid = fork do
         $0 = process_name(worker)
+        # Ignore HUP during startup so that a logrotate or restart-logging HUP
+        # arriving before Worker#start installs its trap doesn't crash the process
+        # with SignalException. Worker#start will override this with the proper handler.
+        Signal.trap('HUP', 'IGNORE')
         # Close inherited lockfile fd to prevent holding the flock after parent exits
         @lockfile&.close
         # Reopen pipes to prevent #107576
