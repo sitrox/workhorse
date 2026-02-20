@@ -264,11 +264,12 @@ module Workhorse
       check_rails_env if defined?(Rails)
 
       pid = fork do
+        # Detach from the parent's session so that the worker is not killed by
+        # SIGHUP when the parent (ShellHandler) exits. Without this, the kernel
+        # sends SIGHUP to the foreground process group when the session leader
+        # (e.g. a cron- or systemd-started ShellHandler) terminates.
+        Process.setsid
         $0 = process_name(worker)
-        # Ignore HUP during startup so that a logrotate or restart-logging HUP
-        # arriving before Worker#start installs its trap doesn't crash the process
-        # with SignalException. Worker#start will override this with the proper handler.
-        Signal.trap('HUP', 'IGNORE')
         # Close inherited lockfile fd to prevent holding the flock after parent exits
         @lockfile&.close
         # Reopen pipes to prevent #107576
