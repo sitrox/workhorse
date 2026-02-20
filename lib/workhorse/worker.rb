@@ -158,6 +158,8 @@ module Workhorse
         @poller.start
         log 'Started up'
 
+        Workhorse.debug_log("[Job worker #{id}] Started: PID=#{pid}, logger=#{describe_logger(logger)}")
+
         trap_termination if @auto_terminate
         trap_log_reopen
         trap_soft_restart
@@ -189,12 +191,14 @@ module Workhorse
       mutex.synchronize do
         assert_state! :running
 
+        Workhorse.debug_log("[Job worker #{id}] Shutdown starting")
         log 'Shutting down'
         @state = :shutdown
 
         @poller.shutdown
         @pool.shutdown
         log 'Shut down'
+        Workhorse.debug_log("[Job worker #{id}] Shutdown complete")
       end
     end
 
@@ -267,6 +271,8 @@ module Workhorse
 
       return true unless exceeded
 
+      Workhorse.debug_log("[Job worker #{id}] Memory limit exceeded: #{mem}MB > #{max}MB, initiating shutdown")
+
       if defined?(Rails)
         FileUtils.touch self.class.shutdown_file_for(pid)
       end
@@ -296,12 +302,14 @@ module Workhorse
     def trap_log_reopen
       Signal.trap(LOG_REOPEN_SIGNAL) do
         Thread.new do
-          logger&.reopen
+          Workhorse.debug_log("[Job worker #{id}] HUP received, logger state before reopen: #{describe_logger(logger)}")
 
-          if defined?(ActiveRecord::Base) && ActiveRecord::Base.logger && ActiveRecord::Base.logger != logger
-            ActiveRecord::Base.logger.reopen
-          end
+          logger&.reopen
+          Workhorse.debug_log("[Job worker #{id}] Logger state after reopen: #{describe_logger(logger)}")
+
+          Workhorse.debug_log("[Job worker #{id}] HUP handling complete")
         rescue Exception => e
+          Workhorse.debug_log("[Job worker #{id}] Logger reopen failed: #{e.class}: #{e.message}")
           log %(Log reopen signal handler error: #{e.message}\n#{e.backtrace.join("\n")}), :error
           Workhorse.on_exception.call(e)
         end.join
@@ -320,6 +328,7 @@ module Workhorse
           # quickly when called multiple times, this does not pose a risk of
           # keeping open a big number of "shutdown threads".
           Thread.new do
+            Workhorse.debug_log("[Job worker #{id}] #{signal} received, shutting down")
             log "\nCaught #{signal}, shutting worker down..."
             shutdown
           end.join
@@ -339,9 +348,14 @@ module Workhorse
 
       return unless @soft_restart_requested.make_true
 
+      Workhorse.debug_log("[Job worker #{id}] Soft restart initiated")
+
       # Create shutdown file for watch to detect
       shutdown_file = self.class.shutdown_file_for(pid)
-      FileUtils.touch(shutdown_file) if shutdown_file
+      if shutdown_file
+        FileUtils.touch(shutdown_file)
+        Workhorse.debug_log("[Job worker #{id}] Shutdown file created: #{shutdown_file}")
+      end
 
       # Monitor in a separate thread to avoid blocking the signal handler
       @soft_restart_thread = Thread.new do
@@ -361,6 +375,7 @@ module Workhorse
         # Start a new thread as certain functionality (such as logging) is not
         # available from within a trap context.
         Thread.new do
+          Workhorse.debug_log("[Job worker #{id}] #{SOFT_RESTART_SIGNAL} received, initiating soft restart")
           log "\nCaught #{SOFT_RESTART_SIGNAL}, initiating soft restart..."
           soft_restart
         rescue Exception => e
@@ -372,16 +387,52 @@ module Workhorse
       end
     end
 
+    # Returns a human-readable description of a logger's internal state.
+    # Used for debug logging to diagnose log rotation issues.
+    #
+    # @param lgr [Logger, nil] The logger to describe
+    # @return [String] Description of the logger's state
+    # @private
+    def describe_logger(lgr)
+      return 'nil' unless lgr
+
+      parts = ["class=#{lgr.class}"]
+
+      logdev = lgr.instance_variable_get(:@logdev)
+      if logdev
+        parts << "filename=#{logdev.filename.inspect}" if logdev.respond_to?(:filename)
+
+        dev = logdev.respond_to?(:dev) ? logdev.dev : nil
+        if dev
+          parts << "closed=#{dev.closed?}"
+          unless dev.closed?
+            fileno = dev.fileno
+            parts << "fd=#{fileno}"
+            fd_path = "/proc/self/fd/#{fileno}"
+            parts << "fd_target=#{File.readlink(fd_path).inspect}" if File.exist?(fd_path)
+          end
+        end
+      else
+        parts << 'logdev=nil'
+      end
+
+      parts.join(', ')
+    rescue Exception => e
+      "error describing logger: #{e.class}: #{e.message}"
+    end
+
     # Waits for all jobs to complete, then shuts down the worker.
     # Called asynchronously from soft_restart.
     #
     # @return [void]
     # @private
     def wait_for_idle_then_shutdown
+      Workhorse.debug_log("[Job worker #{id}] Waiting for idle before soft restart shutdown (pool_size=#{@pool_size})")
       loop do
         break if @state == :shutdown
 
         if idle == @pool_size
+          Workhorse.debug_log("[Job worker #{id}] All threads idle, proceeding with soft restart shutdown")
           log 'All jobs completed, shutting down for soft restart'
           shutdown
           break

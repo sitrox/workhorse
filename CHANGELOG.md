@@ -1,5 +1,17 @@
 # Workhorse Changelog
 
+## 1.4.2 - 2026-02-20
+
+* Detach forked worker processes into their own session using `Process.setsid`.
+  Previously, when the ShellHandler was the session leader (e.g. started via
+  cron), its exit would cause the kernel to send `SIGHUP` to all forked workers,
+  potentially crashing them during startup before signal handlers were installed.
+
+* Add optional debug logging (`config.debug_log_path`) for diagnosing issues
+  with signal handling, process lifecycle, log rotation, and daemon commands.
+
+  Sitrox reference: #120574.
+
 ## 1.4.1 - 2026-02-18
 
 * Close inherited lockfile fd in forked worker processes. Previously the

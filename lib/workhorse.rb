@@ -107,6 +107,31 @@ module Workhorse
   mattr_accessor :max_worker_memory_mb
   self.max_worker_memory_mb = 0
 
+  # Path to a debug log file for diagnosing log rotation and signal handling issues.
+  # When set, Workhorse writes timestamped debug entries to this file at key points
+  # (worker startup, HUP signal handling, restart-logging command flow).
+  # Set to nil to disable (default).
+  #
+  # @return [String, nil] Path to debug log file
+  mattr_accessor :debug_log_path
+  self.debug_log_path = nil
+
+  # Writes a debug message to the debug log file.
+  # Does nothing if {.debug_log_path} is nil.
+  # Silently ignores all exceptions to avoid interfering with normal operation.
+  #
+  # @param message [String] The message to log
+  # @return [void]
+  def self.debug_log(message)
+    return unless debug_log_path
+
+    File.open(debug_log_path, 'a') do |f|
+      f.write("[#{Time.now.iso8601(3)}] [PID #{Process.pid}] #{message}\n")
+      f.flush
+    end
+  rescue Exception # rubocop:disable Lint/SuppressedException
+  end
+
   # Configuration method for setting up Workhorse options.
   #
   # @yield [self] Configuration block

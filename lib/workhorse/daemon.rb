@@ -201,20 +201,27 @@ module Workhorse
     def restart_logging
       code = 0
 
+      Workhorse.debug_log("restart_logging: sending HUP to #{@workers.count} worker(s)")
+
       for_each_worker do |worker|
         _pid_file, pid, active = read_pid(worker)
+
+        Workhorse.debug_log("restart_logging: worker ##{worker.id} (#{worker.name}): pid=#{pid.inspect}, active=#{active.inspect}")
 
         next unless pid && active
 
         begin
           Process.kill 'HUP', pid
+          Workhorse.debug_log("restart_logging: HUP sent successfully to PID #{pid}")
           puts "Worker (#{worker.name}) ##{worker.id}: Sent signal for restart-logging"
         rescue Errno::ESRCH
+          Workhorse.debug_log("restart_logging: HUP failed for PID #{pid}: process not found")
           warn "Worker (#{worker.name}) ##{worker.id}: Could not send signal for restart-logging, process not found"
           code = 2
         end
       end
 
+      Workhorse.debug_log("restart_logging: done, exit code=#{code}")
       return code
     end
 
@@ -227,20 +234,27 @@ module Workhorse
     def soft_restart
       code = 0
 
+      Workhorse.debug_log("Daemon: sending USR1 to #{@workers.count} worker(s)")
+
       for_each_worker do |worker|
         _pid_file, pid, active = read_pid(worker)
+
+        Workhorse.debug_log("Daemon soft_restart: worker ##{worker.id} (#{worker.name}): pid=#{pid.inspect}, active=#{active.inspect}")
 
         next unless pid && active
 
         begin
           Process.kill 'USR1', pid
+          Workhorse.debug_log("Daemon: USR1 sent successfully to PID #{pid}")
           puts "Worker (#{worker.name}) ##{worker.id}: Sent soft-restart signal"
         rescue Errno::ESRCH
+          Workhorse.debug_log("Daemon: USR1 failed for PID #{pid}: process not found")
           warn "Worker (#{worker.name}) ##{worker.id}: Process not found"
           code = 2
         end
       end
 
+      Workhorse.debug_log("Daemon soft_restart: done, exit code=#{code}")
       return code
     end
 
@@ -263,6 +277,7 @@ module Workhorse
     def start_worker(worker)
       check_rails_env if defined?(Rails)
 
+      Workhorse.debug_log("Daemon: forking worker ##{worker.id} (#{worker.name})")
       pid = fork do
         # Detach from the parent's session so that the worker is not killed by
         # SIGHUP when the parent (ShellHandler) exits. Without this, the kernel
@@ -283,6 +298,7 @@ module Workhorse
       worker.pid = pid
       File.write(pid_file_for(worker), pid)
       Process.detach(pid)
+      Workhorse.debug_log("Daemon: worker ##{worker.id} (#{worker.name}) forked with PID #{pid}")
     end
 
     # Stops a single worker process.
@@ -295,6 +311,7 @@ module Workhorse
     def stop_worker(pid_file, pid, kill: false)
       signals = kill ? %w[KILL] : %w[TERM INT]
 
+      Workhorse.debug_log("Daemon: stopping PID #{pid} with signals #{signals.join(', ')}")
       loop do
         begin
           signals.each { |signal| Process.kill(signal, pid) }
@@ -305,6 +322,7 @@ module Workhorse
         sleep 1
       end
 
+      Workhorse.debug_log("Daemon: PID #{pid} stopped")
       File.delete(pid_file)
     end
 

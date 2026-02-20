@@ -16,43 +16,61 @@ module Workhorse
       begin
         case ARGV.first
         when 'start'
+          Workhorse.debug_log('ShellHandler: start command invoked')
           lockfile = acquire_lock(lockfile_path, File::LOCK_EX)
+          Workhorse.debug_log('ShellHandler: lock acquired for start')
           daemon.lockfile = lockfile
           status = daemon.start
         when 'stop'
+          Workhorse.debug_log('ShellHandler: stop command invoked')
           lockfile = acquire_lock(lockfile_path, File::LOCK_EX)
+          Workhorse.debug_log('ShellHandler: lock acquired for stop')
           daemon.lockfile = lockfile
           status = daemon.stop
         when 'kill'
+          Workhorse.debug_log('ShellHandler: kill command invoked')
           begin
             lockfile = acquire_lock(lockfile_path, File::LOCK_EX | File::LOCK_NB)
+            Workhorse.debug_log('ShellHandler: lock acquired for kill')
             daemon.lockfile = lockfile
             status = daemon.stop(true)
           rescue LockNotAvailableError
+            Workhorse.debug_log('ShellHandler: lock not available for kill')
             status = 1
           end
         when 'status'
+          Workhorse.debug_log('ShellHandler: status command invoked')
           lockfile = acquire_lock(lockfile_path, File::LOCK_EX)
+          Workhorse.debug_log('ShellHandler: lock acquired for status')
           daemon.lockfile = lockfile
           status = daemon.status
         when 'watch'
+          Workhorse.debug_log('ShellHandler: watch command invoked')
           begin
             lockfile = acquire_lock(lockfile_path, File::LOCK_EX | File::LOCK_NB)
+            Workhorse.debug_log('ShellHandler: lock acquired for watch')
             daemon.lockfile = lockfile
             status = daemon.watch
           rescue LockNotAvailableError
+            Workhorse.debug_log('ShellHandler: lock not available for watch')
             status = 1
           end
         when 'restart'
+          Workhorse.debug_log('ShellHandler: restart command invoked')
           lockfile = acquire_lock(lockfile_path, File::LOCK_EX)
+          Workhorse.debug_log('ShellHandler: lock acquired for restart')
           daemon.lockfile = lockfile
           status = daemon.restart
         when 'restart-logging'
+          Workhorse.debug_log('ShellHandler: restart-logging command invoked')
           lockfile = acquire_lock(lockfile_path, File::LOCK_EX)
+          Workhorse.debug_log('ShellHandler: lock acquired for restart-logging')
           daemon.lockfile = lockfile
           status = daemon.restart_logging
         when 'soft-restart'
+          Workhorse.debug_log('ShellHandler: soft-restart command invoked')
           lockfile = acquire_lock(lockfile_path, File::LOCK_EX)
+          Workhorse.debug_log('ShellHandler: lock acquired for soft-restart')
           daemon.lockfile = lockfile
           status = daemon.soft_restart
         when 'usage'
@@ -66,7 +84,10 @@ module Workhorse
         warn "#{e.message}\n#{e.backtrace.join("\n")}"
         status = 99
       ensure
-        lockfile&.flock(File::LOCK_UN)
+        if lockfile
+          Workhorse.debug_log("ShellHandler: releasing lock for #{ARGV.first}")
+          lockfile.flock(File::LOCK_UN)
+        end
         exit! status
       end
     end

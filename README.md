@@ -522,13 +522,29 @@ Gem-internal model class `Workhorse::DbJob`, for example:
 
 ```ruby
 # config/initializers/workhorse.rb
-
 ActiveSupport.on_load :workhorse_db_job do
   # Code within this block will be run inside of the model class
   # Workhorse::DbJob.
   belongs_to :user
 end
 ```
+
+## Debug logging
+
+Workhorse includes an optional debug log for diagnosing issues with signal
+handling, process lifecycle, log rotation, and daemon commands. To enable,
+set `debug_log_path` to a writable file path:
+
+```ruby
+# config/initializers/workhorse.rb
+Workhorse.setup do |config|
+  config.debug_log_path = Rails.root.join('log', 'workhorse.debug.log')
+end
+```
+
+The debug log is designed to be safe for production use: all writes are
+best-effort and silently ignore errors to avoid interfering with normal
+operation. Set `debug_log_path` to `nil` (the default) to disable.
 
 ## Caveats
 
