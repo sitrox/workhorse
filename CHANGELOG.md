@@ -1,5 +1,11 @@
 # Workhorse Changelog
 
+## Unreleased
+
+* Close the lockfile after releasing the lock in the ShellHandler.
+
+  Sitrox reference: #120574.
+
 ## 1.4.3 - 2026-04-24
 
 * Make debug logging (enabled if `config.debug_log_path` is set) more verbose.

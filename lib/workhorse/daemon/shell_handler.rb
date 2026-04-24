@@ -88,6 +88,7 @@ module Workhorse
         if lockfile
           Workhorse.debug_log("ShellHandler: releasing lock for #{ARGV.first}")
           lockfile.flock(File::LOCK_UN)
+          lockfile.close
         end
         Workhorse.debug_log("ShellHandler: exiting with status #{status}")
         exit! status
