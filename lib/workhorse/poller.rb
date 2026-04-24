@@ -49,14 +49,18 @@ module Workhorse
       fail 'Poller is already running.' if running?
       @running = true
 
+      Workhorse.debug_log("[Job worker #{worker.id}] Poller starting")
+
       clean_stuck_jobs! if Workhorse.clean_stuck_jobs
 
       @thread = Thread.new do
+        Workhorse.debug_log("[Job worker #{worker.id}] Poller thread started")
         loop do
           break unless running?
 
           begin
             unless @before_poll.call
+              Workhorse.debug_log("[Job worker #{worker.id}] before_poll returned false, triggering worker shutdown")
               Thread.new { worker.shutdown }
               sleep
               next
@@ -65,6 +69,7 @@ module Workhorse
             poll
             sleep
           rescue Exception => e
+            Workhorse.debug_log("[Job worker #{worker.id}] Poller exception, shutting down: #{e.class}: #{e.message}")
             worker.log %(Poll encountered exception:\n#{e.message}\n#{e.backtrace.join("\n")})
             worker.log 'Worker shutting down...'
             Workhorse.on_exception.call(e) unless Workhorse.silence_poller_exceptions
@@ -73,6 +78,7 @@ module Workhorse
             break
           end
         end
+        Workhorse.debug_log("[Job worker #{worker.id}] Poller thread exiting")
       end
     end
 
@@ -82,8 +88,10 @@ module Workhorse
     # @raise [RuntimeError] If poller is not running
     def shutdown
       fail 'Poller is not running.' unless running?
+      Workhorse.debug_log("[Job worker #{worker.id}] Poller shutting down")
       @running = false
       wait
+      Workhorse.debug_log("[Job worker #{worker.id}] Poller shut down")
     end
 
     # Waits for the poller thread to complete.

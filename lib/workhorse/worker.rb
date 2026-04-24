@@ -302,18 +302,19 @@ module Workhorse
     def trap_log_reopen
       Signal.trap(LOG_REOPEN_SIGNAL) do
         Thread.new do
-          Workhorse.debug_log("[Job worker #{id}] HUP received, logger state before reopen: #{describe_logger(logger)}")
+          Workhorse.debug_log("[Job worker #{id}] #{LOG_REOPEN_SIGNAL} received, logger state before reopen: #{describe_logger(logger)}")
 
           logger&.reopen
           Workhorse.debug_log("[Job worker #{id}] Logger state after reopen: #{describe_logger(logger)}")
 
-          Workhorse.debug_log("[Job worker #{id}] HUP handling complete")
+          Workhorse.debug_log("[Job worker #{id}] #{LOG_REOPEN_SIGNAL} handling complete")
         rescue Exception => e
-          Workhorse.debug_log("[Job worker #{id}] Logger reopen failed: #{e.class}: #{e.message}")
+          Workhorse.debug_log("[Job worker #{id}] Logger reopen failed: #{e.class}: #{e.message}\n#{e.backtrace.join("\n")}")
           log %(Log reopen signal handler error: #{e.message}\n#{e.backtrace.join("\n")}), :error
           Workhorse.on_exception.call(e)
         end.join
       end
+      Workhorse.debug_log("[Job worker #{id}] Signal handler installed: #{LOG_REOPEN_SIGNAL}")
     end
 
     # Sets up signal handlers for graceful termination (TERM/INT signals).
@@ -334,6 +335,7 @@ module Workhorse
           end.join
         end
       end
+      Workhorse.debug_log("[Job worker #{id}] Signal handlers installed: #{SHUTDOWN_SIGNALS.join(', ')}")
     end
 
     # Initiates a soft restart of the worker.
@@ -385,6 +387,7 @@ module Workhorse
         # NOTE: Unlike trap_termination, we don't join here because soft_restart
         # is designed to be fire-and-forget (it spawns its own monitoring thread).
       end
+      Workhorse.debug_log("[Job worker #{id}] Signal handler installed: #{SOFT_RESTART_SIGNAL}")
     end
 
     # Returns a human-readable description of a logger's internal state.

@@ -82,6 +82,8 @@ module Workhorse
     def start(quiet: false)
       code = 0
 
+      Workhorse.debug_log("Daemon: starting #{@workers.count} worker(s)")
+
       # Holds messages in format [[<message>, <severity>]]
       messages = []
 
@@ -89,9 +91,11 @@ module Workhorse
         pid_file, pid, active = read_pid(worker)
 
         if pid_file && pid && active
+          Workhorse.debug_log("Daemon start: worker ##{worker.id} (#{worker.name}) already running (PID #{pid})")
           messages << ["Worker ##{worker.id} (#{worker.name}): Already started (PID #{pid})", 2] unless quiet
           code = 2
         elsif pid_file
+          Workhorse.debug_log("Daemon start: worker ##{worker.id} (#{worker.name}) has stale pid file (PID #{pid.inspect}), starting")
           File.delete pid_file
 
           shutdown_file = pid ? Workhorse::Worker.shutdown_file_for(pid) : nil
@@ -101,6 +105,7 @@ module Workhorse
           start_worker worker
           FileUtils.rm(shutdown_file) if shutdown_file
         else
+          Workhorse.debug_log("Daemon start: worker ##{worker.id} (#{worker.name}) not running, starting")
           messages << ["Worker ##{worker.id} (#{worker.name}): Starting", 1] unless quiet
           start_worker worker
         end
@@ -115,6 +120,7 @@ module Workhorse
         end
       end
 
+      Workhorse.debug_log("Daemon: start complete, exit code=#{code}")
       return code
     end
 
@@ -126,21 +132,27 @@ module Workhorse
     def stop(kill = false, quiet: false)
       code = 0
 
+      Workhorse.debug_log("Daemon: stopping #{@workers.count} worker(s) (kill=#{kill})")
+
       for_each_worker do |worker|
         pid_file, pid, active = read_pid(worker)
 
         if pid_file && pid && active
+          Workhorse.debug_log("Daemon stop: worker ##{worker.id} (#{worker.name}) running (PID #{pid}), stopping")
           puts "Worker (#{worker.name}) ##{worker.id}: Stopping" unless quiet
           stop_worker pid_file, pid, kill: kill
         elsif pid_file
+          Workhorse.debug_log("Daemon stop: worker ##{worker.id} (#{worker.name}) stale pid file (PID #{pid.inspect})")
           File.delete pid_file
           puts "Worker (#{worker.name}) ##{worker.id}: Already stopped (stale PID file)" unless quiet
         else
+          Workhorse.debug_log("Daemon stop: worker ##{worker.id} (#{worker.name}) already stopped")
           warn "Worker (#{worker.name}) ##{worker.id}: Already stopped" unless quiet
           code = 2
         end
       end
 
+      Workhorse.debug_log("Daemon: stop complete, exit code=#{code}")
       return code
     end
 
@@ -155,16 +167,20 @@ module Workhorse
         pid_file, pid, active = read_pid(worker)
 
         if pid_file && pid && active
+          Workhorse.debug_log("Daemon status: worker ##{worker.id} (#{worker.name}) running (PID #{pid})")
           puts "Worker ##{worker.id} (#{worker.name}): Running" unless quiet
         elsif pid_file
+          Workhorse.debug_log("Daemon status: worker ##{worker.id} (#{worker.name}) not running (stale PID file, PID #{pid.inspect})")
           warn "Worker ##{worker.id} (#{worker.name}): Not running (stale PID file)" unless quiet
           code = 2
         else
+          Workhorse.debug_log("Daemon status: worker ##{worker.id} (#{worker.name}) not running (no pid file)")
           warn "Worker ##{worker.id} (#{worker.name}): Not running" unless quiet
           code = 2
         end
       end
 
+      Workhorse.debug_log("Daemon: status complete, exit code=#{code}")
       return code
     end
 
@@ -179,9 +195,14 @@ module Workhorse
         should_be_running = true
       end
 
-      if should_be_running && status(quiet: true) != 0
+      status_code = status(quiet: true)
+      Workhorse.debug_log("Daemon watch: should_be_running=#{should_be_running}, status_code=#{status_code}")
+
+      if should_be_running && status_code != 0
+        Workhorse.debug_log('Daemon watch: starting workers')
         return start(quiet: Workhorse.silence_watcher)
       else
+        Workhorse.debug_log('Daemon watch: no action needed')
         return 0
       end
     end

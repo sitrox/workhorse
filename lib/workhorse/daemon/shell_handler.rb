@@ -81,6 +81,7 @@ module Workhorse
           status = 99
         end
       rescue StandardError => e
+        Workhorse.debug_log("ShellHandler: #{ARGV.first} failed with #{e.class}: #{e.message}")
         warn "#{e.message}\n#{e.backtrace.join("\n")}"
         status = 99
       ensure
@@ -88,6 +89,7 @@ module Workhorse
           Workhorse.debug_log("ShellHandler: releasing lock for #{ARGV.first}")
           lockfile.flock(File::LOCK_UN)
         end
+        Workhorse.debug_log("ShellHandler: exiting with status #{status}")
         exit! status
       end
     end
