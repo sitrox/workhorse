@@ -310,7 +310,7 @@ module Workhorse
         @lockfile&.close
         # Reopen pipes to prevent #107576
         $stdin.reopen File.open(File::NULL, 'r')
-        null_out = File.open File::NULL, 'w'
+        null_out = File.open(File::NULL, 'w') # rubocop:disable Style/FileOpen
         $stdout.reopen null_out
         $stderr.reopen null_out
 

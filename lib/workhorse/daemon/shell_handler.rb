@@ -145,7 +145,7 @@ module Workhorse
 
     def self.acquire_lock(lockfile_path, flags)
       if Workhorse.lock_shell_commands
-        lockfile = File.open(lockfile_path, 'a')
+        lockfile = File.open(lockfile_path, 'a') # rubocop:disable Style/FileOpen
         result = lockfile.flock(flags)
 
         if result == false
