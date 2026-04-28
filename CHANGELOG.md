@@ -1,10 +1,14 @@
 # Workhorse Changelog
 
-## 1.4.3 - 2026-04-24
+## 1.4.4 - 2026-04-28
 
 * Make debug logging (enabled if `config.debug_log_path` is set) more verbose.
 
   Sitrox reference: #120574.
+
+## 1.4.3 - 2026-04-28
+
+* Yanked from RubyGems. Do not use this release.
 
 ## 1.4.2 - 2026-02-20
 
@@ -68,7 +72,7 @@
 
 ## 1.3.0.rc4 - 2025-08-27
 
-* Fix race-condition in polling mechanism which could result in workers 
+* Fix race-condition in polling mechanism which could result in workers
   trying to run a job that is not yet locked.
 
   Sitrox reference: #128333.
