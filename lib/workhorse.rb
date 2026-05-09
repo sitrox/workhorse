@@ -8,6 +8,16 @@ require 'workhorse/enqueuer'
 require 'workhorse/scoped_env'
 require 'workhorse/active_job_extension'
 
+# Prevent YJIT from being enabled when RUBY_YJIT_ENABLE is explicitly set to 0.
+# systemd's logrotate.service typically sets MemoryDenyWriteExecute=yes, which
+# prevents mprotect(PROT_EXEC). Rails unconditionally calls
+# RubyVM::YJIT.enable on boot, which triggers a fatal Ruby [BUG] in that
+# environment. Set RUBY_YJIT_ENABLE=0 in the logrotate postrotate script
+# to prevent this.
+if ENV['RUBY_YJIT_ENABLE'] == '0' && defined?(RubyVM::YJIT) && !RubyVM::YJIT.enabled?
+  RubyVM::YJIT.define_singleton_method(:enable) { |**| nil }
+end
+
 # Main Gem module.
 module Workhorse
   # Check if the available Arel version is greater or equal than 7.0.0

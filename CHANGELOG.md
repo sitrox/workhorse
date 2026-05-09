@@ -1,8 +1,14 @@
 # Workhorse Changelog
 
-## Unreleased
+## 1.4.5 - 2026-05-09
 
 * Close the lockfile after releasing the lock in the ShellHandler.
+
+  Sitrox reference: #120574.
+
+* Prevent YJIT from being enabled when `RUBY_YJIT_ENABLE=0` is set. This allows
+  running workhorse commands in systemd services that set
+  `MemoryDenyWriteExecute=yes`.
 
   Sitrox reference: #120574.
 

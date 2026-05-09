@@ -529,6 +529,17 @@ ActiveSupport.on_load :workhorse_db_job do
 end
 ```
 
+## Running in systemd services
+
+When running workhorse commands inside a systemd service that sets
+`MemoryDenyWriteExecute=yes`, Ruby's YJIT cannot allocate executable memory and
+will crash. To prevent this, set `RUBY_YJIT_ENABLE=0` before invoking the
+workhorse command:
+
+```bash
+RUBY_YJIT_ENABLE=0 ./bin/workhorse restart-logging
+```
+
 ## Debug logging
 
 Workhorse includes an optional debug log for diagnosing issues with signal
