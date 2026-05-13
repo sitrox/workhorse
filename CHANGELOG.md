@@ -1,5 +1,32 @@
 # Workhorse Changelog
 
+## Unreleased
+
+* Change `DetectStaleJobsJob` to accept `locked_to_started_threshold` and
+  `run_time_threshold` as keyword arguments instead of reading from global
+  configuration. The config options `Workhorse.stale_detection_locked_to_started_threshold`
+  and `Workhorse.stale_detection_run_time_threshold` have been removed.
+
+  If you were previously configuring thresholds globally:
+
+  ```ruby
+  # Before
+  Workhorse.setup do |config|
+    config.stale_detection_locked_to_started_threshold = 300
+    config.stale_detection_run_time_threshold = 3600
+  end
+  Workhorse.enqueue(DetectStaleJobsJob.new)
+
+  # After
+  Workhorse.enqueue(DetectStaleJobsJob.new(locked_to_started_threshold: 300, run_time_threshold: 3600))
+  ```
+
+* Add `queues` keyword argument to `DetectStaleJobsJob` to restrict stale job
+  detection to specific queues. When omitted, all queues are checked (existing
+  behavior).
+
+  Sitrox reference: #148226.
+
 ## 1.4.5 - 2026-05-09
 
 * Close the lockfile after releasing the lock in the ShellHandler.

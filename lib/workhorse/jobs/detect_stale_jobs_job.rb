@@ -5,24 +5,27 @@ module Workhorse::Jobs
   # exception is thrown (which may cause a notification if you configured
   # {Workhorse.on_exception} accordingly).
   #
-  # The thresholds are obtained from the configuration options
-  # {Workhorse.stale_detection_locked_to_started_threshold} and
-  # {Workhorse.stale_detection_run_time_threshold}.
-  #
-  # @example Schedule stale job detection
+  # @example Schedule stale job detection with default thresholds
   #   Workhorse.enqueue(DetectStaleJobsJob.new)
   #
-  # @example Configure thresholds
-  #   Workhorse.setup do |config|
-  #     config.stale_detection_locked_to_started_threshold = 300  # 5 minutes
-  #     config.stale_detection_run_time_threshold = 3600         # 1 hour
-  #   end
+  # @example Schedule with custom thresholds
+  #   Workhorse.enqueue(DetectStaleJobsJob.new(locked_to_started_threshold: 300, run_time_threshold: 3600))
+  #
+  # @example Only check specific queues
+  #   Workhorse.enqueue(DetectStaleJobsJob.new(queues: ['mailer', 'reports']))
   class DetectStaleJobsJob
     # Creates a new stale job detection job.
-    # Reads configuration thresholds at initialization time.
-    def initialize
-      @locked_to_started_threshold = Workhorse.stale_detection_locked_to_started_threshold
-      @run_time_threshold          = Workhorse.stale_detection_run_time_threshold
+    #
+    # @param locked_to_started_threshold [Integer] Maximum number of seconds a job is
+    #   allowed to stay 'locked' before an exception is raised. Set to 0 to skip this check.
+    # @param run_time_threshold [Integer] Maximum number of seconds a job is allowed to
+    #   run before an exception is raised. Set to 0 to skip this check.
+    # @param queues [Array<String>, nil] If given, only check jobs in these queues.
+    #   If `nil` (default), all queues are checked.
+    def initialize(locked_to_started_threshold: 3 * 60, run_time_threshold: 12 * 60, queues: nil)
+      @locked_to_started_threshold = locked_to_started_threshold
+      @run_time_threshold          = run_time_threshold
+      @queues                      = queues
     end
 
     # Executes the stale job detection.
@@ -38,6 +41,7 @@ module Workhorse::Jobs
       if @locked_to_started_threshold != 0
         rel = Workhorse::DbJob.locked
         rel = rel.where('locked_at < ?', @locked_to_started_threshold.seconds.ago)
+        rel = rel.where(queue: @queues) if @queues
         ids = rel.pluck(:id)
 
         unless ids.empty?
@@ -50,6 +54,7 @@ module Workhorse::Jobs
       if @run_time_threshold != 0
         rel = Workhorse::DbJob.started
         rel = rel.where('started_at < ?', @run_time_threshold.seconds.ago)
+        rel = rel.where(queue: @queues) if @queues
         ids = rel.pluck(:id)
 
         unless ids.empty?

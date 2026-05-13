@@ -98,18 +98,6 @@ module Workhorse
   mattr_accessor :clean_stuck_jobs
   self.clean_stuck_jobs = false
 
-  # This setting is for {Workhorse::Jobs::DetectStaleJobsJob} and specifies the
-  # maximum number of seconds a job is allowed to stay 'locked' before this job
-  # throws an exception. Set this to 0 to skip this check.
-  mattr_accessor :stale_detection_locked_to_started_threshold
-  self.stale_detection_locked_to_started_threshold = 3 * 60
-
-  # This setting is for {Workhorse::Jobs::DetectStaleJobsJob} and specifies the
-  # maximum number of seconds a job is allowed to run before this job throws an
-  # exception. Set this to 0 to skip this check.
-  mattr_accessor :stale_detection_run_time_threshold
-  self.stale_detection_run_time_threshold = 12 * 60
-
   # Maximum memory usage per {Workhorse::Worker} process in MB.
   # When exceeded, the watch command will restart the worker. Set to 0 to disable.
   #
