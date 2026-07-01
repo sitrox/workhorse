@@ -1,6 +1,6 @@
 # Workhorse Changelog
 
-## Unreleased
+## 1.5.0 - 2026-07-01
 
 * Change `DetectStaleJobsJob` to accept `locked_to_started_threshold` and
   `run_time_threshold` as keyword arguments instead of reading from global
@@ -25,7 +25,7 @@
   detection to specific queues. When omitted, all queues are checked (existing
   behavior).
 
-  Sitrox reference: #148226.
+  Sitrox reference: #132256.
 
 ## 1.4.5 - 2026-05-09
 
