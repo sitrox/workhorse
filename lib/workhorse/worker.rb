@@ -65,6 +65,23 @@ module Workhorse
       Rails.root.join('tmp', 'pids', "workhorse.#{pid}.shutdown")
     end
 
+    # Returns the path to the heartbeat file for a given daemon worker id.
+    #
+    # The heartbeat file is touched on every successful poll (see {#heartbeat!})
+    # and lets external monitoring determine, from its mtime, how long ago a
+    # worker last polled. It is keyed by the daemon worker id (the same id used
+    # for the pidfile) rather than the pid, so the mtime survives restarts and
+    # forms a stable per-slot "last polled at" clock.
+    #
+    # @param daemon_id [String, Integer] Daemon worker id (see
+    #   {Workhorse::Daemon}).
+    # @return [Pathname, nil] Path to heartbeat file or nil if not in Rails
+    # @private
+    def self.heartbeat_file_for(daemon_id)
+      return nil unless defined?(Rails)
+      Rails.root.join('tmp', 'pids', "workhorse.#{daemon_id}.heartbeat")
+    end
+
     # Instantiates a new worker. The worker is not automatically started.
     #
     # @param queues [Array] The queues you want this worker to process. If an
@@ -226,6 +243,28 @@ module Workhorse
     # @return [Boolean] True if accepting jobs, false otherwise
     def accepting_jobs?
       @soft_restart_requested.false?
+    end
+
+    # Touches this worker's heartbeat file to record that it just polled
+    # successfully. Called at the end of each poll (see {Workhorse::Poller#poll}).
+    #
+    # Keyed by the daemon worker id provided via the
+    # `WORKHORSE_DAEMON_WORKER_ID` environment variable (set by
+    # {Workhorse::Daemon} when forking the worker). No-op when the id is absent
+    # (e.g. workers not started through the daemon) or when not running in Rails.
+    #
+    # This is best-effort: any error is swallowed so that a heartbeat failure can
+    # never take down the worker.
+    #
+    # @return [void]
+    def heartbeat!
+      daemon_id = ENV.fetch('WORKHORSE_DAEMON_WORKER_ID', nil)
+      return unless daemon_id
+
+      path = self.class.heartbeat_file_for(daemon_id)
+      FileUtils.touch(path) if path
+    rescue StandardError => e
+      Workhorse.debug_log("[Job worker #{id}] Heartbeat touch failed: #{e.class}: #{e.message}")
     end
 
     # Schedules a job for execution in the thread pool.

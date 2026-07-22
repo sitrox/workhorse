@@ -1,5 +1,15 @@
 # Workhorse Changelog
 
+## 1.5.1 - 2026-07-22
+
+* Add per-worker heartbeat files. On every successful poll, each worker touches
+  `tmp/pids/workhorse.<daemon_id>.heartbeat` (keyed by daemon worker id, the same
+  id used for the pidfile). The file's mtime provides a stable per-worker
+  "last polled at" clock that survives restarts, letting external monitoring
+  detect dead, crash-looping, or hung workers. The daemon exposes the worker id
+  to the forked worker process via the `WORKHORSE_DAEMON_WORKER_ID` environment
+  variable.
+
 ## 1.5.0 - 2026-07-01
 
 * Change `DetectStaleJobsJob` to accept `locked_to_started_threshold` and

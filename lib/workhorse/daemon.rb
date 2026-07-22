@@ -314,6 +314,10 @@ module Workhorse
         $stdout.reopen null_out
         $stderr.reopen null_out
 
+        # Expose the daemon worker id so the worker can key its heartbeat file
+        # by slot (see Workhorse::Worker#heartbeat!). Same id as the pidfile.
+        ENV['WORKHORSE_DAEMON_WORKER_ID'] = worker.id.to_s
+
         worker.block.call
       end
       worker.pid = pid

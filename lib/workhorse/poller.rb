@@ -302,6 +302,12 @@ module Workhorse
         # while we were acquiring the lock or querying jobs.
         job_ids.each { |job_id| worker.perform(job_id) } if running? && worker.accepting_jobs?
       end
+
+      # Record that this worker successfully polled. Done at the very end so it
+      # only advances when the poll actually completed (a poll that raises never
+      # reaches here). Skipped on the early return above when the worker is no
+      # longer accepting jobs, so a soft-restarting worker correctly ages out.
+      worker.heartbeat!
     end
 
     # Returns an array of {Workhorse::DbJob}s that can be started.

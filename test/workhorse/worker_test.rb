@@ -306,6 +306,53 @@ class Workhorse::WorkerTest < WorkhorseTest
     Workhorse.max_worker_memory_mb = 0
   end
 
+  def test_heartbeat_file_for
+    assert_equal(
+      Rails.root.join('tmp', 'pids', 'workhorse.3.heartbeat').to_s,
+      Workhorse::Worker.heartbeat_file_for(3).to_s
+    )
+  end
+
+  def test_heartbeat_noop_without_daemon_id
+    ENV.delete('WORKHORSE_DAEMON_WORKER_ID')
+    path = Workhorse::Worker.heartbeat_file_for('42')
+    FileUtils.rm_f(path)
+
+    Workhorse::Worker.new.heartbeat!
+
+    assert_not File.exist?(path), 'heartbeat must not be touched without a daemon id'
+  ensure
+    FileUtils.rm_f(path)
+  end
+
+  def test_heartbeat_touches_file
+    ENV['WORKHORSE_DAEMON_WORKER_ID'] = '42'
+    path = Workhorse::Worker.heartbeat_file_for('42')
+    FileUtils.rm_f(path)
+
+    Workhorse::Worker.new.heartbeat!
+
+    assert File.exist?(path), 'heartbeat file expected to be touched'
+  ensure
+    ENV.delete('WORKHORSE_DAEMON_WORKER_ID')
+    FileUtils.rm_f(path)
+  end
+
+  def test_poll_touches_heartbeat
+    ENV['WORKHORSE_DAEMON_WORKER_ID'] = '42'
+    path = Workhorse::Worker.heartbeat_file_for('42')
+    FileUtils.rm_f(path)
+
+    with_worker(pool_size: 1, polling_interval: 0.1) do
+      with_retries do
+        assert File.exist?(path), 'expected a successful poll to touch the heartbeat file'
+      end
+    end
+  ensure
+    ENV.delete('WORKHORSE_DAEMON_WORKER_ID')
+    FileUtils.rm_f(path)
+  end
+
   private
 
   def assert_process(pid)
