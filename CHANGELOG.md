@@ -10,6 +10,8 @@
   to the forked worker process via the `WORKHORSE_DAEMON_WORKER_ID` environment
   variable.
 
+  Sitrox reference: #151020.
+
 ## 1.5.0 - 2026-07-01
 
 * Change `DetectStaleJobsJob` to accept `locked_to_started_threshold` and
