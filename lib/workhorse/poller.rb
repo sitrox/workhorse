@@ -452,7 +452,7 @@ module Workhorse
       select.projections = []
       queues = select.project(:queue)
 
-      return Workhorse::DbJob.connection.execute(queues.distinct.to_sql).to_a.flatten
+      return Workhorse::DbJob.connection.select_values(queues.distinct.to_sql)
     end
   end
 end

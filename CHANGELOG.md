@@ -1,5 +1,15 @@
 # Workhorse Changelog
 
+## Unreleased
+
+* Fix `Poller#valid_queues` raising `NoMethodError` on the Oracle adapter. The
+  `activerecord-oracle_enhanced-adapter` returns `true` from `#execute` instead
+  of a result set, so the subsequent `.to_a` call failed with
+  `undefined method 'to_a' for true`. Switched to `#select_values`, which
+  returns the queue names on both MySQL and Oracle.
+
+  Sitrox reference: #152178.
+
 ## 1.5.1 - 2026-07-22
 
 * Add per-worker heartbeat files. On every successful poll, each worker touches
