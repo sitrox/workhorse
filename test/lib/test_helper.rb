@@ -1,5 +1,4 @@
 require 'minitest/autorun'
-require 'minitest/mock'
 require 'active_record'
 require 'active_job'
 require 'pry'
@@ -55,6 +54,19 @@ class WorkhorseTest < ActiveSupport::TestCase
   protected
 
   attr_reader :daemon
+
+  # Temporarily replaces the method `method` on `object` with one that always
+  # returns `value`, for the duration of the given block.
+  #
+  # This is implemented by hand rather than using minitest's `stub`, as
+  # `minitest/mock` is not available in every minitest version this gem is
+  # tested against.
+  def with_return_value(object, method, value)
+    object.define_singleton_method(method) { |*, **| value }
+    yield
+  ensure
+    object.singleton_class.send(:remove_method, method)
+  end
 
   def clear_locks_and_db_threads!
     Workhorse::DbJob.connection.execute('SELECT RELEASE_ALL_LOCKS()')

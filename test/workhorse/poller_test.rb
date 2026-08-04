@@ -81,7 +81,7 @@ class Workhorse::PollerTest < WorkhorseTest
     Workhorse.enqueue BasicJob.new(sleep_time: 2), queue: nil
     Workhorse.enqueue BasicJob.new(sleep_time: 2), queue: :a
 
-    Workhorse::DbJob.connection.stub(:execute, true) do
+    with_return_value(Workhorse::DbJob.connection, :execute, true) do
       assert_equal [nil, 'a'], w.poller.send(:valid_queues)
     end
   end
