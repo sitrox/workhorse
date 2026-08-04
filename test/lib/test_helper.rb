@@ -1,11 +1,24 @@
 require 'minitest/autorun'
+require 'minitest/mock'
 require 'active_record'
 require 'active_job'
 require 'pry'
-require 'mysql2'
 require 'benchmark'
 require 'concurrent'
 require 'jobs'
+
+# The adapter to run the test suite against. Both MySQL / MariaDB adapters are
+# supported, as workhorse has to work with either of them.
+DB_ADAPTER = ENV.fetch('DB_ADAPTER', 'mysql2')
+
+case DB_ADAPTER
+when 'mysql2'
+  require 'mysql2'
+when 'trilogy'
+  require 'trilogy'
+else
+  fail "Unsupported DB_ADAPTER #{DB_ADAPTER.inspect}, use 'mysql2' or 'trilogy'."
+end
 
 class MockRailsEnv < String
   def production?
@@ -46,7 +59,9 @@ class WorkhorseTest < ActiveSupport::TestCase
   def clear_locks_and_db_threads!
     Workhorse::DbJob.connection.execute('SELECT RELEASE_ALL_LOCKS()')
 
-    pids = Workhorse::DbJob.connection.execute(<<~SQL.squish).to_a.flatten
+    # Use `select_values` rather than `execute`, as the latter does not return a
+    # result set on every adapter.
+    pids = Workhorse::DbJob.connection.select_values(<<~SQL.squish)
       SELECT ID FROM INFORMATION_SCHEMA.PROCESSLIST WHERE ID != CONNECTION_ID()
     SQL
 
@@ -179,7 +194,7 @@ class WorkhorseTest < ActiveSupport::TestCase
 end
 
 ActiveRecord::Base.establish_connection(
-  adapter:  'mysql2',
+  adapter:  DB_ADAPTER,
   database: ENV.fetch('DB_NAME', nil) || 'workhorse',
   username: ENV.fetch('DB_USERNAME', nil) || 'root',
   password: ENV.fetch('DB_PASSWORD', nil) || '',

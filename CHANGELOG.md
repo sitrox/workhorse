@@ -5,10 +5,16 @@
 * Fix `Poller#valid_queues` raising `NoMethodError` on the Oracle adapter. The
   `activerecord-oracle_enhanced-adapter` returns `true` from `#execute` instead
   of a result set, so the subsequent `.to_a` call failed with
-  `undefined method 'to_a' for true`. Switched to `#select_values`, which
-  returns the queue names on both MySQL and Oracle.
+  `undefined method 'to_a' for true`. Switched to `#select_values`, which is
+  implemented in terms of `#exec_query` and therefore returns the queue names on
+  the `mysql2`, `trilogy` and `oracle_enhanced` adapters alike (the latter both
+  before and after version 7.0.0).
 
   Sitrox reference: #152178.
+
+* Run the test suite against both the `mysql2` and the `trilogy` adapter. The
+  adapter can be selected using the `DB_ADAPTER` environment variable and
+  defaults to `mysql2`.
 
 ## 1.5.1 - 2026-07-22
 

@@ -452,6 +452,11 @@ module Workhorse
       select.projections = []
       queues = select.project(:queue)
 
+      # Note that `select_values` is used here on purpose: `execute` does not
+      # return a result set on every adapter (the Oracle enhanced adapter, for
+      # instance, returns `true` for queries), while `select_values` is
+      # implemented in terms of `exec_query` and thus behaves the same on the
+      # mysql2, trilogy and Oracle enhanced adapters.
       return Workhorse::DbJob.connection.select_values(queues.distinct.to_sql)
     end
   end
