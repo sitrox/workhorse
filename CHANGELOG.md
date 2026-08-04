@@ -1,6 +1,6 @@
 # Workhorse Changelog
 
-## Unreleased
+## 1.5.2 - 2026-08-04
 
 * Fix `Poller#valid_queues` raising `NoMethodError` on the Oracle adapter. The
   `activerecord-oracle_enhanced-adapter` returns `true` from `#execute` instead
