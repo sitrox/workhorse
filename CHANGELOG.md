@@ -56,6 +56,22 @@
   end
   ```
 
+* Fix a deadlock between shutting a worker down and the poller posting a job.
+  `Worker#shutdown` held the worker's mutex while waiting for the poller thread
+  to finish, and that thread could be waiting for the very same mutex in
+  `Worker#perform`, having just committed the lock on a job. The worker then
+  ignored `TERM`, and the daemon's `stop` looped on it indefinitely. The state
+  transition no longer covers the waiting.
+
+  A job that was locked but cannot be performed because the worker is shutting
+  down is now reset to `waiting` instead of being left locked, where it would
+  have blocked its queue until a manual reset.
+
+* Fix `Worker#shutdown` raising when called concurrently, which the daemon does
+  by sending both `TERM` and `INT`. Callers that do not perform the state
+  transition now wait for the shutdown to complete rather than failing the
+  state assertion.
+
 * Document that PostgreSQL is not supported. Workers emit `GET_LOCK` on every
   poll, which PostgreSQL does not provide, so a worker fails on its first poll.
   The requirements previously listed it alongside MySQL / MariaDB and Oracle,

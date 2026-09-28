@@ -202,21 +202,41 @@ module Workhorse
       # final state this worker can be in.
       return if @state == :shutdown
 
-      # TODO: There is a race-condition with this shutdown:
-      #  - If the poller is currently locking a job, it may call
-      #    "worker.perform", which in turn tries to synchronize the same mutex.
-      mutex.synchronize do
-        assert_state! :running
+      # Only the caller that performs the transition shuts the worker down;
+      # any other is a repeat call and returns, as documented above.
+      transitioned = mutex.synchronize do
+        next false unless @state == :running
 
         Workhorse.debug_log("[Job worker #{id}] Shutdown starting")
         log 'Shutting down'
         @state = :shutdown
 
-        @poller.shutdown
-        @pool.shutdown
-        log 'Shut down'
-        Workhorse.debug_log("[Job worker #{id}] Shutdown complete")
+        next true
       end
+
+      unless transitioned
+        # Another thread is shutting the worker down. Wait for it rather than
+        # returning early, so that this call keeps the promise above that
+        # running jobs have finished once it returns.
+        @pool.wait
+        return
+      end
+
+      # Deliberately outside the mutex. Stopping the poller waits for the
+      # poller thread, and that thread may be in #perform waiting for this
+      # very mutex, having just committed the lock on a job. Holding the mutex
+      # here would deadlock the two, leaving a worker that ignores TERM.
+      begin
+        @poller.shutdown
+      ensure
+        # Even if the poller was already gone - it shuts itself down after an
+        # exception - the pool has to be stopped, or #wait never returns and a
+        # concurrent shutdown waits forever.
+        @pool.shutdown
+      end
+
+      log 'Shut down'
+      Workhorse.debug_log("[Job worker #{id}] Shutdown complete")
     end
 
     # Waits until the worker is shut down. This only happens if {#shutdown} gets
@@ -272,26 +292,48 @@ module Workhorse
     # @param db_job_id [Integer] The ID of the {Workhorse::DbJob} to perform
     # @return [void]
     def perform(db_job_id)
-      begin # rubocop:disable Style/RedundantBegin
-        mutex.synchronize do
-          assert_state! :running
-          log "Posting job #{db_job_id} to thread pool"
+      mutex.synchronize do
+        # The poller commits the lock on a job before posting it here, so the
+        # worker may have begun shutting down in between. Nothing will run the
+        # job in this worker, so hand it back instead of posting it.
+        next release(db_job_id) unless @state == :running
 
-          @pool.post do
-            begin # rubocop:disable Style/RedundantBegin
-              Workhorse::Performer.new(db_job_id, self).perform
-            rescue Exception => e
-              log %(#{e.message}\n#{e.backtrace.join("\n")}), :error
-              Workhorse.on_exception.call(e)
-            end
+        log "Posting job #{db_job_id} to thread pool"
+
+        @pool.post do
+          begin # rubocop:disable Style/RedundantBegin
+            Workhorse::Performer.new(db_job_id, self).perform
+          rescue Exception => e
+            log %(#{e.message}\n#{e.backtrace.join("\n")}), :error
+            Workhorse.on_exception.call(e)
           end
         end
-      rescue Exception => e
-        Workhorse.on_exception.call(e)
       end
+    rescue Exception => e
+      Workhorse.on_exception.call(e)
     end
 
     private
+
+    # Resets a job this worker locked but will not run back to `waiting`, so
+    # that another worker picks it up.
+    #
+    # Leaving it locked would be worse than the delay: a locked job in a named
+    # queue blocks that queue entirely until somebody resets it by hand.
+    #
+    # @param db_job_id [Integer] The ID of the {Workhorse::DbJob} to release
+    # @return [void]
+    # @private
+    def release(db_job_id)
+      db_job = Workhorse::DbJob.find(db_job_id)
+
+      return unless db_job.state.to_sym == Workhorse::DbJob::STATE_LOCKED
+
+      log "Not performing job #{db_job_id} as the worker is shutting down, resetting it to waiting"
+      db_job.reset!(true)
+
+      return
+    end
 
     # Checks current memory usage and initiates shutdown if limit exceeded.
     #

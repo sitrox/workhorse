@@ -1,6 +1,66 @@
 require 'test_helper'
 
 class Workhorse::WorkerTest < WorkhorseTest
+  # Reproduces the interleaving that used to deadlock the worker: #shutdown
+  # held the worker's mutex while waiting for the poller thread to finish,
+  # and the poller thread was waiting for that same mutex inside #perform,
+  # having just committed the lock on a job. Neither could proceed, the
+  # process ignored TERM, and the daemon's stop looped on it forever.
+  def test_shutdown_while_the_poller_posts_a_job
+    job = Workhorse.enqueue BasicJob.new(sleep_time: 0)
+    w = Workhorse::Worker.new(polling_interval: 60, pool_size: 1)
+
+    # As the poller would have, in a transaction that has already committed.
+    job.mark_locked!(w.id)
+
+    at_perform = Concurrent::Event.new
+    posted = Concurrent::Event.new
+
+    w.poller.define_singleton_method(:poll) do
+      next if @posted_once
+
+      @posted_once = true
+      at_perform.set
+      # Give the shutdown below time to get as far as waiting for this thread.
+      Kernel.sleep 0.3
+      worker.perform(job.id)
+      posted.set
+    end
+
+    w.start
+
+    assert at_perform.wait(5), 'poller did not reach the job posting'
+
+    Timeout.timeout(15) do
+      w.shutdown
+    end
+
+    assert posted.wait(5), 'poller thread never returned from #perform'
+
+    # The job was locked but will not run here, so it has to be handed back
+    # rather than left locked, which would block its queue until a manual
+    # reset.
+    job.reload
+
+    assert_equal 'waiting', job.state
+    assert_nil job.locked_at
+    assert_nil job.locked_by
+  end
+
+  # Both TERM and INT are sent by the daemon's stop, so two threads can call
+  # #shutdown at once. The second must not raise, and must not return before
+  # the shutdown it is waiting on has finished.
+  def test_concurrent_shutdown
+    with_worker(polling_interval: 0.2, pool_size: 2, auto_terminate: false) do |w|
+      results = Timeout.timeout(15) do
+        4.times.map { Thread.new { w.shutdown } }.map(&:join).map(&:value)
+      end
+
+      assert_equal 4, results.size
+      assert_equal :shutdown, w.state
+    end
+  end
+
   def test_idle
     with_worker(pool_size: 5, polling_interval: 0.2) do |w|
       assert_equal 5, w.idle
