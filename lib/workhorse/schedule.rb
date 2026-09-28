@@ -104,8 +104,8 @@ module Workhorse
     # the claim succeeded.
     #
     # Written as a compare-and-swap rather than a plain update so that exactly
-    # one worker materialises an occurrence even without the global lock the
-    # poller currently holds.
+    # one worker materializes an occurrence even if the claim is ever made
+    # without the global lock the poller currently holds.
     #
     # @param new_next_at [Time]
     # @return [Boolean]
