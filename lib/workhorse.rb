@@ -105,6 +105,42 @@ module Workhorse
   mattr_accessor :max_worker_memory_mb
   self.max_worker_memory_mb = 0
 
+  # Channel a {Workhorse::Notifiers::Redis} notifier publishes on. Defaults to
+  # {Workhorse::Notifiers::Redis::DEFAULT_CHANNEL} when nil.
+  #
+  # @return [String, nil] Channel name
+  mattr_accessor :notification_channel
+  self.notification_channel = nil
+
+  # Redis client used by a {Workhorse::Notifiers::Redis} notifier.
+  #
+  # @return [Object, nil] A Redis client
+  mattr_accessor :notification_redis
+  self.notification_redis = nil
+
+  # Path of the file a {Workhorse::Notifiers::FileSystem} notifier touches.
+  # Every process that enqueues jobs and every worker must agree on it.
+  #
+  # Defaults to `tmp/pids/workhorse.wake` below the Rails root, or below the
+  # working directory outside of Rails.
+  #
+  # @return [String] Path of the notification file
+  def self.notification_path
+    return @notification_path if @notification_path
+
+    root = defined?(Rails) ? Rails.root : Dir.pwd
+
+    return ::File.join(root.to_s, 'tmp', 'pids', 'workhorse.wake')
+  end
+
+  # Sets the path of the notification file, see {.notification_path}.
+  #
+  # @param value [String, nil] Path, or nil to restore the default
+  # @return [void]
+  def self.notification_path=(value)
+    @notification_path = value
+  end
+
   # Path to a debug log file for diagnosing log rotation and signal handling issues.
   # When set, Workhorse writes timestamped debug entries to this file at key points
   # (worker startup, HUP signal handling, restart-logging command flow).
@@ -130,6 +166,32 @@ module Workhorse
   rescue Exception # rubocop:disable Lint/SuppressedException
   end
 
+  # Notifier that lets a worker start an enqueued job without waiting for its
+  # next poll. Polling stays the floor, so a notification that is not
+  # delivered costs latency and nothing else.
+  #
+  # Set to `:none` (the default), `:file`, `:redis`, or an instance of a
+  # {Workhorse::Notifiers::Base} subclass.
+  #
+  # @return [Workhorse::Notifiers::Base] The configured notifier
+  def self.notifier
+    return @notifier ||= Workhorse::Notifiers::None.new
+  end
+
+  # Sets the notifier, see {.notifier}.
+  #
+  # @param value [Symbol, Workhorse::Notifiers::Base] The notifier to use
+  # @return [void]
+  def self.notifier=(value)
+    @notifier = case value
+                when :none, nil then Workhorse::Notifiers::None.new
+                when :file      then Workhorse::Notifiers::FileSystem.new
+                when :redis     then Workhorse::Notifiers::Redis.new
+                when Symbol     then fail(ArgumentError, "Unknown notifier #{value.inspect}, use :none, :file or :redis.")
+                else value
+                end
+  end
+
   # Configuration method for setting up Workhorse options.
   #
   # @yield [self] Configuration block
@@ -142,6 +204,10 @@ module Workhorse
   end
 end
 
+require 'workhorse/notifiers/base'
+require 'workhorse/notifiers/none'
+require 'workhorse/notifiers/file_system'
+require 'workhorse/notifiers/redis'
 require 'workhorse/db_job'
 require 'workhorse/performer'
 require 'workhorse/poller'

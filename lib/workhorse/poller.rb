@@ -10,6 +10,11 @@ module Workhorse
     MIN_LOCK_TIMEOUT = 0.1 # In seconds
     MAX_LOCK_TIMEOUT = 1.0 # In seconds
 
+    # Length of one slice of the poller's sleep, in seconds. The poller sleeps
+    # in slices rather than for the whole polling interval so that it stays
+    # responsive to shutdown, to instant repolling and to notifications.
+    SLEEP_SLICE = 0.1
+
     ORACLE_LOCK_MODE   = 6           # X_MODE (exclusive)
     ORACLE_LOCK_HANDLE = 478_564_848 # Randomly chosen number
 
@@ -51,6 +56,11 @@ module Workhorse
 
       Workhorse.debug_log("[Job worker #{worker.id}] Poller starting")
 
+      Workhorse.notifier.start
+      # Only jobs announced from now on concern this worker; anything enqueued
+      # earlier is found by the poll that follows.
+      @last_notification = Workhorse.notifier.token
+
       clean_stuck_jobs! if Workhorse.clean_stuck_jobs
 
       @thread = Thread.new do
@@ -91,6 +101,7 @@ module Workhorse
       Workhorse.debug_log("[Job worker #{worker.id}] Poller shutting down")
       @running = false
       wait
+      Workhorse.notifier.stop
       Workhorse.debug_log("[Job worker #{worker.id}] Poller shut down")
     end
 
@@ -174,7 +185,9 @@ module Workhorse
       end
     end
 
-    # Sleeps for the configured polling interval with instant repoll support.
+    # Sleeps for the configured polling interval, returning early for an
+    # instant repoll, for shutdown, or as soon as a notification announces a
+    # newly enqueued job.
     #
     # @return [void]
     # @private
@@ -182,9 +195,35 @@ module Workhorse
       remaining = worker.polling_interval
 
       while running? && remaining > 0 && @instant_repoll.false?
-        Kernel.sleep 0.1
-        remaining -= 0.1
+        Kernel.sleep SLEEP_SLICE
+        remaining -= SLEEP_SLICE
+
+        next unless notified?
+
+        worker.log 'Job was announced, polling ahead of the interval', :debug
+        break
       end
+    end
+
+    # Returns whether a job has been announced since this poller last looked,
+    # and records what it saw.
+    #
+    # A worker with no idle thread deliberately leaves the token untouched, so
+    # that the notification is still pending once it has capacity again.
+    #
+    # @return [Boolean]
+    # @private
+    def notified?
+      return false unless worker.accepting_jobs?
+      return false if worker.idle.zero?
+
+      token = Workhorse.notifier.token
+
+      return false if token.nil? || token == @last_notification
+
+      @last_notification = token
+
+      return true
     end
 
     # Executes a block with a global database lock.

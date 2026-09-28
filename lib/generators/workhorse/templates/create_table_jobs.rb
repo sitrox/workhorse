@@ -22,12 +22,16 @@ class CreateTableJobs < ActiveRecord::Migration[7.1]
       t.timestamps null: false
     end
 
+    # The index names are given explicitly because the ones Rails would derive
+    # exceed the 30 characters Oracle allows before 12.2.
     if oracle?
       add_index :jobs, :queue
-      add_index :jobs, :state
+      add_index :jobs, %i[state perform_at], name: 'idx_jobs_state_perform_at'
+      add_index :jobs, %i[state priority created_at], name: 'idx_jobs_state_prio_created'
     else
       add_index :jobs, :queue, length: 191
-      add_index :jobs, :state, length: 191
+      add_index :jobs, %i[state perform_at], length: { state: 191 }, name: 'idx_jobs_state_perform_at'
+      add_index :jobs, %i[state priority created_at], length: { state: 191 }, name: 'idx_jobs_state_prio_created'
     end
     add_index :jobs, :perform_at
   end

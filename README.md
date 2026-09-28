@@ -35,8 +35,8 @@ What it does not do:
 
 * Ruby `>= 3.0` (may work with earlier versions but is untested)
 * Rails `>= 7.0`
-* A database and table handler that properly supports row-level locking (such as
-  MySQL with InnoDB, PostgreSQL, or Oracle).
+* One of the supported databases (see [Database support](#database-support)):
+  MySQL / MariaDB with InnoDB, or Oracle. **PostgreSQL is not supported.**
 * If you are planning on using the daemons handler:
   * An operating system and file system that supports file locking.
   * MRI Ruby (aka "CRuby") as jRuby does not support `fork`. See the
@@ -67,10 +67,27 @@ What it does not do:
 
    Please customize the initializer and worker script to your liking.
 
-### Oracle
+### Database support
 
-When using Oracle databases, make sure your schema has access to the package
-`DBMS_LOCK`:
+Workhorse serialises job pickup using a database-level lock, which is
+necessarily written against a specific database's dialect. Two families are
+implemented:
+
+| Database          | Supported | Lock used            | Covered by CI |
+|-------------------|-----------|----------------------|---------------|
+| MySQL / MariaDB   | Yes       | `GET_LOCK`           | Yes, against both the `mysql2` and the `trilogy` adapter |
+| Oracle            | Yes       | `DBMS_LOCK`          | No, tested manually against `activerecord-oracle_enhanced-adapter` |
+| PostgreSQL        | **No**    | —                    | — |
+| Everything else   | **No**    | —                    | — |
+
+There is no PostgreSQL implementation: workers emit `GET_LOCK` on every poll,
+which PostgreSQL does not provide, so a worker fails on its first poll.
+Supporting it would mean an advisory-lock dialect of its own
+(`pg_advisory_lock`) and is not currently planned. Note that InnoDB is required
+on MySQL / MariaDB, as MyISAM supports neither transactions nor row-level
+locking.
+
+When using Oracle, make sure your schema has access to the package `DBMS_LOCK`:
 
 ```
 GRANT execute ON DBMS_LOCK TO <schema-name>;
@@ -277,6 +294,77 @@ polling interval.
 
 This setting is recommended for all setups and may eventually be enabled by
 default.
+
+### Notifications
+
+Instant repolling only helps *after* a job has been performed. A worker that is
+idle and waiting for new work still sleeps out its entire polling interval, so
+a job enqueued just after a poll waits almost a full interval before it starts.
+
+Shortening the polling interval is the obvious remedy and a poor one: every
+poll acquires a global database lock, so more frequent polling across several
+workers increases contention, and a worker that fails to acquire the lock skips
+its poll and waits another whole interval. Polling costs the same whether or
+not anything is happening.
+
+*Notifications* turn the question around. Enqueuing a job announces it, and a
+waiting worker polls straight away instead of sleeping out its interval:
+
+```ruby
+# config/initializers/workhorse.rb
+Workhorse.setup do |config|
+  config.notifier = :file
+end
+```
+
+Polling remains the floor. A notification that is never delivered — a worker
+that was restarting, an enqueue from a host that cannot reach the others —
+costs latency and nothing else, as the regular poll still finds the job. For
+the same reason, raise `polling_interval` only as far as you are willing to
+wait when a notification *is* missed.
+
+Two notifiers ship with workhorse:
+
+#### `:file`
+
+Touches a single file, which waiting workers stat once per 0.1 seconds on a
+tick the poller performs anyway. It costs no database work at all and around a
+microsecond of CPU per check, and a job starts within roughly 100 milliseconds.
+
+It requires that the processes enqueueing jobs and the workers share a
+filesystem, which in practice means the same host. Where they do not, the
+touch never reaches those workers and they fall back to polling.
+
+The file defaults to `tmp/pids/workhorse.wake` below the Rails root and can be
+moved with `config.notification_path`. Every process involved must agree on it.
+
+#### `:redis`
+
+Publishes on a Redis pub/sub channel, for deployments whose workers do not
+share a filesystem with the application. Redis is a soft dependency: it is not
+declared as a dependency of this gem and is only loaded when this notifier is
+selected.
+
+```ruby
+Workhorse.setup do |config|
+  config.notifier = :redis
+  config.notification_redis = Redis.new(url: ENV['REDIS_URL'])
+  config.notification_channel = 'workhorse:jobs' # optional
+end
+```
+
+#### Writing your own
+
+Subclass `Workhorse::Notifiers::Base` and assign an instance to
+`config.notifier`. A notifier announces jobs with `notify` and exposes a
+`token` that changes whenever a notification has arrived; workers compare it
+against the last value they saw, so several workers in one process stay
+independent of one another. `notify` must never raise — a job must still be
+enqueued when it cannot be announced.
+
+Note that jobs with a future `perform_at` are not announced, as a woken worker
+would find nothing to do; they are picked up by the regular poll once they are
+due.
 
 ## Transactions
 

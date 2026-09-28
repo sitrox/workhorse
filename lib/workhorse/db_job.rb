@@ -27,6 +27,12 @@ module Workhorse
 
     self.table_name = 'jobs'
 
+    # Announce the job *after* the surrounding transaction has committed.
+    # Notifying before would wake a worker that cannot see the row yet, which
+    # would send it back to sleep for a whole polling interval - the very
+    # delay the notification exists to avoid.
+    after_commit :notify_workers, on: :create
+
     # Returns jobs in waiting state.
     #
     # @return [ActiveRecord::Relation] Jobs waiting to be processed
@@ -136,8 +142,6 @@ module Workhorse
       end
 
       if locked_at
-        # TODO: Remove this debug output
-        # puts "Already locked. Job: #{self.id} Worker: #{worker_id}"
         fail "Job #{id} is already locked by #{locked_by.inspect}."
       end
 
@@ -183,6 +187,22 @@ module Workhorse
       self.succeeded_at = Time.now
       self.state        = STATE_SUCCEEDED
       save!
+    end
+
+    # Announces this job to waiting workers, see {Workhorse.notifier}.
+    #
+    # Jobs that are not due yet are not announced: a woken worker would find
+    # nothing to do. They are picked up by the regular poll once their
+    # `perform_at` has passed.
+    #
+    # @return [void]
+    # @private
+    def notify_workers
+      return if perform_at && perform_at > Time.now
+
+      Workhorse.notifier.notify(queue: queue)
+
+      return
     end
 
     # Asserts that the job is in one of the specified states.

@@ -1,5 +1,66 @@
 # Workhorse Changelog
 
+## 1.5.3 - 2026-09-28
+
+* Add *notifications*, which let a worker start an enqueued job without waiting
+  for its next poll. Enqueuing announces the job, and a waiting worker polls
+  straight away instead of sleeping out its polling interval. Polling remains
+  the floor, so an undelivered notification costs latency and nothing else.
+
+  Two notifiers ship with workhorse, and both are off by default:
+
+  * `:file` touches a single file that waiting workers stat on a tick the
+    poller performs anyway. It costs no database work and starts a job within
+    roughly 100 milliseconds, but requires that the processes enqueueing jobs
+    and the workers share a filesystem.
+
+  * `:redis` publishes on a Redis pub/sub channel, for deployments whose
+    workers do not share a filesystem with the application. Redis is a soft
+    dependency, loaded only when this notifier is selected.
+
+  ```ruby
+  # config/initializers/workhorse.rb
+  Workhorse.setup do |config|
+    config.notifier = :file
+  end
+  ```
+
+  Custom notifiers can be written by subclassing
+  `Workhorse::Notifiers::Base`. See the README for the full description.
+
+  Sitrox reference: #154443.
+
+* Add the composite indexes `[state, perform_at]` and
+  `[state, priority, created_at]` to the migration created by
+  `rails generate workhorse:install`, replacing the single-column index on
+  `state`. Polling filters on `state` together with `perform_at` and orders by
+  `priority` and `created_at`, which a single-column index cannot serve.
+
+  Existing installations are advised to add them, in particular before enabling
+  probing:
+
+  ```ruby
+  class AddCompositeIndexesToJobs < ActiveRecord::Migration[7.1]
+    def change
+      # Omit the `length` option on Oracle. The names are given explicitly
+      # because the ones Rails would derive exceed the 30 characters Oracle
+      # allows before 12.2.
+      add_index :jobs, %i[state perform_at],
+                length: { state: 191 }, name: 'idx_jobs_state_perform_at'
+      add_index :jobs, %i[state priority created_at],
+                length: { state: 191 }, name: 'idx_jobs_state_prio_created'
+
+      # Now redundant, as `state` leads both indexes above
+      remove_index :jobs, :state
+    end
+  end
+  ```
+
+* Document that PostgreSQL is not supported. Workers emit `GET_LOCK` on every
+  poll, which PostgreSQL does not provide, so a worker fails on its first poll.
+  The requirements previously listed it alongside MySQL / MariaDB and Oracle,
+  which are the databases workhorse actually implements a lock for.
+
 ## 1.5.2 - 2026-08-04
 
 * Fix `Poller#valid_queues` raising `NoMethodError` on the Oracle adapter. The
