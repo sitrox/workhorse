@@ -234,6 +234,10 @@ Both callbacks are best-effort: anything they raise goes to
 `Workhorse.on_exception` and never affects the worker or the job. An expiry is
 logged at `warn` whether or not a callback is configured.
 
+Expired jobs stay in the table like any other finished job.
+`Workhorse::Jobs::CleanupSucceededJobs` removes them along with succeeded ones;
+pass `states: [Workhorse::DbJob::STATE_SUCCEEDED]` to keep them.
+
 ### Detecting schedules that stopped
 
 Neither callback can fire for a job that was never created, so if no worker is
@@ -270,8 +274,11 @@ materialised, without a deployment:
 Workhorse::Schedule.find_by(key: 'morning_digest').update!(enabled: false)
 ```
 
-Removing a schedule from the declarations deletes its row on the next worker
-startup, which also discards the occurrence it was waiting for.
+Removing a schedule from the declarations deletes its row once no worker has
+declared it for a day. The delay matters during a rolling deployment, where
+the old and the new version run at once: were rows removed immediately, each
+version would delete the other's schedules and reset the occurrences they were
+waiting for.
 
 ## Configuring and starting workers
 

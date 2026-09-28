@@ -35,8 +35,14 @@ module Workhorse::Jobs
     # @return [void]
     # @raise [RuntimeError] If schedules are found that are overdue
     def perform
-      rel = Workhorse::Schedule.where(enabled: true)
-      rel = rel.where(key: @keys) if @keys
+      # Only schedules this process declares. A row whose declaration is gone
+      # is waiting to be cleaned up by reconciliation and nothing materializes
+      # it, so reporting it would be a false alarm.
+      keys = @keys || Workhorse::Schedules.definitions.keys
+
+      return if keys.empty?
+
+      rel = Workhorse::Schedule.where(enabled: true, key: keys)
       rel = rel.where(Workhorse::Schedule.arel_table[:next_at].lt(@threshold.seconds.ago))
 
       overdue = rel.pluck(:key, :next_at)

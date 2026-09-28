@@ -124,7 +124,9 @@ class Workhorse::ScheduleTest < WorkhorseTest
     assert_equal before, Workhorse::Schedule.sole.next_at
   end
 
-  def test_reconcile_removes_schedules_that_are_gone
+  # Removal is deliberately not immediate, see
+  # test_reconcile_keeps_a_schedule_another_version_still_declares.
+  def test_reconcile_keeps_a_schedule_that_was_just_removed
     define_schedule 'a', cron: '0 3 * * *'
     define_schedule 'b', cron: '0 4 * * *'
     Workhorse::Schedule.reconcile!
@@ -135,7 +137,13 @@ class Workhorse::ScheduleTest < WorkhorseTest
     define_schedule 'a', cron: '0 3 * * *'
     Workhorse::Schedule.reconcile!
 
-    assert_equal %w[a], Workhorse::Schedule.pluck(:key)
+    assert_equal %w[a b], Workhorse::Schedule.order(:key).pluck(:key)
+  end
+
+  def test_reconcile_deletes_every_schedule_once_none_is_declared
+    define_schedule 'a', cron: '0 3 * * *'
+    Workhorse::Schedule.reconcile!
+    Workhorse::Schedule.update_all(updated_at: Time.now - (2 * 24 * 60 * 60))
 
     Workhorse::Schedules.reset!
     Workhorse::Schedule.reconcile!
@@ -295,6 +303,29 @@ class Workhorse::ScheduleTest < WorkhorseTest
     assert_equal occurrence + 900, db_job.expires_at
   end
 
+  def test_enqueue_works_for_active_job_classes
+    occurrence = Time.now.round
+    schedule = persisted_schedule(
+      'aj', cron: '0 3 * * *', next_at: occurrence, job: 'ScheduledActiveJob', priority: 5
+    )
+
+    db_job = schedule.enqueue!(occurrence)
+
+    assert_equal 5, db_job.priority
+    assert_equal occurrence, db_job.perform_at
+  end
+
+  def test_enqueue_works_for_rails_ops_operations
+    occurrence = Time.now.round
+    schedule = persisted_schedule(
+      'op', cron: '0 3 * * *', next_at: occurrence, job: 'DummyRailsOpsOp', params: {}
+    )
+
+    db_job = schedule.enqueue!(occurrence)
+
+    assert_equal occurrence, db_job.perform_at
+  end
+
   def test_enqueue_passes_params
     occurrence = Time.now.round
     schedule = persisted_schedule(
@@ -348,6 +379,84 @@ class Workhorse::ScheduleTest < WorkhorseTest
 
     assert_equal 1, Workhorse::DbJob.succeeded.count
     assert exceptions.any? { |e| e.is_a?(NameError) }, "expected a NameError, got #{exceptions.map(&:class)}"
+  end
+
+  # An occurrence must not be consumed unless the job for it exists. Were the
+  # claim to commit on its own, a schedule whose enqueuing always fails would
+  # advance past every occurrence while DetectLateSchedulesJob stayed green.
+  def test_a_claim_is_rolled_back_when_enqueuing_fails
+    define_schedule 'due_now', cron: '* * * * *', job: 'ThisClassDoesNotExist'
+    Workhorse::Schedule.reconcile!
+    schedule = Workhorse::Schedule.sole
+    schedule.update!(next_at: Time.now - 60)
+    before = schedule.reload.next_at
+
+    with_exception_handler ->(_e) {} do
+      work 1, polling_interval: 0.2, pool_size: 1
+    end
+
+    assert_equal 0, Workhorse::DbJob.count
+    assert_equal before, schedule.reload.next_at, 'the occurrence must still be pending'
+  end
+
+  # Declaring schedules without the table must not take the workers down, only
+  # keep the schedules from running.
+  def test_a_missing_schedules_table_does_not_shut_the_worker_down
+    define_schedule 'due_now', cron: '* * * * *'
+
+    with_renamed_schedules_table do
+      log = capture_log do |logger|
+        with_worker(polling_interval: 0.2, pool_size: 1, auto_terminate: false, logger: logger) do |w|
+          job = Workhorse.enqueue BasicJob.new(sleep_time: 0)
+
+          with_retries { assert_equal 'succeeded', job.reload.state }
+
+          assert_equal :running, w.state
+        end
+      end
+
+      assert_match(/workhorse_schedules table does not exist/, log)
+    end
+  end
+
+  # A rolling deployment runs both versions at once. Were a row deleted as
+  # soon as one of them did not declare it, the two would delete each other's
+  # schedules and reset the occurrences they were waiting for.
+  def test_reconcile_keeps_a_schedule_another_version_still_declares
+    define_schedule 'only_in_the_old_version', cron: '0 3 * * *'
+    Workhorse::Schedule.reconcile!
+    before = Workhorse::Schedule.sole.next_at
+
+    # The other version, which does not know this schedule, starts up.
+    Workhorse::Schedules.reset!
+    define_schedule 'only_in_the_new_version', cron: '0 4 * * *'
+    Workhorse::Schedule.reconcile!
+
+    assert_equal %w[only_in_the_new_version only_in_the_old_version],
+                 Workhorse::Schedule.order(:key).pluck(:key)
+    assert_equal before, Workhorse::Schedule.find_by(key: 'only_in_the_old_version').next_at
+  end
+
+  def test_reconcile_deletes_a_schedule_nothing_has_declared_for_a_day
+    define_schedule 'gone', cron: '0 3 * * *'
+    Workhorse::Schedule.reconcile!
+    Workhorse::Schedule.sole.update_columns(updated_at: Time.now - (2 * 24 * 60 * 60))
+
+    Workhorse::Schedules.reset!
+    Workhorse::Schedule.reconcile!
+
+    assert_equal 0, Workhorse::Schedule.count
+  end
+
+  # An orphaned row is waiting to be cleaned up and nothing materializes it,
+  # so reporting it as overdue would be a false alarm.
+  def test_detect_late_schedules_ignores_rows_without_a_declaration
+    persisted_schedule('known', cron: '0 3 * * *', next_at: Time.now + 3600)
+    Workhorse::Schedule.create!(key: 'orphan', cron: '0 3 * * *', next_at: Time.now - 3600)
+
+    assert_nothing_raised do
+      Workhorse::Jobs::DetectLateSchedulesJob.new(threshold: 60).perform
+    end
   end
 
   # ---------------------------------------------------------------
@@ -487,6 +596,18 @@ class Workhorse::ScheduleTest < WorkhorseTest
     return Workhorse::Schedule.create!(
       key: key, cron: cron, timezone: timezone, next_at: next_at
     )
+  end
+
+  # Hides the schedules table for the duration of the block, standing in for
+  # an installation that declares schedules but has not run the migration.
+  def with_renamed_schedules_table
+    connection = ActiveRecord::Base.connection
+    connection.rename_table :workhorse_schedules, :workhorse_schedules_hidden
+    Workhorse::Schedule.reset_column_information
+    yield
+  ensure
+    connection.rename_table :workhorse_schedules_hidden, :workhorse_schedules
+    Workhorse::Schedule.reset_column_information
   end
 
   def with_exception_handler(handler)

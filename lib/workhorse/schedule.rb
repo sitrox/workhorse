@@ -58,12 +58,24 @@ module Workhorse
         nil
       end
 
-      obsolete = where.not(key: definitions.keys)
-      obsolete = all if definitions.empty?
-      obsolete.delete_all
+      # Mark everything this process knows about as seen, so that a schedule is
+      # only considered gone once no process has claimed it for a while. Were
+      # rows deleted as soon as one process did not declare them, a rolling
+      # deployment would have the old and the new version delete each other's
+      # schedules in turn - and recreating a row resets its next occurrence,
+      # losing exactly the occurrence this whole mechanism exists to keep.
+      where(key: definitions.keys).update_all(updated_at: now) if definitions.any?
+
+      where.not(key: definitions.keys)
+           .where(arel_table[:updated_at].lt(now - OBSOLETE_GRACE))
+           .delete_all
 
       return
     end
+
+    # How long a schedule that nothing declares any more is kept before its
+    # row is deleted.
+    OBSOLETE_GRACE = 24 * 60 * 60
 
     # @return [Workhorse::Schedules::Definition, nil] The registry entry
     def definition
@@ -78,27 +90,39 @@ module Workhorse
     #   `next_at`.
     def pending_occurrences(now = Time.now)
       cron = definition.parsed_cron
-      occurrences = []
-      cursor = next_at
 
-      # Walking occurrence by occurrence rather than jumping to the next one
-      # after `now`, so that a policy can see how many were missed. Bounded by
-      # the cap below, as a year-long outage of a per-minute schedule would
-      # otherwise produce half a million timestamps.
-      while cursor <= now && occurrences.size <= MAX_OCCURRENCE_SCAN
-        occurrences << cursor
-        cursor = cron.next_time(cursor).to_t
+      return [[], cron.next_time(now).to_t] if next_at > now
+
+      # Walked backwards from now rather than forwards from next_at, so that
+      # the work is bounded by how many occurrences a policy could use - one,
+      # or `max_catch_up` - instead of by the length of the outage. Walking
+      # forwards costs about 0.45s per 10 000 occurrences, and this runs while
+      # the poller holds the global lock, whose timeout for other workers is
+      # at most a second.
+      occurrences = []
+      cursor = now
+
+      # An occurrence falling exactly on `now` is due as well, and walking
+      # backwards would step straight past it.
+      occurrences << now if cron.match?(now)
+
+      while occurrences.size < wanted_occurrences
+        cursor = cron.previous_time(cursor).to_t
+        break if cursor < next_at
+
+        occurrences.unshift(cursor)
       end
 
-      # The scan hit its cap, so skip ahead instead of walking the rest.
-      cursor = cron.next_time(now).to_t if cursor <= now
-
-      return [apply_catch_up(occurrences, now), cursor]
+      return [apply_catch_up(occurrences, now), cron.next_time(now).to_t]
     end
 
-    # Most occurrences {#pending_occurrences} walks before giving up and
-    # skipping to the next one after now.
-    MAX_OCCURRENCE_SCAN = 10_000
+    # Returns how many occurrences the catch-up policy could use at most.
+    #
+    # @return [Integer]
+    # @private
+    def wanted_occurrences
+      return definition.catch_up == :run ? definition.max_catch_up : 1
+    end
 
     # Claims this schedule by advancing it to `next_at`, and reports whether
     # the claim succeeded.
@@ -162,12 +186,11 @@ module Workhorse
       return occurrences if occurrences.empty?
 
       case definition.catch_up
-      when :run
-        return occurrences.last(definition.max_catch_up)
-      when :run_once
-        return occurrences.last(1)
+      when :run, :run_once
+        # Already bounded by #wanted_occurrences.
+        return occurrences
       when :skip
-        return occurrences.last(1).select { |occurrence| now - occurrence <= definition.grace }
+        return occurrences.select { |occurrence| now - occurrence <= definition.grace }
       else
         return []
       end

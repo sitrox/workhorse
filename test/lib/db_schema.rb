@@ -28,6 +28,7 @@ ActiveRecord::Schema.define do
   add_index :jobs, :queue, length: 191
   add_index :jobs, %i[state perform_at], length: { state: 191 }, name: 'idx_jobs_state_perform_at'
   add_index :jobs, %i[state priority created_at], length: { state: 191 }, name: 'idx_jobs_state_prio_created'
+  add_index :jobs, %i[state expires_at], length: { state: 191 }, name: 'idx_jobs_state_expires_at'
   add_index :jobs, :perform_at
 
   create_table :workhorse_schedules, force: true do |t|

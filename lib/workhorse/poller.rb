@@ -10,6 +10,9 @@ module Workhorse
     MIN_LOCK_TIMEOUT = 0.1 # In seconds
     MAX_LOCK_TIMEOUT = 1.0 # In seconds
 
+    # Most jobs one poll expires, see {#expire_due_jobs}.
+    MAX_EXPIRIES_PER_POLL = 100
+
     # Length of one slice of the poller's sleep, in seconds. The poller sleeps
     # in slices rather than for the whole polling interval so that it stays
     # responsive to shutdown, to instant repolling and to notifications.
@@ -66,7 +69,7 @@ module Workhorse
       # earlier is found by the poll that follows.
       @last_notification = notifier_token
 
-      reconcile_schedules! if Workhorse::Schedules.any?
+      reconcile_schedules!
 
       clean_stuck_jobs! if Workhorse.clean_stuck_jobs
 
@@ -145,6 +148,17 @@ module Workhorse
     # @return [void]
     # @private
     def reconcile_schedules!
+      @schedules_available = Workhorse::Schedule.table_exists?
+
+      unless @schedules_available
+        if Workhorse::Schedules.any?
+          worker.log 'Schedules are declared but the workhorse_schedules table does not exist. ' \
+                     'Run the migration that creates it; no scheduled job will run until then.', :error
+        end
+
+        return
+      end
+
       with_global_lock timeout: MAX_LOCK_TIMEOUT do
         Workhorse::Schedule.reconcile!
       end
@@ -382,7 +396,7 @@ module Workhorse
       with_global_lock timeout: timeout, count_failures: !brought_forward do
         job_ids = []
 
-        materialize_schedules if Workhorse::Schedules.any?
+        materialize_schedules if Workhorse::Schedules.any? && @schedules_available
         expired = expire_due_jobs
 
         Workhorse.tx_callback.call do
@@ -439,16 +453,22 @@ module Workhorse
     # @return [void]
     # @private
     def materialize_schedules
-      Workhorse::Schedule.due.each do |schedule|
+      Workhorse::Schedule.due.to_a.each do |schedule|
         next if schedule.definition.nil?
 
         occurrences, next_at = schedule.pending_occurrences
 
-        next unless schedule.claim!(next_at)
+        # Claim and enqueue together. The claim advances the schedule past
+        # these occurrences, so committing it before the jobs exist would lose
+        # them for good if enqueuing then failed - the schedule would move on
+        # and DetectLateSchedulesJob would see nothing wrong.
+        Workhorse.tx_callback.call do
+          next unless schedule.claim!(next_at)
 
-        occurrences.each do |occurrence|
-          db_job = schedule.enqueue!(occurrence)
-          worker.log "Materialized schedule #{schedule.key.inspect} for #{occurrence} as job #{db_job.id}", :debug
+          occurrences.each do |occurrence|
+            db_job = schedule.enqueue!(occurrence)
+            worker.log "Materialized schedule #{schedule.key.inspect} for #{occurrence} as job #{db_job.id}", :debug
+          end
         end
       rescue Exception => e
         worker.log %(Could not materialize schedule #{schedule.key.inspect}: #{e.message}), :error
@@ -456,6 +476,11 @@ module Workhorse
       end
 
       return
+    rescue Exception => e
+      # The query itself failed, so no individual schedule can be blamed. This
+      # must not reach the poller's own rescue, which shuts the worker down.
+      worker.log %(Could not query due schedules: #{e.message}), :error
+      Workhorse.on_exception.call(e)
     end
 
     # Marks jobs that passed their deadline before any worker got to them.
@@ -472,7 +497,12 @@ module Workhorse
       Workhorse.tx_callback.call do
         rel = Workhorse::DbJob.waiting.where(Workhorse::DbJob.arel_table[:expires_at].lteq(Time.now))
 
-        rel.each do |db_job|
+        # Bounded, as this runs while the poller holds the global lock: a
+        # backlog of jobs that all expired at once - workers down over a
+        # weekend, or a bulk enqueue - would otherwise turn one poll into
+        # thousands of updates that block every other worker. The rest is
+        # expired by the following polls.
+        rel.limit(MAX_EXPIRIES_PER_POLL).each do |db_job|
           db_job.mark_expired!
           expired << db_job
           worker.log "Job #{db_job.id} passed its deadline of #{db_job.expires_at} and was not run", :warn

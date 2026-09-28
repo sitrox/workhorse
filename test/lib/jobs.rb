@@ -67,3 +67,7 @@ class DummyRailsOpsOp
     results << @params
   end
 end
+
+class ScheduledActiveJob < ActiveJob::Base
+  def perform(*); end
+end

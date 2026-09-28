@@ -74,6 +74,8 @@
                 length: { state: 191 }, name: 'idx_jobs_state_perform_at'
       add_index :jobs, %i[state priority created_at],
                 length: { state: 191 }, name: 'idx_jobs_state_prio_created'
+      add_index :jobs, %i[state expires_at],
+                length: { state: 191 }, name: 'idx_jobs_state_expires_at'
 
       # Now redundant, as `state` leads both indexes above
       remove_index :jobs, :state
@@ -114,6 +116,15 @@
   allows is reported while still running. A materialized job's `perform_at`
   is its occurrence's own time, so `Workhorse::DbJob#lateness` is the lateness
   of that occurrence.
+
+* Change `Workhorse::Jobs::CleanupSucceededJobs` to also delete jobs in the
+  new `expired` state, and give it a `states` argument to control this. A
+  schedule using `expires_after` that regularly misses its window would
+  otherwise grow the jobs table without bound. Pass
+  `states: [Workhorse::DbJob::STATE_SUCCEEDED]` for the previous behaviour.
+
+* Accept `expired` in `Workhorse::DbJob#reset!` as the terminal state it is,
+  so that re-running an expired job does not need a forced reset.
 
 * Add `Workhorse::Jobs::DetectLateSchedulesJob`, which reports schedules whose
   next occurrence lies well in the past. Neither callback above can fire for a

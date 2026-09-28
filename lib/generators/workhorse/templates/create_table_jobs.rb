@@ -36,10 +36,12 @@ class CreateTableJobs < ActiveRecord::Migration[7.1]
       add_index :jobs, :queue
       add_index :jobs, %i[state perform_at], name: 'idx_jobs_state_perform_at'
       add_index :jobs, %i[state priority created_at], name: 'idx_jobs_state_prio_created'
+      add_index :jobs, %i[state expires_at], name: 'idx_jobs_state_expires_at'
     else
       add_index :jobs, :queue, length: 191
       add_index :jobs, %i[state perform_at], length: { state: 191 }, name: 'idx_jobs_state_perform_at'
       add_index :jobs, %i[state priority created_at], length: { state: 191 }, name: 'idx_jobs_state_prio_created'
+      add_index :jobs, %i[state expires_at], length: { state: 191 }, name: 'idx_jobs_state_expires_at'
     end
     add_index :jobs, :perform_at
   end

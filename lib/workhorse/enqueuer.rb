@@ -40,15 +40,19 @@ module Workhorse
     # @param perform_at [Time] When to perform the job
     # @param queue [String, Symbol, nil] Optional queue override
     # @param description [String, nil] Optional job description
+    # @param priority [Integer, nil] Priority override. Defaults to the job's
+    #   own priority.
+    # @param expires_at [Time, nil] See {#enqueue}
+    # @param max_lateness [Numeric, nil] See {#enqueue}
     # @return [Workhorse::DbJob] The created database job record
     def enqueue_active_job(job, perform_at: Time.now, queue: nil, description: nil,
-                           expires_at: nil, max_lateness: nil)
+                           priority: nil, expires_at: nil, max_lateness: nil)
       wrapper_job = Jobs::RunActiveJob.new(job.serialize)
       queue ||= job.queue_name if job.queue_name.present?
       db_job = enqueue(
         wrapper_job,
         queue:        queue,
-        priority:     job.priority || 0,
+        priority:     priority || job.priority || 0,
         perform_at:   Time.at(perform_at),
         description:  description,
         expires_at:   expires_at,

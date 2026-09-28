@@ -131,9 +131,10 @@ module Workhorse
     # Resets job to state "waiting" and clears all meta fields
     # set by workhorse in course of processing this job.
     #
-    # This is only allowed if the job is in a final state ("succeeded" or
-    # "failed"), as only those jobs are safe to modify; workhorse will not touch
-    # these jobs. To reset a job without checking the state it is in, set
+    # This is only allowed if the job is in a final state ("succeeded",
+    # "failed" or "expired"), as only those jobs are safe to modify; workhorse
+    # will not touch these jobs. To reset a job without checking the state it
+    # is in, set
     # "force" to true. Prior to doing so, ensure that the job is not still being
     # processed by a worker. If possible, shut down all workers before
     # performing a forced reset.
@@ -148,7 +149,7 @@ module Workhorse
     # @raise [RuntimeError] If job is not in a final state and force is false
     def reset!(force = false)
       unless force
-        assert_state! STATE_SUCCEEDED, STATE_FAILED
+        assert_state! STATE_SUCCEEDED, STATE_FAILED, STATE_EXPIRED
       end
 
       self.state = STATE_WAITING

@@ -10,22 +10,33 @@ module Workhorse::Jobs
   #   # Clean up jobs older than 14 days every day at 2 AM
   #   Workhorse.enqueue(CleanupSucceededJobs.new, perform_at: 1.day.from_now.beginning_of_day + 2.hours)
   class CleanupSucceededJobs
+    # States that are cleaned up unless told otherwise. Both are terminal and
+    # will never run again; `expired` is included so that a schedule using
+    # `expires_after` and regularly missing its window - the very case the
+    # option exists for - cannot grow the table without bound.
+    DEFAULT_STATES = [
+      Workhorse::DbJob::STATE_SUCCEEDED,
+      Workhorse::DbJob::STATE_EXPIRED
+    ].freeze
+
     # Instantiates a new job.
     #
     # @param max_age [Integer] The maximal age of jobs to retain, in days. Will
     #   be evaluated at perform time.
-    def initialize(max_age: 14)
+    # @param states [Array<Symbol>] The job states to clean up. Defaults to
+    #   {DEFAULT_STATES}. Pass `[Workhorse::DbJob::STATE_SUCCEEDED]` to keep
+    #   expired jobs around.
+    def initialize(max_age: 14, states: DEFAULT_STATES)
       @max_age = max_age
+      @states = states
     end
 
-    # Executes the cleanup by deleting old succeeded jobs.
+    # Executes the cleanup by deleting old jobs in the configured states.
     #
     # @return [void]
     def perform
       age_limit = seconds_ago(@max_age)
-      Workhorse::DbJob.where(
-        'STATE = ? AND UPDATED_AT <= ?', Workhorse::DbJob::STATE_SUCCEEDED, age_limit
-      ).delete_all
+      Workhorse::DbJob.where(state: @states).where('UPDATED_AT <= ?', age_limit).delete_all
     end
 
     private

@@ -26,7 +26,7 @@ class Workhorse::DbJobTest < WorkhorseTest
     err = assert_raises do
       job.reset!
     end
-    assert_equal %(Job #{job.id} is not in state [:succeeded, :failed] but in state "locked".), err.message
+    assert_equal %(Job #{job.id} is not in state [:succeeded, :failed, :expired] but in state "locked".), err.message
   end
 
   def test_forced_reset
