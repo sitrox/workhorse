@@ -66,6 +66,8 @@ module Workhorse
       # earlier is found by the poll that follows.
       @last_notification = notifier_token
 
+      reconcile_schedules! if Workhorse::Schedules.any?
+
       clean_stuck_jobs! if Workhorse.clean_stuck_jobs
 
       @thread = Thread.new do
@@ -133,6 +135,23 @@ module Workhorse
     end
 
     private
+
+    # Brings the schedules table in line with the registry, see
+    # {Workhorse::Schedule.reconcile!}.
+    #
+    # A worker that cannot reconcile still works through the queue, so this
+    # reports rather than raises.
+    #
+    # @return [void]
+    # @private
+    def reconcile_schedules!
+      with_global_lock timeout: MAX_LOCK_TIMEOUT do
+        Workhorse::Schedule.reconcile!
+      end
+    rescue Exception => e
+      worker.log %(Could not reconcile schedules: #{e.message}), :error
+      Workhorse.on_exception.call(e)
+    end
 
     # Cleans up jobs stuck in locked or started states from dead processes.
     # Only cleans jobs from the current hostname.
@@ -357,9 +376,14 @@ module Workhorse
       brought_forward = @poll_brought_forward
       @poll_brought_forward = false
 
+      expired = []
+
       timeout = worker.polling_interval.clamp(MIN_LOCK_TIMEOUT, MAX_LOCK_TIMEOUT)
       with_global_lock timeout: timeout, count_failures: !brought_forward do
         job_ids = []
+
+        materialize_schedules if Workhorse::Schedules.any?
+        expired = expire_due_jobs
 
         Workhorse.tx_callback.call do
           # As we are the only thread posting into the worker pool, it is safe to
@@ -395,11 +419,85 @@ module Workhorse
         job_ids.each { |job_id| worker.perform(job_id) } if running? && worker.accepting_jobs?
       end
 
+      # Deliberately outside the global lock: the callback is the application's
+      # and may do something slow, such as sending mail, which would otherwise
+      # block every other worker's poll.
+      notify_expired(expired)
+
       # Record that this worker successfully polled. Done at the very end so it
       # only advances when the poll actually completed (a poll that raises never
       # reaches here). Skipped on the early return above when the worker is no
       # longer accepting jobs, so a soft-restarting worker correctly ages out.
       worker.heartbeat!
+    end
+
+    # Materialises the occurrences that have come due into jobs.
+    #
+    # A failing schedule must not take the worker down with it, nor stop the
+    # other schedules, so each is handled on its own.
+    #
+    # @return [void]
+    # @private
+    def materialize_schedules
+      Workhorse::Schedule.due.each do |schedule|
+        next if schedule.definition.nil?
+
+        occurrences, next_at = schedule.pending_occurrences
+
+        next unless schedule.claim!(next_at)
+
+        occurrences.each do |occurrence|
+          db_job = schedule.enqueue!(occurrence)
+          worker.log "Materialized schedule #{schedule.key.inspect} for #{occurrence} as job #{db_job.id}", :debug
+        end
+      rescue Exception => e
+        worker.log %(Could not materialize schedule #{schedule.key.inspect}: #{e.message}), :error
+        Workhorse.on_exception.call(e)
+      end
+
+      return
+    end
+
+    # Marks jobs that passed their deadline before any worker got to them.
+    #
+    # @return [Array<Workhorse::DbJob>] The jobs that were expired
+    # @private
+    def expire_due_jobs
+      # Absent on an installation that has not run the migration adding it.
+      # Expiry is then simply unavailable rather than fatal.
+      return [] unless Workhorse::DbJob.column_names.include?('expires_at')
+
+      expired = []
+
+      Workhorse.tx_callback.call do
+        rel = Workhorse::DbJob.waiting.where(Workhorse::DbJob.arel_table[:expires_at].lteq(Time.now))
+
+        rel.each do |db_job|
+          db_job.mark_expired!
+          expired << db_job
+          worker.log "Job #{db_job.id} passed its deadline of #{db_job.expires_at} and was not run", :warn
+        end
+      end
+
+      return expired
+    end
+
+    # Calls {Workhorse.on_job_expired} for each expired job, keeping a failing
+    # callback away from the poller's own error handling, which would shut the
+    # worker down.
+    #
+    # @param expired [Array<Workhorse::DbJob>]
+    # @return [void]
+    # @private
+    def notify_expired(expired)
+      expired.each do |db_job|
+        Workhorse.on_job_expired.call(db_job)
+      rescue Exception => e
+        worker.log %(on_job_expired failed for job #{db_job.id}: #{e.message}), :error
+        Workhorse.on_exception.call(e)
+      end
+
+      return
     end
 
     # Returns an array of {Workhorse::DbJob}s that can be started.

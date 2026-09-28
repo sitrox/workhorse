@@ -18,11 +18,13 @@ module Workhorse
     STATE_STARTED   = :started
     STATE_SUCCEEDED = :succeeded
     STATE_FAILED    = :failed
+    STATE_EXPIRED   = :expired
 
     EXP_LOCKED_BY = /^(.*?)\.(\d+?)\.([^.]+)$/
 
     if respond_to?(:attr_accessible)
-      attr_accessible :queue, :priority, :perform_at, :handler, :description
+      attr_accessible :queue, :priority, :perform_at, :handler, :description,
+                      :expires_at, :max_lateness
     end
 
     self.table_name = 'jobs'
@@ -66,6 +68,35 @@ module Workhorse
     # @return [ActiveRecord::Relation] Jobs that failed during execution
     def self.failed
       where(state: STATE_FAILED)
+    end
+
+    # Returns jobs that passed their deadline and were therefore not run.
+    #
+    # @return [ActiveRecord::Relation] Jobs that expired before being started
+    def self.expired
+      where(state: STATE_EXPIRED)
+    end
+
+    # Marks the job as expired, having passed its deadline before any worker
+    # got to it.
+    #
+    # @raise [RuntimeError] If the job is not in waiting state
+    # @private Only to be used by workhorse
+    def mark_expired!
+      assert_state! STATE_WAITING
+
+      self.state = STATE_EXPIRED
+      save!
+    end
+
+    # Returns how much later than intended this job started, or nil if it has
+    # not started or was not given an intended time.
+    #
+    # @return [Float, nil] Lateness in seconds
+    def lateness
+      return nil unless started_at && perform_at
+
+      return started_at - perform_at
     end
 
     # Returns a relation with split locked_by field for easier querying.

@@ -17,6 +17,14 @@ class CreateTableJobs < ActiveRecord::Migration[7.1]
       t.integer :priority, null: false
       t.datetime :perform_at, null: true
 
+      # Deadline after which the job is no longer worth running. It is then
+      # set to state 'expired' instead of being performed.
+      t.datetime :expires_at, null: true
+
+      # Seconds the job may start later than its perform_at before
+      # Workhorse.on_job_late is called.
+      t.integer :max_lateness, null: true
+
       t.string :description, null: true
 
       t.timestamps null: false

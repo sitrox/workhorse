@@ -16,6 +16,7 @@ task :gemspec do
     spec.add_dependency 'activesupport', '>= 7.0.0'
     spec.add_dependency 'activerecord', '>= 7.0.0'
     spec.add_dependency 'concurrent-ruby'
+    spec.add_dependency 'fugit'
   end
 
   File.write('workhorse.gemspec', gemspec.to_ruby.strip)

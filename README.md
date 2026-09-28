@@ -139,86 +139,139 @@ If you do not want to pass any parameters to the operation, just omit the third 
 Workhorse.enqueue_op Operations::Jobs::CleanUpDatabase, queue: :maintenance, priority: 2
 ```
 
-### Scheduling
+## Scheduling
 
-Workhorse has no out-of-the-box functionality to support scheduling of regular
-jobs, such as maintenance or backup jobs. There are two primary ways of
-achieving regular execution:
+Workhorse runs jobs on a schedule itself, without an external scheduler
+process. Schedules are declared in code and their state is kept in the
+database:
 
-1. Rescheduling by the same job after successful execution and setting
-   `perform_at`
+```ruby
+# config/initializers/workhorse.rb
+Workhorse.schedules do
+  schedule 'cleanup_jobs',
+           job:  'Workhorse::Jobs::CleanupSucceededJobs',
+           cron: '10 0 * * *'
 
-   This is simple to set up and requires no additional dependencies. However,
-   the time taken to execute a job and the time delay caused by the polling
-   interval cannot easily be factored into the calculation of the interval,
-   leading to a slight shift in effective execution date. (This can be mitigated
-   by scheduling the job before knowing whether the current run will succeed.
-   Proceed down this path at your own peril!)
+  schedule 'morning_digest',
+           job:          'Jobs::MorningDigest',
+           cron:         '0 8 * * 1-5',
+           timezone:     'Europe/Zurich',
+           queue:        :reports,
+           priority:     -10,
+           catch_up:     :skip,
+           grace:        15.minutes,
+           max_lateness: 60.seconds
+end
+```
 
-   *Example:* A job that takes 5 seconds to run and reschedules itself every
-   10 minutes. If started at 12:00 sharp, after one hour it will execute at
-   13:00:30 at the earliest due to cumulative execution time.
+Each schedule owns a row in `workhorse_schedules` holding the next occurrence
+that has not been materialised yet. Workers reconcile those rows against the
+declarations above on startup, and materialise the occurrences that have come
+due during their regular poll. There is no scheduler process to keep alive and
+no single point of failure: any worker will do.
 
-   In its most basic form, the `perform` method of a job would look as follows:
+### Why the occurrence is a row
 
-   ```ruby
-   class MyJob
-     def perform
-       # Do all the work
+An in-memory scheduler computes the next occurrence from *now*, so an
+occurrence whose time passes while it is not running never happens and leaves
+no trace — a deployment, a restart or a crash at the wrong minute silently
+skips a nightly job. Because the next occurrence is persisted here, a worker
+coming back at any later point still sees that it is due, and the schedule
+decides what to do about it.
 
-       # Perform again after 10 minutes (600 seconds)
-       Workhorse.enqueue MyJob.new, perform_at: Time.now + 600
-     end
-   end
-   ```
+### Catch-up
 
-2. Using an external scheduler
+What should happen to an occurrence whose time has passed depends on the job,
+so it is stated per schedule:
 
-   A more elaborate setup requires an external scheduler, but which can still be
-   called from Ruby. One such scheduler is
-   [rufus-scheduler](https://github.com/jmettraux/rufus-scheduler). A small
-   example of an adapted `bin/workhorse.rb` to accommodate for the additional
-   cog in the mechanism is given below:
+| `catch_up`  | Behaviour                                                | Suits                                   |
+|-------------|----------------------------------------------------------|-----------------------------------------|
+| `:run_once` | Collapse all missed occurrences into one (**default**)    | Cleanup, maintenance, idempotent work   |
+| `:run`      | Materialise each, up to `max_catch_up` (default 10)       | Per-period reports that must all exist  |
+| `:skip`     | Drop those older than `grace`                             | "Send the 08:00 digest"                 |
 
-   ```ruby
-   #!/usr/bin/env ruby
+`:run_once` is the default deliberately: after a long outage it is the safe
+behaviour. A schedule running every minute that was down for a day would
+otherwise enqueue 1440 jobs at once, which `max_catch_up` also guards against.
 
-   require './config/environment'
+`:skip` requires `grace`, as without one it has no way to tell an occurrence
+that is a moment late from one that is a day late.
 
-   Workhorse::Daemon::ShellHandler.run do |daemon|
-     # Start scheduler process
-     daemon.worker 'Scheduler' do
-       scheduler = Rufus::Scheduler.new
+### Lateness and deadlines
 
-       scheduler.cron '0/10 * * * *' do
-         Workhorse.enqueue Workhorse::Jobs::CleanupSucceededJobs.new
-       end
+A materialised job's `perform_at` is the occurrence's own time, not the moment
+it was enqueued. The difference between it and `started_at` is therefore the
+lateness of that occurrence, available on every job as
+`Workhorse::DbJob#lateness` and as a column you can report on.
 
-       Signal.trap 'TERM' do
-         scheduler.shutdown
-       end
+Two options act on it, and both work for hand-enqueued jobs as well:
 
-       scheduler.join
-     end
+* **`max_lateness`** — seconds the job may start late before
+  {Workhorse.on_job_late} is called. The job still runs; it was just late.
+* **`expires_after`** — seconds after the occurrence at which the job is no
+  longer worth running. It is then set to state `expired` and
+  `Workhorse.on_job_expired` is called instead of it being performed. For
+  "send the 08:00 reminder", running it at 11:40 is often worse than not
+  running it at all.
 
-     # Start 5 worker processes with 3 threads each
-     5.times do
-       daemon.worker do
-         Workhorse::Worker.start_and_wait(pool_size: 3, polling_interval: 10, logger: Rails.logger)
-       end
-     end
-   end
-   ```
+```ruby
+Workhorse.setup do |config|
+  config.on_job_expired = proc do |db_job|
+    ExceptionNotifier.notify_exception(
+      StandardError.new("Job #{db_job.id} (#{db_job.description}) expired")
+    )
+  end
 
-   This allows starting and stopping the daemon with the usual interface.
-   Note that the scheduler is handled like a Workhorse worker, the consequence
-   of which is that only one 'worker' should be started by the ShellHandler.
-   Otherwise there would be multiple jobs scheduled at the same time.
+  config.on_job_late = proc do |db_job, lateness|
+    ExceptionNotifier.notify_exception(
+      StandardError.new("Job #{db_job.id} started #{lateness.round}s late")
+    )
+  end
+end
+```
 
-   Please refer to the documentation for
-   [rufus-scheduler](https://github.com/jmettraux/rufus-scheduler) (or the
-   scheduler of your choice) for further options concerning the timing of the
-   jobs.
+Both callbacks are best-effort: anything they raise goes to
+`Workhorse.on_exception` and never affects the worker or the job. An expiry is
+logged at `warn` whether or not a callback is configured.
+
+### Detecting schedules that stopped
+
+Neither callback can fire for a job that was never created, so if no worker is
+polling or the global lock is stuck, occurrences simply stop being
+materialised and nothing says so. `Workhorse::Jobs::DetectLateSchedulesJob`
+covers that case by reporting schedules whose next occurrence lies well in the
+past:
+
+```ruby
+Workhorse.schedules do
+  schedule 'detect_late_schedules',
+           job:  'Workhorse::Jobs::DetectLateSchedulesJob',
+           cron: '*/30 * * * *'
+end
+```
+
+It is itself performed by a worker, so it reports a stall only while at least
+one worker is still running — use it alongside external monitoring rather than
+instead of it.
+
+### Timezones
+
+Without `timezone`, a cron expression is read in the process's local time.
+Given one, occurrences are computed in that zone, including across daylight
+saving changes: a `30 2 * * *` schedule in `Europe/Zurich` has no occurrence
+on the day the clocks go forward, because 02:30 does not exist that day.
+
+### Disabling a schedule
+
+Setting `enabled` to `false` on the row stops its occurrences from being
+materialised, without a deployment:
+
+```ruby
+Workhorse::Schedule.find_by(key: 'morning_digest').update!(enabled: false)
+```
+
+Removing a schedule from the declarations deletes its row on the next worker
+startup, which also discards the occurrence it was waiting for.
 
 ## Configuring and starting workers
 

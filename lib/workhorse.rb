@@ -1,6 +1,7 @@
 require 'active_record'
 require 'active_support/all'
 require 'concurrent'
+require 'fugit'
 require 'socket'
 require 'uri'
 
@@ -83,6 +84,44 @@ module Workhorse
   # @return [Boolean] Whether to silence watcher output
   mattr_accessor :silence_watcher
   self.silence_watcher = false
+
+  # Callback invoked when a job passed its `expires_at` before any worker got
+  # to it. The job is in state `expired` and will not be performed.
+  #
+  # An expiry that nobody hears about is the failure this exists to prevent,
+  # so workhorse logs it at `warn` regardless of this callback. Set the
+  # callback to report it wherever failures belong, e.g.
+  #
+  # ```ruby
+  # config.on_job_expired = proc do |db_job|
+  #   ExceptionNotifier.notify_exception(
+  #     StandardError.new("Job #{db_job.id} (#{db_job.description}) expired")
+  #   )
+  # end
+  # ```
+  #
+  # Called outside the global lock, but on the poller thread: a slow callback
+  # delays this worker's next poll. Anything it raises is passed to
+  # {.on_exception} and does not affect the worker.
+  #
+  # @return [Proc] The expiry callback
+  mattr_accessor :on_job_expired
+  self.on_job_expired = proc do |db_job|
+    # Do something with this job, i.e. notify about it
+  end
+
+  # Callback invoked when a job started later than its `max_lateness` allows.
+  # In contrast to {.on_job_expired} the job does run; it was simply late.
+  #
+  # Called on the worker thread that performs the job, just before it starts,
+  # and receives the job and its lateness in seconds. Anything it raises is
+  # passed to {.on_exception}.
+  #
+  # @return [Proc] The lateness callback
+  mattr_accessor :on_job_late
+  self.on_job_late = proc do |db_job, lateness|
+    # Do something with this job, i.e. notify about it
+  end
 
   # Controls whether jobs are performed within database transactions.
   # Individual job classes can override this with skip_tx?.
@@ -192,6 +231,22 @@ module Workhorse
                 end
   end
 
+  # Registers scheduled jobs, see {Workhorse::Schedules::Dsl#schedule}.
+  #
+  # ```ruby
+  # Workhorse.schedules do
+  #   schedule 'cleanup_jobs',
+  #            job:  'Workhorse::Jobs::CleanupSucceededJobs',
+  #            cron: '10 0 * * *'
+  # end
+  # ```
+  #
+  # @yield Block evaluated against {Workhorse::Schedules::Dsl}
+  # @return [void]
+  def self.schedules(&block)
+    Workhorse::Schedules.define(&block)
+  end
+
   # Configuration method for setting up Workhorse options.
   #
   # @yield [self] Configuration block
@@ -209,6 +264,8 @@ require 'workhorse/notifiers/none'
 require 'workhorse/notifiers/file_system'
 require 'workhorse/notifiers/redis'
 require 'workhorse/db_job'
+require 'workhorse/schedules'
+require 'workhorse/schedule'
 require 'workhorse/performer'
 require 'workhorse/poller'
 require 'workhorse/pool'
@@ -217,6 +274,7 @@ require 'workhorse/jobs/run_rails_op'
 require 'workhorse/jobs/run_active_job'
 require 'workhorse/jobs/cleanup_succeeded_jobs'
 require 'workhorse/jobs/detect_stale_jobs_job'
+require 'workhorse/jobs/detect_late_schedules_job'
 
 # Daemon functionality is not available on java platforms
 if RUBY_PLATFORM != 'java'

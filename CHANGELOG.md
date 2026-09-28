@@ -36,15 +36,40 @@
   `state`. Polling filters on `state` together with `perform_at` and orders by
   `priority` and `created_at`, which a single-column index cannot serve.
 
-  Existing installations are advised to add them, in particular before enabling
-  probing:
+  Existing installations are advised to add them.
+
+* Nothing in this release breaks an existing installation that does not
+  migrate: scheduling is inert until a schedule is declared, and `expires_at`
+  and `max_lateness` are only written when used. To take up the new features,
+  add the following migration. Run `rails generate workhorse:install` in a
+  scratch application to see what a fresh installation creates.
 
   ```ruby
-  class AddCompositeIndexesToJobs < ActiveRecord::Migration[7.1]
+  class UpgradeWorkhorseToV153 < ActiveRecord::Migration[7.1]
     def change
-      # Omit the `length` option on Oracle. The names are given explicitly
-      # because the ones Rails would derive exceed the 30 characters Oracle
-      # allows before 12.2.
+      add_column :jobs, :expires_at, :datetime, null: true
+      add_column :jobs, :max_lateness, :integer, null: true
+
+      create_table :workhorse_schedules do |t|
+        t.string :key, null: false
+        t.string :cron, null: false
+        t.string :timezone, null: true
+        t.boolean :enabled, null: false, default: true
+        t.datetime :next_at, null: false
+        t.datetime :last_enqueued_at, null: true
+        t.datetime :last_occurrence, null: true
+        t.integer :last_job_id, null: true
+        t.timestamps null: false
+      end
+
+      # Omit the `length` options on Oracle. The index names are given
+      # explicitly because the ones Rails would derive exceed the 30
+      # characters Oracle allows before 12.2.
+      add_index :workhorse_schedules, :key,
+                unique: true, length: 191, name: 'idx_wh_schedules_key'
+      add_index :workhorse_schedules, %i[enabled next_at],
+                name: 'idx_wh_schedules_due'
+
       add_index :jobs, %i[state perform_at],
                 length: { state: 191 }, name: 'idx_jobs_state_perform_at'
       add_index :jobs, %i[state priority created_at],
@@ -55,6 +80,47 @@
     end
   end
   ```
+
+* Add *scheduling*. Workhorse now runs jobs on a cron schedule itself, without
+  an external scheduler process:
+
+  ```ruby
+  # config/initializers/workhorse.rb
+  Workhorse.schedules do
+    schedule 'cleanup_jobs',
+             job:  'Workhorse::Jobs::CleanupSucceededJobs',
+             cron: '10 0 * * *'
+  end
+  ```
+
+  Each schedule owns a row in the new `workhorse_schedules` table holding the
+  next occurrence that has not been materialized yet, and workers materialize
+  the occurrences that have come due during their regular poll. Because the
+  next occurrence is persisted rather than held in a process's memory, an
+  occurrence whose time passes while nothing is running is not lost: the next
+  worker to poll still finds it due. There is no scheduler process to keep
+  alive and no single point of failure.
+
+  What happens to such an occurrence is stated per schedule with `catch_up`:
+  `:run_once` (the default) collapses missed occurrences into one, `:run`
+  materializes each up to `max_catch_up`, and `:skip` drops those older than
+  `grace`. Cron expressions can be read in a given `timezone`, daylight saving
+  included.
+
+* Add `expires_at` and `max_lateness` to jobs, and the callbacks
+  `Workhorse.on_job_expired` and `Workhorse.on_job_late`. A job that passes
+  its deadline before a worker gets to it is set to the new state `expired`
+  instead of being performed, and one that starts later than `max_lateness`
+  allows is reported while still running. A materialized job's `perform_at`
+  is its occurrence's own time, so `Workhorse::DbJob#lateness` is the lateness
+  of that occurrence.
+
+* Add `Workhorse::Jobs::DetectLateSchedulesJob`, which reports schedules whose
+  next occurrence lies well in the past. Neither callback above can fire for a
+  job that was never created, so this is what catches materialization having
+  stopped altogether.
+
+* Add `fugit` as a runtime dependency, for parsing cron expressions.
 
 * Fix a deadlock between shutting a worker down and the poller posting a job.
   `Worker#shutdown` held the worker's mutex while waiting for the poller thread

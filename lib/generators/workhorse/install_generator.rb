@@ -7,12 +7,21 @@ module Workhorse
 
     source_root File.expand_path('templates', __dir__)
 
+    # Returns the version for the next generated migration. Counts up rather
+    # than returning the current time, as several migrations are generated
+    # within the same second and would otherwise collide.
     def self.next_migration_number(_dir)
-      Time.now.utc.strftime('%Y%m%d%H%M%S')
+      @next_migration_number = [
+        Time.now.utc.strftime('%Y%m%d%H%M%S').to_i,
+        (@next_migration_number || 0) + 1
+      ].max
+
+      return @next_migration_number.to_s
     end
 
     def install_migration
       migration_template 'create_table_jobs.rb', 'db/migrate/create_table_jobs.rb'
+      migration_template 'create_table_workhorse_schedules.rb', 'db/migrate/create_table_workhorse_schedules.rb'
     end
 
     def install_daemon_script

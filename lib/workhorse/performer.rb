@@ -73,6 +73,32 @@ module Workhorse
       end
     end
 
+    # Calls {Workhorse.on_job_late} if the job started later than its
+    # `max_lateness` allows.
+    #
+    # Unlike an expiry, this is not a reason to skip the job: it ran, just
+    # not on time. A failing callback must not fail the job either, so it is
+    # reported through {Workhorse.on_exception} instead.
+    #
+    # @return [void]
+    # @private
+    def report_lateness
+      return unless @db_job.has_attribute?(:max_lateness)
+      return unless @db_job.max_lateness
+
+      lateness = @db_job.lateness
+
+      return if lateness.nil? || lateness <= @db_job.max_lateness
+
+      log "Started #{lateness.round(1)}s after the intended #{@db_job.perform_at}, " \
+          "which exceeds the configured maximum of #{@db_job.max_lateness}s", :warn
+
+      Workhorse.on_job_late.call(@db_job, lateness)
+    rescue Exception => e
+      log %(on_job_late failed: #{e.message}), :error
+      Workhorse.on_exception.call(e)
+    end
+
     # Core job execution logic with state transitions.
     # Handles marking job as started, deserializing and executing the job,
     # and marking as succeeded.
@@ -88,6 +114,8 @@ module Workhorse
         log 'Marking as started', :debug
         @db_job.mark_started!
       end
+
+      report_lateness
 
       # ---------------------------------------------------------------
       # Deserialize and perform job
