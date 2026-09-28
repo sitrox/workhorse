@@ -323,6 +323,15 @@ costs latency and nothing else, as the regular poll still finds the job. For
 the same reason, raise `polling_interval` only as far as you are willing to
 wait when a notification *is* missed.
 
+Note what this does and does not do to database load. While nothing is
+enqueued, workers stop polling almost entirely, which is where the saving is.
+An announcement, on the other hand, wakes *every* idle worker, and all but the
+one that wins the job take the global lock for nothing. So a workload that
+enqueues jobs in bursts while many workers sit idle can take the lock more
+often than plain polling would, rather than less. Workers that are performing a
+job do not react to announcements, so the effect is bounded by how many are
+idle.
+
 Two notifiers ship with workhorse:
 
 #### `:file`

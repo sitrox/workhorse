@@ -56,10 +56,15 @@ module Workhorse
 
       Workhorse.debug_log("[Job worker #{worker.id}] Poller starting")
 
-      Workhorse.notifier.start
+      begin
+        Workhorse.notifier.start
+      rescue StandardError => e
+        worker.log "Starting the notifier failed, falling back to polling: #{e.class}: #{e.message}", :warn
+      end
+
       # Only jobs announced from now on concern this worker; anything enqueued
       # earlier is found by the poll that follows.
-      @last_notification = Workhorse.notifier.token
+      @last_notification = notifier_token
 
       clean_stuck_jobs! if Workhorse.clean_stuck_jobs
 
@@ -101,7 +106,13 @@ module Workhorse
       Workhorse.debug_log("[Job worker #{worker.id}] Poller shutting down")
       @running = false
       wait
-      Workhorse.notifier.stop
+
+      begin
+        Workhorse.notifier.stop
+      rescue StandardError => e
+        worker.log "Stopping the notifier failed: #{e.class}: #{e.message}", :warn
+      end
+
       Workhorse.debug_log("[Job worker #{worker.id}] Poller shut down")
     end
 
@@ -203,6 +214,10 @@ module Workhorse
         worker.log 'Job was announced, polling ahead of the interval', :debug
         break
       end
+
+      # Whether the poll that follows was brought forward rather than being due,
+      # see #poll.
+      @poll_brought_forward = remaining > 0
     end
 
     # Returns whether a job has been announced since this poller last looked,
@@ -217,7 +232,7 @@ module Workhorse
       return false unless worker.accepting_jobs?
       return false if worker.idle.zero?
 
-      token = Workhorse.notifier.token
+      token = notifier_token
 
       return false if token.nil? || token == @last_notification
 
@@ -226,15 +241,41 @@ module Workhorse
       return true
     end
 
+    # Reads the notifier's token, returning nil if it cannot be read.
+    #
+    # A notifier is an accelerator, so a broken one must cost latency rather
+    # than take the worker down: anything raised here would reach the poller's
+    # own rescue, which shuts the worker down. As this runs on every sleep
+    # slice, the failure is reported once rather than many times a second.
+    #
+    # @return [Object, nil]
+    # @private
+    def notifier_token
+      return Workhorse.notifier.token
+    rescue StandardError => e
+      message = "Reading the notifier failed, falling back to polling: #{e.class}: #{e.message}"
+
+      if @notifier_failed
+        worker.log message, :debug
+      else
+        @notifier_failed = true
+        worker.log message, :warn
+      end
+
+      return nil
+    end
+
     # Executes a block with a global database lock.
     # Supports both MySQL GET_LOCK and Oracle DBMS_LOCK.
     #
     # @param name [Symbol] Lock name identifier
     # @param timeout [Integer] Lock timeout in seconds
+    # @param count_failures [Boolean] Whether a failure to obtain the lock
+    #   counts towards {Workhorse.max_global_lock_fails}
     # @yield Block to execute while holding the lock
     # @return [void]
     # @private
-    def with_global_lock(name: :workhorse, timeout: 2, &_block)
+    def with_global_lock(name: :workhorse, timeout: 2, count_failures: true, &_block)
       begin # rubocop:disable Style/RedundantBegin
         if @is_oracle
           result = Workhorse::DbJob.connection.select_all(
@@ -252,6 +293,13 @@ module Workhorse
         if success
           @global_lock_fails = 0
           @max_global_lock_fails_reached = false
+        elsif !count_failures
+          # Losing the race for the lock is the expected outcome when several
+          # workers were woken by the same announcement, and says nothing about
+          # a crashed worker. Counting it would let the alarm below fire within
+          # seconds rather than after the polling intervals it is calibrated
+          # for.
+          worker.log 'Could not obtain global lock for a poll that was brought forward, skipping it.', :debug
         else
           @global_lock_fails += 1
 
@@ -304,8 +352,13 @@ module Workhorse
 
       @instant_repoll.make_false
 
+      # A poll that a notification or an instant repoll brought forward is not
+      # the scheduled one the lock-failure alarm is calibrated against.
+      brought_forward = @poll_brought_forward
+      @poll_brought_forward = false
+
       timeout = worker.polling_interval.clamp(MIN_LOCK_TIMEOUT, MAX_LOCK_TIMEOUT)
-      with_global_lock timeout: timeout do
+      with_global_lock timeout: timeout, count_failures: !brought_forward do
         job_ids = []
 
         Workhorse.tx_callback.call do

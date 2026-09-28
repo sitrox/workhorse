@@ -159,6 +159,46 @@ class Workhorse::NotifierTest < WorkhorseTest
     assert_nothing_raised { notifier.notify(queue: :mailer) }
   end
 
+  # A broken notifier must cost latency, not the worker: anything raised while
+  # checking would reach the poller's rescue and shut the worker down.
+  def test_a_raising_notifier_does_not_take_the_worker_down
+    Workhorse.notifier = RaisingNotifier.new
+
+    with_worker(polling_interval: 0.2, pool_size: 1, auto_terminate: false) do |w|
+      Workhorse.enqueue BasicJob.new(sleep_time: 0)
+
+      with_retries(30) do
+        assert_equal 1, Workhorse::DbJob.succeeded.count
+      end
+
+      assert_equal :running, w.state
+    end
+  end
+
+  # Losing the race for the global lock after an announcement is expected and
+  # must not count towards the "a worker may have crashed" alarm.
+  def test_lock_failures_of_brought_forward_polls_are_not_counted
+    Workhorse.notifier = file_notifier
+    w = Workhorse::Worker.new(polling_interval: 60, pool_size: 1)
+    poller = w.poller
+
+    poller.instance_variable_set(:@poll_brought_forward, true)
+
+    with_global_lock_held do
+      poller.send(:poll)
+    end
+
+    assert_equal 0, poller.instance_variable_get(:@global_lock_fails)
+
+    poller.instance_variable_set(:@poll_brought_forward, false)
+
+    with_global_lock_held do
+      poller.send(:poll)
+    end
+
+    assert_equal 1, poller.instance_variable_get(:@global_lock_fails)
+  end
+
   def test_redis_notifier_requires_a_client
     Workhorse.notification_redis = nil
     notifier = Workhorse::Notifiers::Redis.new
@@ -174,6 +214,19 @@ class Workhorse::NotifierTest < WorkhorseTest
     return File.join(Dir.tmpdir, 'workhorse_test.wake')
   end
 
+  # Holds workhorse's global lock on a connection of its own, so that the code
+  # under test sees it as taken by another worker.
+  def with_global_lock_held
+    connection = ActiveRecord::Base.connection_pool.checkout
+    connection.select_value("SELECT GET_LOCK(CONCAT(DATABASE(), '_workhorse'), 1)")
+    yield
+  ensure
+    if connection
+      connection.select_value("SELECT RELEASE_LOCK(CONCAT(DATABASE(), '_workhorse'))")
+      ActiveRecord::Base.connection_pool.checkin(connection)
+    end
+  end
+
   def file_notifier
     return Workhorse::Notifiers::FileSystem.new(path: wake_path)
   end
@@ -183,6 +236,13 @@ class Workhorse::NotifierTest < WorkhorseTest
   def wait_for_first_poll(logger)
     with_retries(50, interval: 0.05) do
       assert_match(/Polling DB for jobs/, logger.instance_variable_get(:@logdev).dev.string)
+    end
+  end
+
+  # Notifier whose token cannot be read, standing in for a broken custom one.
+  class RaisingNotifier < Workhorse::Notifiers::Base
+    def token
+      fail 'notifier is broken'
     end
   end
 
