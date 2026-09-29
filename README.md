@@ -271,8 +271,9 @@ instead of it.
 
 Without `timezone`, a cron expression is read in the process's local time.
 Given one, occurrences are computed in that zone, including across daylight
-saving changes: a `30 2 * * *` schedule in `Europe/Zurich` has no occurrence
-on the day the clocks go forward, because 02:30 does not exist that day.
+saving changes. A `30 2 * * *` schedule in `Europe/Zurich` has no occurrence
+on the day the clocks go forward, because 02:30 does not exist that day — and
+exactly one on the day they go back, although 02:30 happens twice.
 
 ### Disabling a schedule
 

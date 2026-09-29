@@ -26,7 +26,9 @@
   `:run_once` (the default) collapses missed occurrences into one, `:run`
   materializes each up to `max_catch_up`, and `:skip` drops those older than
   `grace`. Cron expressions can be read in a given `timezone`, daylight saving
-  included.
+  included: a wall-clock time that does not exist on the day the clocks go
+  forward produces no occurrence, and one that happens twice on the day they
+  go back produces a single one.
 
 * Add `expires_at` and `max_lateness` to jobs, and the callbacks
   `Workhorse.on_job_expired` and `Workhorse.on_job_late`. A job that passes

@@ -29,6 +29,30 @@ class Workhorse::NotifierTest < WorkhorseTest
     assert_instance_of Workhorse::Notifiers::None, Workhorse.notifier
   end
 
+  def test_notifier_can_be_set_to_nil
+    Workhorse.notifier = :file
+    Workhorse.notifier = nil
+
+    assert_instance_of Workhorse::Notifiers::None, Workhorse.notifier
+  end
+
+  def test_the_file_notifier_defaults_below_the_rails_root
+    assert_equal Rails.root.join('tmp', 'pids', 'workhorse.wake').to_s,
+                 Workhorse::Notifiers::FileSystem.new.path
+  end
+
+  def test_the_redis_notifier_takes_the_configured_client
+    redis = FakeRedis.new
+    Workhorse.notification_redis = redis
+    notifier = Workhorse::Notifiers::Redis.new
+
+    notifier.notify(queue: :mailer)
+
+    assert_equal [[Workhorse::Notifiers::Redis::DEFAULT_CHANNEL, 'mailer']], redis.published
+  ensure
+    Workhorse.notification_redis = nil
+  end
+
   def test_unknown_notifier_is_rejected
     assert_raises ArgumentError do
       Workhorse.notifier = :carrier_pigeon

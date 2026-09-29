@@ -78,6 +78,21 @@ class Workhorse::WorkerTest < WorkhorseTest
     assert_equal :initialized, w.state
   end
 
+  # A job that another worker already reset - or that never got locked - must
+  # be left alone rather than reset a second time.
+  def test_a_job_that_is_no_longer_locked_is_not_released
+    job = Workhorse.enqueue BasicJob.new(sleep_time: 0)
+    w = Workhorse::Worker.new(polling_interval: 60, pool_size: 1)
+    w.start
+    w.shutdown
+
+    job.update_columns(state: 'succeeded')
+
+    w.send(:release, job.id)
+
+    assert_equal 'succeeded', job.reload.state
+  end
+
   def test_idle
     with_worker(pool_size: 5, polling_interval: 0.2) do |w|
       assert_equal 5, w.idle

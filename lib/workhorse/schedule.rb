@@ -93,8 +93,9 @@ module Workhorse
       # the abbreviation, which fails for the whole repeated hour of a
       # fall-back transition ("Cannot determine timezone from \"CEST\"") when
       # ENV['TZ'] is unset. UTC always resolves, and the cron's own zone still
-      # governs the computation.
-      now = now.utc
+      # governs the computation. `getutc` rather than `utc`, which would
+      # convert the caller's own object in place.
+      now = now.getutc
       cron = definition.parsed_cron
 
       # Nothing is due, and the schedule must not be rewound: returning the
@@ -118,13 +119,16 @@ module Workhorse
       occurrences << Time.at(now.to_i).utc if cron.match?(now)
 
       while occurrences.size < wanted_occurrences
-        cursor = cron.previous_time(cursor).to_t
+        # Normalized on every step, not just the first: fugit hands back a
+        # time in the cron's zone, and feeding an ambiguous one straight back
+        # in is what raises.
+        cursor = cron.previous_time(cursor).to_t.getutc
         break if cursor < next_at
 
         occurrences.unshift(cursor)
       end
 
-      return [apply_catch_up(occurrences, now), cron.next_time(now).to_t]
+      return [apply_catch_up(deduplicate(occurrences), now), cron.next_time(now).to_t]
     end
 
     # Returns how many occurrences the catch-up policy could use at most.
@@ -187,6 +191,24 @@ module Workhorse
     end
 
     private
+
+    # Drops occurrences that fall on the same wall-clock time.
+    #
+    # When the clocks go back, a local time happens twice, and a schedule
+    # anchored to one produces two instants for it. Running a nightly job
+    # twice that night is not what "at 02:30" is taken to mean, here or in
+    # cron, so the repeat is dropped.
+    #
+    # @param occurrences [Array<Time>]
+    # @return [Array<Time>]
+    def deduplicate(occurrences)
+      zone = definition.timezone
+
+      return occurrences.uniq do |occurrence|
+        local = zone ? occurrence.in_time_zone(zone) : occurrence.getlocal
+        local.strftime('%F %T')
+      end
+    end
 
     # Applies the catch-up policy to the occurrences that are due.
     #

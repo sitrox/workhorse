@@ -729,6 +729,83 @@ class Workhorse::ScheduleTest < WorkhorseTest
     end
   end
 
+  def test_detect_late_schedules_can_be_restricted_to_keys
+    persisted_schedule('checked', cron: '0 3 * * *', next_at: Time.now - 3600)
+    persisted_schedule('ignored', cron: '0 4 * * *', next_at: Time.now - 3600)
+
+    error = assert_raises RuntimeError do
+      Workhorse::Jobs::DetectLateSchedulesJob.new(threshold: 60, keys: ['checked']).perform
+    end
+
+    assert_match(/"checked"/, error.message)
+    refute_match(/ignored/, error.message)
+  end
+
+  def test_detect_late_schedules_does_nothing_when_none_is_declared
+    Workhorse::Schedule.create!(key: 'orphan', cron: '0 3 * * *', next_at: Time.now - 3600)
+
+    assert_nothing_raised do
+      Workhorse::Jobs::DetectLateSchedulesJob.new(threshold: 60).perform
+    end
+  end
+
+  # Two workers starting together both insert the same schedule; the loser of
+  # the race must carry on rather than fail its whole reconciliation.
+  def test_reconcile_tolerates_a_concurrent_insert
+    define_schedule 'nightly', cron: '0 3 * * *'
+    define_schedule 'other', cron: '0 4 * * *'
+
+    Workhorse::Schedule.create!(key: 'nightly', cron: '0 3 * * *', next_at: Time.now + 3600)
+
+    # As it looks to a worker whose SELECT ran before the other's INSERT.
+    with_return_value(Workhorse::Schedule, :find_by, nil) do
+      assert_nothing_raised { Workhorse::Schedule.reconcile! }
+    end
+
+    assert_equal %w[nightly other], Workhorse::Schedule.order(:key).pluck(:key)
+  end
+
+  # The clocks go back on 2026-10-25 in this zone, so 02:30 happens twice in
+  # wall-clock terms. The schedule must still produce one occurrence that day.
+  def test_daylight_saving_fall_back_does_not_repeat_an_occurrence
+    zone = ActiveSupport::TimeZone['Europe/Zurich']
+    schedule = persisted_schedule(
+      'nightly', cron: '30 2 * * *', timezone: 'Europe/Zurich', catch_up: :run,
+      next_at: zone.parse('2026-10-24T02:30:00').to_time
+    )
+
+    occurrences, = schedule.pending_occurrences(zone.parse('2026-10-26T12:00:00').to_time)
+    days = occurrences.map { |o| o.in_time_zone(zone).day }
+
+    assert_equal [24, 25, 26], days
+    assert_equal days.uniq, days, 'no day may produce two occurrences'
+  end
+
+  def test_enqueue_uses_the_configured_queue_and_description
+    occurrence = Time.now.round
+    schedule = persisted_schedule(
+      'nightly', cron: '0 3 * * *', next_at: occurrence,
+      queue: :reports, description: 'Nightly report'
+    )
+
+    db_job = schedule.enqueue!(occurrence)
+
+    assert_equal 'reports', db_job.queue
+    assert_equal 'Nightly report', db_job.description
+  end
+
+  # ActiveJob defaults its queue_name to "default", so a scheduled ActiveJob
+  # lands in a *named* queue even when the schedule names none - and named
+  # queues run one job at a time, unlike the nil queue a plain job gets.
+  def test_a_scheduled_active_job_lands_in_the_active_job_queue
+    occurrence = Time.now.round
+    aj = persisted_schedule('aj', cron: '0 3 * * *', next_at: occurrence, job: 'ScheduledActiveJob')
+    plain = persisted_schedule('plain', cron: '0 4 * * *', next_at: occurrence)
+
+    assert_equal 'default', aj.enqueue!(occurrence).queue
+    assert_nil plain.enqueue!(occurrence).queue
+  end
+
   private
 
   def without_expiry_columns
