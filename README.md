@@ -81,6 +81,60 @@ for that release. PostgreSQL has never been supported, despite the
 requirements once listing it; supporting it would mean an advisory-lock
 dialect of its own (`pg_advisory_lock`) and is not currently planned.
 
+## Upgrading from 1.x
+
+Workhorse 2.0 drops support for Oracle, see
+[Database support](#database-support). An Oracle installation has no upgrade
+path and should stay on 1.x.
+
+Otherwise nothing breaks without migrating: [scheduling](#scheduling) is inert
+until a schedule is declared, [notifications](#notifications) are off until a
+notifier is selected, and the new job columns are only written when used. To
+take the new features up, add this migration:
+
+```ruby
+class UpgradeWorkhorseToV2 < ActiveRecord::Migration[7.1]
+  def change
+    add_column :jobs, :expires_at, :datetime, null: true
+    add_column :jobs, :max_lateness, :integer, null: true
+
+    create_table :workhorse_schedules do |t|
+      t.string :key, null: false
+      t.string :cron, null: false
+      t.string :timezone, null: true
+      t.boolean :enabled, null: false, default: true
+      t.datetime :next_at, null: false
+      t.datetime :last_enqueued_at, null: true
+      t.datetime :last_occurrence, null: true
+      t.integer :last_job_id, null: true
+      t.timestamps null: false
+    end
+
+    # The index names are given explicitly because the ones Rails would
+    # derive are longer than some tools accept.
+    add_index :workhorse_schedules, :key,
+              unique: true, length: 191, name: 'idx_wh_schedules_key'
+    add_index :workhorse_schedules, %i[enabled next_at],
+              name: 'idx_wh_schedules_due'
+
+    add_index :jobs, %i[state perform_at],
+              length: { state: 191 }, name: 'idx_jobs_state_perform_at'
+    add_index :jobs, %i[state priority created_at],
+              length: { state: 191 }, name: 'idx_jobs_state_prio_created'
+    add_index :jobs, %i[state expires_at],
+              length: { state: 191 }, name: 'idx_jobs_state_expires_at'
+
+    # Now redundant, as `state` leads both indexes above
+    remove_index :jobs, :state
+  end
+end
+```
+
+Two behaviour changes worth knowing about, both described in the changelog: a
+forked daemon worker no longer runs `at_exit` handlers registered by the
+process that started it, and `Workhorse::Jobs::CleanupSucceededJobs` now also
+deletes jobs in the new `expired` state.
+
 ## Queuing jobs
 
 ### Basic jobs
