@@ -103,6 +103,16 @@
   one. Their version numbers now count up, as two migrations generated within
   the same second would otherwise collide.
 
+* Change a forked daemon worker to exit without running the `at_exit`
+  handlers registered by the process that started it. They belong to that
+  process rather than to the worker, and one that waits on threads the fork
+  did not inherit hangs a worker which has already finished - which then
+  ignores `TERM`, so the daemon's `stop` waits for it forever.
+  `Workhorse::Daemon::ShellHandler` has skipped them for the same reason since
+  1.3.0. If your application relies on an `at_exit` handler running inside
+  job workers - flushing a reporter, deregistering from a service registry -
+  do that work explicitly before the worker's block returns.
+
 * Change failures to obtain the global lock on a poll that a notification or
   an instant repoll brought forward: they no longer count towards
   `max_global_lock_fails` and are logged at `debug` rather than `warn`.
