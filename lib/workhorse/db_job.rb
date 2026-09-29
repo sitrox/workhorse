@@ -29,9 +29,8 @@ module Workhorse
 
     self.table_name = 'jobs'
 
-    # Announce the job *after* the surrounding transaction has committed.
-    # Notifying before would wake a worker that cannot see the row yet, which
-    # would send it back to sleep for a whole polling interval - the very
+    # Notifying before the commit would wake a worker that cannot see the row
+    # yet, sending it back to sleep for a whole polling interval - the very
     # delay the notification exists to avoid.
     after_commit :notify_workers, on: :create
 

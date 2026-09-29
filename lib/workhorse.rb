@@ -88,8 +88,7 @@ module Workhorse
   # Callback invoked when a job passed its `expires_at` before any worker got
   # to it. The job is in state `expired` and will not be performed.
   #
-  # An expiry that nobody hears about is the failure this exists to prevent,
-  # so workhorse logs it at `warn` regardless of this callback. Set the
+  # Workhorse logs an expiry at `warn` regardless of this callback. Set the
   # callback to report it wherever failures belong, e.g.
   #
   # ```ruby

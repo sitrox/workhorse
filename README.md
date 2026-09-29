@@ -60,7 +60,8 @@ What it does not do:
 
    This generates:
 
-   * A database migration for creating a table named `jobs`
+   * Two database migrations, creating the tables `jobs` and
+     `workhorse_schedules`
    * The initializer `config/initializers/workhorse.rb` for global configuration
      * This can be skipped using the `--skip-initializer` flag
    * The daemon worker script `bin/workhorse.rb`
@@ -202,17 +203,25 @@ that is a moment late from one that is a day late.
 A materialised job's `perform_at` is the occurrence's own time, not the moment
 it was enqueued. The difference between it and `started_at` is therefore the
 lateness of that occurrence, available on every job as
-`Workhorse::DbJob#lateness` and as a column you can report on.
+`Workhorse::DbJob#lateness`, and derivable in SQL from the `started_at` and
+`perform_at` columns.
 
 Two options act on it, and both work for hand-enqueued jobs as well:
 
 * **`max_lateness`** — seconds the job may start late before
-  {Workhorse.on_job_late} is called. The job still runs; it was just late.
+  `Workhorse.on_job_late` is called. The job still runs; it was just late.
 * **`expires_after`** — seconds after the occurrence at which the job is no
   longer worth running. It is then set to state `expired` and
   `Workhorse.on_job_expired` is called instead of it being performed. For
   "send the 08:00 reminder", running it at 11:40 is often worse than not
   running it at all.
+
+Hand-enqueued jobs take `max_lateness:` under the same name, and the deadline
+as an absolute time rather than an offset:
+
+```ruby
+Workhorse.enqueue(job, expires_at: 1.hour.from_now, max_lateness: 60)
+```
 
 ```ruby
 Workhorse.setup do |config|
@@ -274,8 +283,8 @@ materialised, without a deployment:
 Workhorse::Schedule.find_by(key: 'morning_digest').update!(enabled: false)
 ```
 
-Removing a schedule from the declarations deletes its row once no worker has
-declared it for a day. The delay matters during a rolling deployment, where
+Removing a schedule from the declarations deletes its row: the next worker to
+start after a day has passed without any worker declaring it removes it. The delay matters during a rolling deployment, where
 the old and the new version run at once: were rows removed immediately, each
 version would delete the other's schedules and reset the occurrences they were
 waiting for.
@@ -383,14 +392,14 @@ costs latency and nothing else, as the regular poll still finds the job. For
 the same reason, raise `polling_interval` only as far as you are willing to
 wait when a notification *is* missed.
 
-Note what this does and does not do to database load. While nothing is
-enqueued, workers stop polling almost entirely, which is where the saving is.
-An announcement, on the other hand, wakes *every* idle worker, and all but the
-one that wins the job take the global lock for nothing. So a workload that
-enqueues jobs in bursts while many workers sit idle can take the lock more
-often than plain polling would, rather than less. Workers that are performing a
-job do not react to announcements, so the effect is bounded by how many are
-idle.
+Note what this does and does not do to database load. A notification only
+brings the next poll forward; it never replaces one, so the saving comes from
+raising `polling_interval`, not from notifications by themselves. An
+announcement also wakes *every* worker with a free thread, and all but the one
+that wins the job take the global lock for nothing. So a workload that enqueues
+in bursts while many workers sit idle can take the lock more often than plain
+polling would, rather than less. A worker whose threads are all busy does not
+react, so the effect is bounded by how much spare capacity there is.
 
 Two notifiers ship with workhorse:
 
@@ -411,8 +420,8 @@ moved with `config.notification_path`. Every process involved must agree on it.
 
 Publishes on a Redis pub/sub channel, for deployments whose workers do not
 share a filesystem with the application. Redis is a soft dependency: it is not
-declared as a dependency of this gem and is only loaded when this notifier is
-selected.
+declared as a dependency of this gem and workhorse never requires it — supply
+a client through `config.notification_redis`.
 
 ```ruby
 Workhorse.setup do |config|
@@ -422,14 +431,27 @@ Workhorse.setup do |config|
 end
 ```
 
+A subscribed Redis connection cannot be used for anything else, so the
+notifier needs one of its own. Give `notification_redis` something callable
+and it is used to build both:
+
+```ruby
+config.notification_redis = -> { Redis.new(url: ENV['REDIS_URL']) }
+```
+
+Given a client instead, the subscriber falls back to `dup`, which in redis-rb
+is a shallow copy that may share the connection.
+
 #### Writing your own
 
 Subclass `Workhorse::Notifiers::Base` and assign an instance to
 `config.notifier`. A notifier announces jobs with `notify` and exposes a
 `token` that changes whenever a notification has arrived; workers compare it
 against the last value they saw, so several workers in one process stay
-independent of one another. `notify` must never raise — a job must still be
-enqueued when it cannot be announced.
+independent of one another. `notify(queue: nil)` must never raise — a job must
+still be enqueued when it cannot be announced. `start` and `stop` are optional
+hooks, called as a worker starts and shuts down, for anything that needs a
+thread or a connection of its own.
 
 Note that jobs with a future `perform_at` are not announced, as a woken worker
 would find nothing to do; they are picked up by the regular poll once they are
@@ -569,6 +591,7 @@ DbJob.locked
 DbJob.started
 DbJob.succeeded
 DbJob.failed
+DbJob.expired
 ```
 ### Resetting jobs
 
@@ -576,8 +599,8 @@ Jobs in a state other than `waiting` are either being processed or else already
 in a final state such as `succeeded` and won't be performed again. Workhorse
 provides an API method for resetting jobs in the following cases:
 
-* A job has succeeded or failed (states `succeeded` and `failed`) and needs to
-  re-run. In these cases, perform a non-forced reset:
+* A job has succeeded, failed or expired (states `succeeded`, `failed` and
+  `expired`) and needs to re-run. In these cases, perform a non-forced reset:
 
   ```ruby
   db_job.reset!
@@ -618,8 +641,9 @@ configuration or else using `self.queue_adapter` in a job class inheriting from
 Per default, jobs remain in the database, no matter in which state. This can
 eventually lead to a very large jobs database. You are advised to clean your
 jobs database on a regular interval. Workhorse provides the job
-`Workhorse::Jobs::CleanupSucceededJobs` for this purpose that cleans up all
-succeeded jobs. You can run this using your scheduler in a specific interval.
+`Workhorse::Jobs::CleanupSucceededJobs` for this purpose, which cleans up
+succeeded and expired jobs — pass `states:` to narrow that. Schedule it with
+`Workhorse.schedules`, see [Scheduling](#scheduling).
 
 ## Memory handling
 
@@ -743,6 +767,11 @@ In the event that this still happens, Workhorse takes the following steps:
 - Logs when a lock could not be obtained.
 - Retries acquiring the lock on the next poll.
 - Calls the `on_exception` callback (if configured) after a configurable number of consecutive failures to obtain the lock.
+
+Failures on a poll that a notification or an instant repoll brought forward
+are expected — several workers race for the lock and all but one lose — so
+they are logged at `debug` only and do not count towards
+`max_global_lock_fails`.
 
 The maximum number of consecutive failures can be configured using
 `config.max_global_lock_fails`, which defaults to 10.

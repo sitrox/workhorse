@@ -152,8 +152,10 @@ module Workhorse
 
       unless @schedules_available
         if Workhorse::Schedules.any?
-          worker.log 'Schedules are declared but the workhorse_schedules table does not exist. ' \
-                     'Run the migration that creates it; no scheduled job will run until then.', :error
+          message = 'Schedules are declared but the workhorse_schedules table does not exist. ' \
+                    'Run the migration that creates it; no scheduled job will run until then.'
+          worker.log message, :error
+          Workhorse.on_exception.call(StandardError.new(message))
         end
 
         return
@@ -248,8 +250,7 @@ module Workhorse
         break
       end
 
-      # Whether the poll that follows was brought forward rather than being due,
-      # see #poll.
+      # Time left on the clock means the sleep was cut short, see #poll.
       @poll_brought_forward = remaining > 0
     end
 
@@ -385,8 +386,6 @@ module Workhorse
 
       @instant_repoll.make_false
 
-      # A poll that a notification or an instant repoll brought forward is not
-      # the scheduled one the lock-failure alarm is calibrated against.
       brought_forward = @poll_brought_forward
       @poll_brought_forward = false
 
@@ -458,10 +457,10 @@ module Workhorse
 
         occurrences, next_at = schedule.pending_occurrences
 
-        # Claim and enqueue together. The claim advances the schedule past
-        # these occurrences, so committing it before the jobs exist would lose
-        # them for good if enqueuing then failed - the schedule would move on
-        # and DetectLateSchedulesJob would see nothing wrong.
+        # The claim advances the schedule past these occurrences, so
+        # committing it before the jobs exist would lose them for good if
+        # enqueuing then failed - the schedule would move on and
+        # DetectLateSchedulesJob would see nothing wrong.
         Workhorse.tx_callback.call do
           next unless schedule.claim!(next_at)
 
@@ -470,9 +469,10 @@ module Workhorse
             worker.log "Materialized schedule #{schedule.key.inspect} for #{occurrence} as job #{db_job.id}", :debug
           end
         end
+
+        @failed_schedules&.delete(schedule.key)
       rescue Exception => e
-        worker.log %(Could not materialize schedule #{schedule.key.inspect}: #{e.message}), :error
-        Workhorse.on_exception.call(e)
+        report_schedule_failure(schedule, e)
       end
 
       return
@@ -483,14 +483,39 @@ module Workhorse
       Workhorse.on_exception.call(e)
     end
 
+    # Reports a schedule that could not be materialized.
+    #
+    # Reported once per schedule per worker: a schedule that can never enqueue
+    # - a renamed job class, params its constructor rejects - fails on every
+    # poll, and one typo must not turn into a notification every polling
+    # interval for as long as the worker runs.
+    #
+    # @param schedule [Workhorse::Schedule]
+    # @param exception [Exception]
+    # @return [void]
+    # @private
+    def report_schedule_failure(schedule, exception)
+      message = %(Could not materialize schedule #{schedule.key.inspect}: #{exception.message})
+      @failed_schedules ||= Set.new
+
+      if @failed_schedules.include?(schedule.key)
+        worker.log message, :debug
+        return
+      end
+
+      @failed_schedules << schedule.key
+      worker.log message, :error
+      Workhorse.on_exception.call(exception)
+
+      return
+    end
+
     # Marks jobs that passed their deadline before any worker got to them.
     #
     # @return [Array<Workhorse::DbJob>] The jobs that were expired
     # @private
     def expire_due_jobs
-      # Absent on an installation that has not run the migration adding it.
-      # Expiry is then simply unavailable rather than fatal.
-      return [] unless Workhorse::DbJob.column_names.include?('expires_at')
+      return [] unless expiry_supported?
 
       expired = []
 
@@ -502,7 +527,7 @@ module Workhorse
         # weekend, or a bulk enqueue - would otherwise turn one poll into
         # thousands of updates that block every other worker. The rest is
         # expired by the following polls.
-        rel.limit(MAX_EXPIRIES_PER_POLL).each do |db_job|
+        rel.order(:expires_at).limit(MAX_EXPIRIES_PER_POLL).each do |db_job|
           db_job.mark_expired!
           expired << db_job
           worker.log "Job #{db_job.id} passed its deadline of #{db_job.expires_at} and was not run", :warn
@@ -595,10 +620,30 @@ module Workhorse
     #
     # @return [Arel::SelectManager] the select manager
     def valid_select_id
+      now = Time.now
+
       select = table.project(table[:id])
       select = select.where(table[:state].eq(:waiting))
-      select = select.where(table[:perform_at].lteq(Time.now).or(table[:perform_at].eq(nil)))
+      select = select.where(table[:perform_at].lteq(now).or(table[:perform_at].eq(nil)))
+
+      # The deadline is enforced here and not only by #expire_due_jobs, which
+      # expires at most MAX_EXPIRIES_PER_POLL jobs per poll: a larger backlog
+      # would otherwise leave the surplus selectable and performed in the very
+      # same poll, past the deadline the caller set.
+      if expiry_supported?
+        select = select.where(table[:expires_at].gt(now).or(table[:expires_at].eq(nil)))
+      end
+
       return select
+    end
+
+    # Returns whether this installation has the columns the expiry feature
+    # needs. They are absent until the migration adding them has been run.
+    #
+    # @return [Boolean]
+    # @private
+    def expiry_supported?
+      return Workhorse::DbJob.column_names.include?('expires_at')
     end
 
     # Returns a fresh Arel select manager containing the id of all waiting jobs,

@@ -1,4 +1,5 @@
 require 'test_helper'
+require 'tempfile'
 
 class Workhorse::NotifierTest < WorkhorseTest
   def setup
@@ -60,9 +61,9 @@ class Workhorse::NotifierTest < WorkhorseTest
     assert File.exist?(path)
   end
 
-  # A job must still be enqueued when it cannot be announced.
   def test_file_notifier_swallows_errors
-    notifier = Workhorse::Notifiers::FileSystem.new(path: '/proc/nonexistent/workhorse.wake')
+    file = Tempfile.new('workhorse')
+    notifier = Workhorse::Notifiers::FileSystem.new(path: File.join(file.path, 'workhorse.wake'))
 
     assert_nothing_raised { notifier.notify }
     assert_nil notifier.token
@@ -86,8 +87,6 @@ class Workhorse::NotifierTest < WorkhorseTest
     assert_nil Workhorse.notifier.token
   end
 
-  # Notifying before the commit would wake a worker that cannot see the row
-  # yet, sending it back to sleep for a whole polling interval.
   def test_notification_happens_after_commit
     Workhorse.notifier = file_notifier
 
@@ -119,13 +118,15 @@ class Workhorse::NotifierTest < WorkhorseTest
   end
 
   def test_worker_without_a_notifier_waits_out_its_polling_interval
-    with_worker(polling_interval: 60, pool_size: 1, auto_terminate: false) do
-      sleep 0.3
+    capture_log do |logger|
+      with_worker(polling_interval: 60, pool_size: 1, auto_terminate: false, logger: logger) do
+        wait_for_first_poll(logger)
 
-      Workhorse.enqueue BasicJob.new(sleep_time: 0)
-      sleep 1
+        Workhorse.enqueue BasicJob.new(sleep_time: 0)
+        sleep 1
 
-      assert_equal 1, Workhorse::DbJob.waiting.count
+        assert_equal 1, Workhorse::DbJob.waiting.count
+      end
     end
   end
 
@@ -139,10 +140,6 @@ class Workhorse::NotifierTest < WorkhorseTest
 
     notifier.start
     begin
-      with_retries(50, interval: 0.02) do
-        assert_equal 0, notifier.token
-      end
-
       redis.deliver('test:jobs', 'mailer')
 
       with_retries(50, interval: 0.02) do
@@ -159,8 +156,7 @@ class Workhorse::NotifierTest < WorkhorseTest
     assert_nothing_raised { notifier.notify(queue: :mailer) }
   end
 
-  # A broken notifier must cost latency, not the worker: anything raised while
-  # checking would reach the poller's rescue and shut the worker down.
+  # A broken notifier must cost latency, not the worker.
   def test_a_raising_notifier_does_not_take_the_worker_down
     Workhorse.notifier = RaisingNotifier.new
 
@@ -175,14 +171,17 @@ class Workhorse::NotifierTest < WorkhorseTest
     end
   end
 
-  # Losing the race for the global lock after an announcement is expected and
-  # must not count towards the "a worker may have crashed" alarm.
+  # Losing that race is expected when several workers are woken at once.
   def test_lock_failures_of_brought_forward_polls_are_not_counted
     Workhorse.notifier = file_notifier
     w = Workhorse::Worker.new(polling_interval: 60, pool_size: 1)
     poller = w.poller
 
-    poller.instance_variable_set(:@poll_brought_forward, true)
+    Workhorse.notifier.notify
+    poller.send(:sleep)
+
+    assert poller.instance_variable_get(:@poll_brought_forward),
+           'a poll following an announcement must be marked as brought forward'
 
     with_global_lock_held do
       poller.send(:poll)
@@ -206,6 +205,71 @@ class Workhorse::NotifierTest < WorkhorseTest
     assert_raises RuntimeError do
       notifier.client
     end
+  end
+
+  # A worker with no free thread must leave the announcement pending, or the
+  # job waits out the whole polling interval once capacity frees up.
+  def test_an_announcement_arriving_while_busy_is_not_lost
+    Workhorse.notifier = file_notifier
+
+    with_worker(polling_interval: 60, pool_size: 1, auto_terminate: false) do
+      blocker = Workhorse.enqueue BasicJob.new(sleep_time: 1)
+      with_retries(60, interval: 0.05) { assert_equal 'started', blocker.reload.state }
+
+      job = Workhorse.enqueue BasicJob.new(sleep_time: 0)
+
+      with_retries(60, interval: 0.1) { assert_equal 'succeeded', job.reload.state }
+    end
+  end
+
+  # Several workers in one process share one subscriber thread; the first to
+  # stop must not take it away from the others.
+  def test_the_redis_subscriber_survives_until_the_last_worker_stops
+    redis = FakeRedis.new
+    notifier = Workhorse::Notifiers::Redis.new(client: redis, channel: 'test:jobs')
+
+    notifier.start
+    notifier.start
+    notifier.stop
+
+    begin
+      redis.deliver('test:jobs', 'mailer')
+
+      with_retries(50, interval: 0.02) { assert_equal 1, notifier.token }
+    ensure
+      notifier.stop
+    end
+  end
+
+  # Configuration must work in any order relative to selecting the notifier.
+  def test_the_file_notifier_follows_the_configured_path
+    Workhorse.notifier = :file
+    Workhorse.notification_path = wake_path
+
+    assert_equal wake_path, Workhorse.notifier.path
+  ensure
+    Workhorse.notification_path = nil
+  end
+
+  def test_the_redis_notifier_follows_the_configured_channel
+    Workhorse.notifier = :redis
+    Workhorse.notification_channel = 'custom:jobs'
+
+    assert_equal 'custom:jobs', Workhorse.notifier.channel
+  ensure
+    Workhorse.notification_channel = nil
+  end
+
+  def test_the_redis_notifier_builds_a_client_from_a_callable
+    built = []
+    Workhorse.notification_redis = -> { built << :built and FakeRedis.new }
+    notifier = Workhorse::Notifiers::Redis.new
+
+    notifier.notify(queue: :mailer)
+
+    assert_equal [:built], built
+  ensure
+    Workhorse.notification_redis = nil
   end
 
   private

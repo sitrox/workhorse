@@ -71,3 +71,28 @@ end
 class ScheduledActiveJob < ActiveJob::Base
   def perform(*); end
 end
+
+# Minimal stand-in for RailsOps, which workhorse only soft-depends on. Its
+# presence is what selects the operation branch of Workhorse::Enqueuer.
+module RailsOps
+  class Operation
+    def self.results
+      return @results ||= Concurrent::Array.new
+    end
+
+    # Workhorse::Jobs::RunRailsOp calls the class method, as RailsOps does.
+    def self.run!(params = {})
+      return new(params).run!
+    end
+
+    def initialize(params = {})
+      @params = params
+    end
+
+    def run!
+      self.class.results << @params
+    end
+  end
+end
+
+class DummyScheduledOp < RailsOps::Operation; end

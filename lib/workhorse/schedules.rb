@@ -44,7 +44,7 @@ module Workhorse
         @queue = queue
         @priority = priority
         @description = description
-        @params = params || {}
+        @params = (params || {}).freeze
         @catch_up = catch_up.to_sym
         @grace = grace
         @max_catch_up = max_catch_up
@@ -85,10 +85,15 @@ module Workhorse
 
         # Without a grace period, ":skip" has no way of telling an occurrence
         # that is merely a moment late from one that is a day late, and would
-        # silently drop every occurrence. Better to say so than to guess.
+        # silently drop every occurrence.
         if catch_up == :skip && grace.nil?
           fail ArgumentError, "Schedule #{key.inspect}: catch_up :skip requires a grace period, " \
                               'which is how late an occurrence may be and still run.'
+        end
+
+        if catch_up == :run && !(max_catch_up.is_a?(Integer) && max_catch_up >= 1)
+          fail ArgumentError, "Schedule #{key.inspect}: max_catch_up must be an Integer >= 1, " \
+                              "got #{max_catch_up.inspect}."
         end
 
         if parsed_cron.nil?

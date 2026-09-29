@@ -198,12 +198,6 @@ module Workhorse
     #
     # @return [void]
     def shutdown
-      # This is safe to be checked outside of the mutex as 'shutdown' is the
-      # final state this worker can be in.
-      return if @state == :shutdown
-
-      # Only the caller that performs the transition shuts the worker down;
-      # any other is a repeat call and returns, as documented above.
       transitioned = mutex.synchronize do
         next false unless @state == :running
 
@@ -215,10 +209,12 @@ module Workhorse
       end
 
       unless transitioned
-        # Another thread is shutting the worker down. Wait for it rather than
-        # returning early, so that this call keeps the promise above that
-        # running jobs have finished once it returns.
-        @pool.wait
+        # Another thread is doing the shutting down, or it is already done.
+        # Wait for the pool rather than returning, so that this call keeps the
+        # promise above that running jobs have finished once it returns. A
+        # worker that was never started has no pool to wait for.
+        @pool.wait if @state == :shutdown
+
         return
       end
 
@@ -294,8 +290,7 @@ module Workhorse
     def perform(db_job_id)
       mutex.synchronize do
         # The poller commits the lock on a job before posting it here, so the
-        # worker may have begun shutting down in between. Nothing will run the
-        # job in this worker, so hand it back instead of posting it.
+        # worker may have begun shutting down in between.
         next release(db_job_id) unless @state == :running
 
         log "Posting job #{db_job_id} to thread pool"

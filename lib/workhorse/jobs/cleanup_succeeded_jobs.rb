@@ -36,7 +36,13 @@ module Workhorse::Jobs
     # @return [void]
     def perform
       age_limit = seconds_ago(@max_age)
-      Workhorse::DbJob.where(state: @states).where('UPDATED_AT <= ?', age_limit).delete_all
+
+      # An instance of this job enqueued before the upgrade unmarshals without
+      # @states, and `where(state: nil)` would quietly match nothing - leaving
+      # the table growing, which is what this job is for.
+      Workhorse::DbJob.where(state: @states || DEFAULT_STATES)
+                      .where('UPDATED_AT <= ?', age_limit)
+                      .delete_all
     end
 
     private

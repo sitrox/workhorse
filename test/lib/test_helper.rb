@@ -73,8 +73,13 @@ class WorkhorseTest < ActiveSupport::TestCase
 
     # Use `select_values` rather than `execute`, as the latter does not return a
     # result set on every adapter.
+    # Restricted to this database: the process list is server-wide, so killing
+    # every query on it takes down whatever else happens to share the server -
+    # another project, or a second run of this very suite - and surfaces here
+    # as an unrelated "Lost connection to server during query".
     pids = Workhorse::DbJob.connection.select_values(<<~SQL.squish)
-      SELECT ID FROM INFORMATION_SCHEMA.PROCESSLIST WHERE ID != CONNECTION_ID()
+      SELECT ID FROM INFORMATION_SCHEMA.PROCESSLIST
+      WHERE ID != CONNECTION_ID() AND DB = DATABASE()
     SQL
 
     begin

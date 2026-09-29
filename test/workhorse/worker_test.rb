@@ -1,11 +1,9 @@
 require 'test_helper'
 
 class Workhorse::WorkerTest < WorkhorseTest
-  # Reproduces the interleaving that used to deadlock the worker: #shutdown
-  # held the worker's mutex while waiting for the poller thread to finish,
-  # and the poller thread was waiting for that same mutex inside #perform,
-  # having just committed the lock on a job. Neither could proceed, the
-  # process ignored TERM, and the daemon's stop looped on it forever.
+  # Guards the interleaving that deadlocks the worker if #shutdown holds the
+  # mutex while waiting for the poller thread: that thread may be in #perform
+  # waiting for the same mutex, having just committed the lock on a job.
   def test_shutdown_while_the_poller_posts_a_job
     job = Workhorse.enqueue BasicJob.new(sleep_time: 0)
     w = Workhorse::Worker.new(polling_interval: 60, pool_size: 1)
@@ -37,9 +35,6 @@ class Workhorse::WorkerTest < WorkhorseTest
 
     assert posted.wait(5), 'poller thread never returned from #perform'
 
-    # The job was locked but will not run here, so it has to be handed back
-    # rather than left locked, which would block its queue until a manual
-    # reset.
     job.reload
 
     assert_equal 'waiting', job.state
@@ -47,18 +42,40 @@ class Workhorse::WorkerTest < WorkhorseTest
     assert_nil job.locked_by
   end
 
-  # Both TERM and INT are sent by the daemon's stop, so two threads can call
-  # #shutdown at once. The second must not raise, and must not return before
-  # the shutdown it is waiting on has finished.
-  def test_concurrent_shutdown
-    with_worker(polling_interval: 0.2, pool_size: 2, auto_terminate: false) do |w|
-      results = Timeout.timeout(15) do
-        4.times.map { Thread.new { w.shutdown } }.map(&:join).map(&:value)
-      end
+  # #shutdown promises that running jobs have finished once it returns. Both
+  # TERM and INT are sent by the daemon's stop, so a repeat call has to keep
+  # that promise too rather than returning while the first one is still
+  # waiting for the pool.
+  def test_a_repeated_shutdown_waits_for_the_running_job
+    job = Workhorse.enqueue BasicJob.new(sleep_time: 2)
+    w = Workhorse::Worker.new(polling_interval: 0.2, pool_size: 1)
+    w.start
 
-      assert_equal 4, results.size
-      assert_equal :shutdown, w.state
+    with_retries(60, interval: 0.05) { assert_equal 'started', job.reload.state }
+
+    states = Concurrent::Array.new
+    first = Thread.new { w.shutdown }
+    sleep 0.3
+    second = Thread.new do
+      w.shutdown
+      states << job.reload.state
     end
+
+    Timeout.timeout(15) { second.join }
+
+    assert_equal ['succeeded'], states.to_a,
+                 'a repeated shutdown must not return while a job is still running'
+    assert_equal :shutdown, w.state
+  ensure
+    first&.join
+  end
+
+  def test_shutdown_of_a_worker_that_was_never_started
+    w = Workhorse::Worker.new(polling_interval: 60)
+
+    Timeout.timeout(5) { w.shutdown }
+
+    assert_equal :initialized, w.state
   end
 
   def test_idle

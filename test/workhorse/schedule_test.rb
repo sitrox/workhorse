@@ -16,9 +16,7 @@ class Workhorse::ScheduleTest < WorkhorseTest
     Workhorse.on_job_late = @on_job_late
   end
 
-  # ---------------------------------------------------------------
   # Registry
-  # ---------------------------------------------------------------
 
   def test_registering_a_schedule
     define_schedule 'cleanup', cron: '10 0 * * *'
@@ -52,8 +50,6 @@ class Workhorse::ScheduleTest < WorkhorseTest
     end
   end
 
-  # Without a grace period, :skip cannot tell an occurrence that is a moment
-  # late from one that is a day late and would drop every one of them.
   def test_skip_without_grace_is_rejected
     error = assert_raises ArgumentError do
       define_schedule 'digest', cron: '0 8 * * *', catch_up: :skip
@@ -62,9 +58,7 @@ class Workhorse::ScheduleTest < WorkhorseTest
     assert_match(/requires a grace period/, error.message)
   end
 
-  # ---------------------------------------------------------------
   # Reconciliation
-  # ---------------------------------------------------------------
 
   def test_reconcile_inserts_without_firing_immediately
     now = Time.new(2026, 9, 28, 10, 0, 0)
@@ -99,7 +93,6 @@ class Workhorse::ScheduleTest < WorkhorseTest
     now = Time.new(2026, 9, 28, 10, 0, 0)
     define_schedule 'nightly', cron: '0 3 * * *'
     Workhorse::Schedule.reconcile!(now)
-    before = Workhorse::Schedule.sole.next_at
 
     Workhorse::Schedules.reset!
     define_schedule 'nightly', cron: '0 3 * * *', timezone: 'Asia/Tokyo'
@@ -108,7 +101,7 @@ class Workhorse::ScheduleTest < WorkhorseTest
     schedule = Workhorse::Schedule.sole
 
     assert_equal 'Asia/Tokyo', schedule.timezone
-    refute_equal before, schedule.next_at
+    assert_equal ActiveSupport::TimeZone['Asia/Tokyo'].local(2026, 9, 29, 3, 0, 0), schedule.next_at
   end
 
   # Reconciliation must not push an unchanged schedule's occurrence forward,
@@ -151,9 +144,7 @@ class Workhorse::ScheduleTest < WorkhorseTest
     assert_equal 0, Workhorse::Schedule.count
   end
 
-  # ---------------------------------------------------------------
   # Catch-up policies
-  # ---------------------------------------------------------------
 
   def test_nothing_is_due_before_the_occurrence
     now = Time.new(2026, 9, 28, 10, 0, 0)
@@ -164,8 +155,6 @@ class Workhorse::ScheduleTest < WorkhorseTest
     assert_empty occurrences
   end
 
-  # The point of the whole design: an occurrence that passed while nothing was
-  # running is still there to be found.
   def test_an_occurrence_missed_during_an_outage_is_not_lost
     now = Time.new(2026, 9, 28, 10, 0, 0)
     schedule = persisted_schedule('nightly', cron: '0 3 * * *', next_at: Time.new(2026, 9, 28, 3, 0, 0))
@@ -236,16 +225,16 @@ class Workhorse::ScheduleTest < WorkhorseTest
     occurrences, next_at = schedule.pending_occurrences(now)
 
     assert_empty occurrences
-    # Dropped, but the schedule still moves on to tomorrow.
     assert_equal Time.new(2026, 9, 29, 8, 0, 0), next_at
   end
 
   # Europe/Zurich moves from 02:00 to 03:00 on 2027-03-28, so an 02:30
   # schedule has no occurrence that day.
   def test_daylight_saving_spring_forward_skips_the_missing_hour
+    zone = ActiveSupport::TimeZone['Europe/Zurich']
     schedule = persisted_schedule(
       'nightly', cron: '30 2 * * *', timezone: 'Europe/Zurich',
-      next_at: Time.new(2027, 3, 27, 2, 30, 0)
+      next_at: zone.local(2027, 3, 27, 2, 30, 0)
     )
 
     days = 3.times.map do
@@ -254,15 +243,10 @@ class Workhorse::ScheduleTest < WorkhorseTest
       next_at.in_time_zone('Europe/Zurich').day
     end
 
-    # 02:30 does not exist on the 28th in this zone, so the schedule has no
-    # occurrence that day and goes straight from the 27th to the 29th.
-    refute_includes days, 28
     assert_equal [29, 30, 31], days
   end
 
-  # ---------------------------------------------------------------
   # Claiming
-  # ---------------------------------------------------------------
 
   def test_only_one_claim_of_the_same_occurrence_succeeds
     schedule = persisted_schedule('nightly', cron: '0 3 * * *', next_at: Time.now - 60)
@@ -272,12 +256,8 @@ class Workhorse::ScheduleTest < WorkhorseTest
     refute other.claim!(Time.now + 7200), 'a stale claim must not succeed'
   end
 
-  # ---------------------------------------------------------------
   # Enqueuing
-  # ---------------------------------------------------------------
 
-  # perform_at carries the occurrence rather than the current time, which is
-  # what makes the lateness of that occurrence measurable afterwards.
   def test_enqueue_records_the_intended_time
     occurrence = Time.now.round - 300
     schedule = persisted_schedule('nightly', cron: '0 3 * * *', next_at: occurrence)
@@ -316,14 +296,22 @@ class Workhorse::ScheduleTest < WorkhorseTest
   end
 
   def test_enqueue_works_for_rails_ops_operations
+    DummyScheduledOp.results.clear
     occurrence = Time.now.round
     schedule = persisted_schedule(
-      'op', cron: '0 3 * * *', next_at: occurrence, job: 'DummyRailsOpsOp', params: {}
+      'op', cron: '0 3 * * *', next_at: occurrence, job: 'DummyScheduledOp', params: { foo: :bar }
     )
 
     db_job = schedule.enqueue!(occurrence)
+    handler = Marshal.load(db_job.handler) # rubocop:disable Security/MarshalLoad
 
+    assert_equal Workhorse::Jobs::RunRailsOp, handler.class
     assert_equal occurrence, db_job.perform_at
+
+    work 2, polling_interval: 0.2, pool_size: 1
+
+    assert_equal 'succeeded', db_job.reload.state
+    assert_equal [{ foo: :bar }], DummyScheduledOp.results.to_a
   end
 
   def test_enqueue_passes_params
@@ -339,14 +327,12 @@ class Workhorse::ScheduleTest < WorkhorseTest
     assert_equal 'x', job.instance_variable_get(:@some_param)
   end
 
-  # ---------------------------------------------------------------
   # Poller integration
-  # ---------------------------------------------------------------
 
   def test_a_worker_materializes_and_performs_a_due_schedule
-    define_schedule 'due_now', cron: '* * * * *'
+    define_schedule 'due_now', cron: '0 3 * * *'
     Workhorse::Schedule.reconcile!
-    Workhorse::Schedule.sole.update!(next_at: Time.now - 60)
+    Workhorse::Schedule.sole.update!(next_at: yesterday_at_three)
 
     work 2, polling_interval: 0.2, pool_size: 1
 
@@ -355,22 +341,20 @@ class Workhorse::ScheduleTest < WorkhorseTest
   end
 
   def test_a_disabled_schedule_is_not_materialized
-    define_schedule 'due_now', cron: '* * * * *'
+    define_schedule 'due_now', cron: '0 3 * * *'
     Workhorse::Schedule.reconcile!
-    Workhorse::Schedule.sole.update!(next_at: Time.now - 60, enabled: false)
+    Workhorse::Schedule.sole.update!(next_at: yesterday_at_three, enabled: false)
 
     work 1, polling_interval: 0.2, pool_size: 1
 
     assert_equal 0, Workhorse::DbJob.count
   end
 
-  # A schedule whose job class cannot be resolved must not stop the others,
-  # nor take the worker down.
   def test_a_failing_schedule_does_not_stop_the_others
-    define_schedule 'broken', cron: '* * * * *', job: 'ThisClassDoesNotExist'
-    define_schedule 'fine', cron: '* * * * *'
+    define_schedule 'broken', cron: '0 3 * * *', job: 'ThisClassDoesNotExist'
+    define_schedule 'fine', cron: '0 3 * * *'
     Workhorse::Schedule.reconcile!
-    Workhorse::Schedule.update_all(next_at: Time.now - 60)
+    Workhorse::Schedule.update_all(next_at: yesterday_at_three)
 
     exceptions = []
     with_exception_handler ->(e) { exceptions << e } do
@@ -385,10 +369,10 @@ class Workhorse::ScheduleTest < WorkhorseTest
   # claim to commit on its own, a schedule whose enqueuing always fails would
   # advance past every occurrence while DetectLateSchedulesJob stayed green.
   def test_a_claim_is_rolled_back_when_enqueuing_fails
-    define_schedule 'due_now', cron: '* * * * *', job: 'ThisClassDoesNotExist'
+    define_schedule 'due_now', cron: '0 3 * * *', job: 'ThisClassDoesNotExist'
     Workhorse::Schedule.reconcile!
     schedule = Workhorse::Schedule.sole
-    schedule.update!(next_at: Time.now - 60)
+    schedule.update!(next_at: yesterday_at_three)
     before = schedule.reload.next_at
 
     with_exception_handler ->(_e) {} do
@@ -399,8 +383,6 @@ class Workhorse::ScheduleTest < WorkhorseTest
     assert_equal before, schedule.reload.next_at, 'the occurrence must still be pending'
   end
 
-  # Declaring schedules without the table must not take the workers down, only
-  # keep the schedules from running.
   def test_a_missing_schedules_table_does_not_shut_the_worker_down
     define_schedule 'due_now', cron: '* * * * *'
 
@@ -419,9 +401,7 @@ class Workhorse::ScheduleTest < WorkhorseTest
     end
   end
 
-  # A rolling deployment runs both versions at once. Were a row deleted as
-  # soon as one of them did not declare it, the two would delete each other's
-  # schedules and reset the occurrences they were waiting for.
+  # A rolling deployment runs both versions at once.
   def test_reconcile_keeps_a_schedule_another_version_still_declares
     define_schedule 'only_in_the_old_version', cron: '0 3 * * *'
     Workhorse::Schedule.reconcile!
@@ -448,20 +428,19 @@ class Workhorse::ScheduleTest < WorkhorseTest
     assert_equal 0, Workhorse::Schedule.count
   end
 
-  # An orphaned row is waiting to be cleaned up and nothing materializes it,
-  # so reporting it as overdue would be a false alarm.
   def test_detect_late_schedules_ignores_rows_without_a_declaration
-    persisted_schedule('known', cron: '0 3 * * *', next_at: Time.now + 3600)
+    persisted_schedule('known', cron: '0 3 * * *', next_at: Time.now - 3600)
     Workhorse::Schedule.create!(key: 'orphan', cron: '0 3 * * *', next_at: Time.now - 3600)
 
-    assert_nothing_raised do
+    error = assert_raises RuntimeError do
       Workhorse::Jobs::DetectLateSchedulesJob.new(threshold: 60).perform
     end
+
+    assert_match(/"known"/, error.message)
+    refute_match(/orphan/, error.message)
   end
 
-  # ---------------------------------------------------------------
   # Expiry
-  # ---------------------------------------------------------------
 
   def test_a_job_past_its_deadline_is_expired_instead_of_performed
     expired = []
@@ -505,9 +484,7 @@ class Workhorse::ScheduleTest < WorkhorseTest
     assert(exceptions.any? { |e| e.message == 'callback is broken' })
   end
 
-  # ---------------------------------------------------------------
   # Lateness
-  # ---------------------------------------------------------------
 
   def test_a_late_job_reports_its_lateness
     late = []
@@ -549,9 +526,7 @@ class Workhorse::ScheduleTest < WorkhorseTest
     assert(exceptions.any? { |e| e.message == 'callback is broken' })
   end
 
-  # ---------------------------------------------------------------
   # Detection job
-  # ---------------------------------------------------------------
 
   def test_detect_late_schedules_passes_when_up_to_date
     persisted_schedule('nightly', cron: '0 3 * * *', next_at: Time.now + 3600)
@@ -580,7 +555,199 @@ class Workhorse::ScheduleTest < WorkhorseTest
     end
   end
 
+  # The expiry sweep is capped per poll, so the deadline has to be enforced by
+  # the job selection as well: otherwise a backlog larger than the cap leaves
+  # the surplus selectable and performed in the very same poll, past its
+  # deadline.
+  def test_a_backlog_larger_than_the_expiry_cap_is_still_not_performed
+    total = Workhorse::Poller::MAX_EXPIRIES_PER_POLL + 5
+
+    total.times { Workhorse.enqueue BasicJob.new(sleep_time: 0), expires_at: Time.now - 3600 }
+
+    work 2, polling_interval: 0.2, pool_size: 1
+
+    assert_equal 0, Workhorse::DbJob.succeeded.count, 'no job past its deadline may be performed'
+    assert_equal total, Workhorse::DbJob.expired.count
+  end
+
+  def test_the_expiry_sweep_is_capped_per_poll
+    (Workhorse::Poller::MAX_EXPIRIES_PER_POLL + 5).times do
+      Workhorse.enqueue BasicJob.new(sleep_time: 0), expires_at: Time.now - 3600
+    end
+
+    Workhorse::Worker.new(polling_interval: 60, pool_size: 1).poller.send(:expire_due_jobs)
+
+    assert_equal Workhorse::Poller::MAX_EXPIRIES_PER_POLL, Workhorse::DbJob.expired.count
+  end
+
+  # The option end to end, rather than only the column it writes.
+  def test_a_materialized_job_past_its_expiry_is_not_performed
+    expired = []
+    Workhorse.on_job_expired = proc { |db_job| expired << db_job.id }
+
+    define_schedule 'digest', cron: '0 3 * * *', expires_after: 60
+    Workhorse::Schedule.reconcile!
+    Workhorse::Schedule.sole.update!(next_at: yesterday_at_three)
+
+    work 2, polling_interval: 0.2, pool_size: 1
+
+    db_job = Workhorse::DbJob.sole
+
+    assert_equal 'expired', db_job.state
+    assert_nil db_job.started_at
+    assert_equal [db_job.id], expired
+  end
+
+  # The row that exists during every rolling deployment. Were the guard to
+  # regress, every poll would raise on nil and be swallowed.
+  def test_a_schedule_without_a_declaration_is_stepped_over
+    define_schedule 'known', cron: '0 3 * * *'
+    Workhorse::Schedule.reconcile!
+    Workhorse::Schedule.create!(key: 'orphan', cron: '0 3 * * *', next_at: yesterday_at_three)
+
+    exceptions = []
+    with_exception_handler ->(e) { exceptions << e } do
+      work 1, polling_interval: 0.2, pool_size: 1
+    end
+
+    assert_equal 0, Workhorse::DbJob.count
+    assert_empty exceptions
+  end
+
+  # One typo must not produce a notification every polling interval forever.
+  def test_a_permanently_broken_schedule_is_reported_once
+    define_schedule 'broken', cron: '0 3 * * *', job: 'ThisClassDoesNotExist'
+    Workhorse::Schedule.reconcile!
+    Workhorse::Schedule.sole.update!(next_at: yesterday_at_three)
+
+    exceptions = []
+    with_exception_handler ->(e) { exceptions << e } do
+      work 2, polling_interval: 0.2, pool_size: 1
+    end
+
+    assert_equal 1, exceptions.size, "expected one report, got #{exceptions.size}"
+  end
+
+  def test_max_catch_up_is_validated
+    assert_raises ArgumentError do
+      define_schedule 'bad', cron: '* * * * *', catch_up: :run, max_catch_up: nil
+    end
+
+    Workhorse::Schedules.reset!
+
+    assert_raises ArgumentError do
+      define_schedule 'bad', cron: '* * * * *', catch_up: :run, max_catch_up: 0
+    end
+  end
+
+  # The occurrence, not the moment the poll happened to run.
+  def test_an_occurrence_matching_now_is_recorded_without_its_fraction
+    now = Time.at(Time.now.to_i).utc + 0.4
+    schedule = persisted_schedule('every_minute', cron: '* * * * *', next_at: now - 300)
+
+    occurrences, = schedule.pending_occurrences(now)
+
+    assert_equal 0, occurrences.last.usec
+  end
+
+  # EtOrbi cannot resolve an ambiguous local time during the repeated hour of
+  # a fall-back transition, which used to raise for every schedule.
+  def test_occurrences_can_be_computed_during_the_fall_back_hour
+    ambiguous = ActiveSupport::TimeZone['Europe/Zurich'].parse('2026-10-25T02:30:00+02:00').to_time
+    schedule = persisted_schedule(
+      'nightly', cron: '0 3 * * *', timezone: 'Europe/Zurich', next_at: ambiguous - 3600
+    )
+
+    assert_nothing_raised do
+      schedule.pending_occurrences(ambiguous)
+    end
+  end
+
+  def test_nothing_due_leaves_the_next_occurrence_where_it_is
+    future = Time.now + 3600
+    schedule = persisted_schedule('nightly', cron: '0 3 * * *', next_at: future)
+
+    occurrences, next_at = schedule.pending_occurrences(Time.now)
+
+    assert_empty occurrences
+    assert_equal schedule.next_at, next_at, 'the schedule must not be rewound'
+  end
+
+  def test_cleanup_removes_succeeded_and_expired_jobs_by_default
+    old = Time.now - (30 * 24 * 60 * 60)
+    kept = []
+    removed = []
+
+    { 'succeeded' => removed, 'expired' => removed, 'failed' => kept }.each do |state, bucket|
+      job = Workhorse.enqueue BasicJob.new(sleep_time: 0)
+      job.update_columns(state: state, updated_at: old)
+      bucket << job.id
+    end
+
+    recent = Workhorse.enqueue BasicJob.new(sleep_time: 0)
+    recent.update_columns(state: 'succeeded', updated_at: Time.now)
+    kept << recent.id
+
+    Workhorse::Jobs::CleanupSucceededJobs.new.perform
+
+    assert_equal kept.sort, Workhorse::DbJob.pluck(:id).sort
+  end
+
+  def test_cleanup_can_be_restricted_to_succeeded_jobs
+    old = Time.now - (30 * 24 * 60 * 60)
+    expired = Workhorse.enqueue BasicJob.new(sleep_time: 0)
+    succeeded = Workhorse.enqueue BasicJob.new(sleep_time: 0)
+    expired.update_columns(state: 'expired', updated_at: old)
+    succeeded.update_columns(state: 'succeeded', updated_at: old)
+
+    Workhorse::Jobs::CleanupSucceededJobs.new(states: [Workhorse::DbJob::STATE_SUCCEEDED]).perform
+
+    assert_equal [expired.id], Workhorse::DbJob.pluck(:id)
+  end
+
+  # An instance enqueued before the upgrade unmarshals without @states.
+  def test_cleanup_enqueued_before_the_upgrade_still_deletes
+    old = Time.now - (30 * 24 * 60 * 60)
+    job = Workhorse.enqueue BasicJob.new(sleep_time: 0)
+    job.update_columns(state: 'succeeded', updated_at: old)
+
+    cleanup = Workhorse::Jobs::CleanupSucceededJobs.new
+    cleanup.remove_instance_variable(:@states)
+    cleanup.perform
+
+    assert_equal 0, Workhorse::DbJob.count
+  end
+
+  # The guards that let an installation upgrade the gem before the migration.
+  def test_a_worker_runs_normally_without_the_expiry_columns
+    without_expiry_columns do
+      job = Workhorse.enqueue BasicJob.new(sleep_time: 0)
+
+      work 2, polling_interval: 0.2, pool_size: 1
+
+      assert_equal 'succeeded', job.reload.state
+    end
+  end
+
   private
+
+  def without_expiry_columns
+    connection = ActiveRecord::Base.connection
+    connection.remove_column :jobs, :expires_at
+    connection.remove_column :jobs, :max_lateness
+    Workhorse::DbJob.reset_column_information
+    yield
+  ensure
+    connection.add_column :jobs, :expires_at, :datetime, null: true
+    connection.add_column :jobs, :max_lateness, :integer, null: true
+    Workhorse::DbJob.reset_column_information
+  end
+
+  # A real past occurrence of '0 3 * * *'. Seeding with an arbitrary past
+  # moment would yield no occurrences at all, as the walk stops at next_at.
+  def yesterday_at_three
+    return (Time.now - (24 * 60 * 60)).change(hour: 3)
+  end
 
   def define_schedule(key, job: 'BasicJob', **options)
     Workhorse.schedules do

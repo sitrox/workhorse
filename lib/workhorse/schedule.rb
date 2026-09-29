@@ -13,6 +13,10 @@ module Workhorse
   class Schedule < ActiveRecord::Base
     self.table_name = 'workhorse_schedules'
 
+    # How long a schedule that nothing declares any more is kept before its
+    # row is deleted.
+    OBSOLETE_GRACE = 24 * 60 * 60
+
     # Returns the schedules whose next occurrence has come.
     #
     # @param now [Time]
@@ -73,10 +77,6 @@ module Workhorse
       return
     end
 
-    # How long a schedule that nothing declares any more is kept before its
-    # row is deleted.
-    OBSOLETE_GRACE = 24 * 60 * 60
-
     # @return [Workhorse::Schedules::Definition, nil] The registry entry
     def definition
       return Workhorse::Schedules[key]
@@ -89,9 +89,18 @@ module Workhorse
     # @return [Array(Array<Time>, Time)] Occurrences to enqueue and the new
     #   `next_at`.
     def pending_occurrences(now = Time.now)
+      # EtOrbi resolves a Time's zone by rebuilding it locally and comparing
+      # the abbreviation, which fails for the whole repeated hour of a
+      # fall-back transition ("Cannot determine timezone from \"CEST\"") when
+      # ENV['TZ'] is unset. UTC always resolves, and the cron's own zone still
+      # governs the computation.
+      now = now.utc
       cron = definition.parsed_cron
 
-      return [[], cron.next_time(now).to_t] if next_at > now
+      # Nothing is due, and the schedule must not be rewound: returning the
+      # next occurrence after now could move next_at backwards for a caller
+      # outside the poller.
+      return [[], next_at] if next_at > now
 
       # Walked backwards from now rather than forwards from next_at, so that
       # the work is bounded by how many occurrences a policy could use - one,
@@ -102,9 +111,11 @@ module Workhorse
       occurrences = []
       cursor = now
 
-      # An occurrence falling exactly on `now` is due as well, and walking
-      # backwards would step straight past it.
-      occurrences << now if cron.match?(now)
+      # An occurrence falling on `now` is due as well, and walking backwards
+      # would step straight past it. Truncated to the second, as `match?`
+      # ignores the fraction and perform_at must be the occurrence itself
+      # rather than the moment this poll happened to run.
+      occurrences << Time.at(now.to_i).utc if cron.match?(now)
 
       while occurrences.size < wanted_occurrences
         cursor = cron.previous_time(cursor).to_t

@@ -23,14 +23,20 @@ module Workhorse
     # that does not, two touches within the same second may be seen as one, and
     # the worker waits for its regular poll instead.
     class FileSystem < Base
-      # @return [String] Path of the file that is touched
-      attr_reader :path
-
       # @param path [String, nil] Path of the file to touch. Defaults to
       #   {Workhorse.notification_path}.
       def initialize(path: nil)
         super()
-        @path = (path || Workhorse.notification_path).to_s
+        @path = path
+      end
+
+      # Resolved when used rather than when constructed, so that
+      # {Workhorse.notification_path} can be set in any order relative to
+      # {Workhorse.notifier=}.
+      #
+      # @return [String] Path of the file that is touched
+      def path
+        return (@path || Workhorse.notification_path).to_s
       end
 
       # Touches the notification file, creating it and its directory if

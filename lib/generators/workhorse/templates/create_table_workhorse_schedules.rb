@@ -1,22 +1,19 @@
 class CreateTableWorkhorseSchedules < ActiveRecord::Migration[7.1]
   def change
     create_table :workhorse_schedules, force: true do |t|
-      # Name of the schedule, as given to Workhorse.schedules. The job class
-      # and its options live in that definition, not here.
+      # The job class and its options live in the Workhorse.schedules
+      # definition, not here.
       t.string :key, null: false
 
-      # Cron expression and timezone the next occurrence is derived from.
-      # Kept here so that a change to either can be recognised.
+      # Kept here so that a change to either can be recognised on
+      # reconciliation.
       t.string :cron, null: false
       t.string :timezone, null: true
 
-      # Whether occurrences are materialised. Lets a schedule be switched off
-      # without a deployment.
+      # Lets a schedule be switched off without a deployment.
       t.boolean :enabled, null: false, default: true
 
-      # The next occurrence that has not been materialised yet. This is the
-      # entire state of a schedule: it is what makes an occurrence survive a
-      # process that is not running when its time comes.
+      # The next occurrence that has not been materialised yet.
       t.datetime :next_at, null: false
 
       t.datetime :last_enqueued_at, null: true
