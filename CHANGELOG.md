@@ -2,6 +2,17 @@
 
 ## 2.0.0.rc0 - 2026-09-29
 
+* **Drop support for Oracle.** Workhorse supports MySQL and MariaDB only.
+  The Oracle-specific code - the `DBMS_LOCK` branch of the global lock, the
+  `ROWNUM` limiting, and the index-name and column-length branches of the
+  generated migrations - has been removed, along with
+  `Workhorse::Poller::ORACLE_LOCK_MODE` and
+  `Workhorse::Poller::ORACLE_LOCK_HANDLE`. It was never covered by CI and
+  could only be verified by hand.
+
+  There is no upgrade path for an Oracle installation: stay on 1.x, or move
+  the jobs database to MySQL or MariaDB.
+
 * Add *scheduling*. Workhorse now runs jobs on a cron schedule itself, without
   an external scheduler process:
 
@@ -154,8 +165,7 @@
 
 * Document that PostgreSQL is not supported. Workers emit `GET_LOCK` on every
   poll, which PostgreSQL does not provide, so a worker fails on its first poll.
-  The requirements previously listed it alongside MySQL / MariaDB and Oracle,
-  which are the databases workhorse actually implements a lock for.
+  The requirements previously listed it as supported, which it never was.
 
 * Nothing in this release breaks an existing installation that does not
   migrate: scheduling is inert until a schedule is declared, and `expires_at`
@@ -181,9 +191,8 @@
         t.timestamps null: false
       end
 
-      # Omit the `length` options on Oracle. The index names are given
-      # explicitly because the ones Rails would derive exceed the 30
-      # characters Oracle allows before 12.2.
+      # The index names are given explicitly because the ones Rails would
+      # derive are longer than some tools accept.
       add_index :workhorse_schedules, :key,
                 unique: true, length: 191, name: 'idx_wh_schedules_key'
       add_index :workhorse_schedules, %i[enabled next_at],

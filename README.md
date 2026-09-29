@@ -35,8 +35,8 @@ What it does not do:
 
 * Ruby `>= 3.0` (may work with earlier versions but is untested)
 * Rails `>= 7.0`
-* One of the supported databases (see [Database support](#database-support)):
-  MySQL / MariaDB with InnoDB, or Oracle. **PostgreSQL is not supported.**
+* MySQL or MariaDB with InnoDB. No other database is supported, see
+  [Database support](#database-support).
 * If you are planning on using the daemons handler:
   * An operating system and file system that supports file locking.
   * MRI Ruby (aka "CRuby") as jRuby does not support `fork`. See the
@@ -70,29 +70,16 @@ What it does not do:
 
 ### Database support
 
-Workhorse serialises job pickup using a database-level lock, which is
-necessarily written against a specific database's dialect. Two families are
-implemented:
+**MySQL and MariaDB are the only supported databases.** Workhorse serialises
+job pickup with `GET_LOCK`, a MySQL advisory lock, which is emitted on every
+poll; a database that does not provide it fails on the first poll. InnoDB is
+required, as MyISAM supports neither transactions nor row-level locking. Both
+the `mysql2` and the `trilogy` adapter are covered by CI.
 
-| Database          | Supported | Lock used            | Covered by CI |
-|-------------------|-----------|----------------------|---------------|
-| MySQL / MariaDB   | Yes       | `GET_LOCK`           | Yes, against both the `mysql2` and the `trilogy` adapter |
-| Oracle            | Yes       | `DBMS_LOCK`          | No, tested manually against `activerecord-oracle_enhanced-adapter` |
-| PostgreSQL        | **No**    | —                    | — |
-| Everything else   | **No**    | —                    | — |
-
-There is no PostgreSQL implementation: workers emit `GET_LOCK` on every poll,
-which PostgreSQL does not provide, so a worker fails on its first poll.
-Supporting it would mean an advisory-lock dialect of its own
-(`pg_advisory_lock`) and is not currently planned. Note that InnoDB is required
-on MySQL / MariaDB, as MyISAM supports neither transactions nor row-level
-locking.
-
-When using Oracle, make sure your schema has access to the package `DBMS_LOCK`:
-
-```
-GRANT execute ON DBMS_LOCK TO <schema-name>;
-```
+Oracle was supported until 2.0.0 and is not any more — see the changelog entry
+for that release. PostgreSQL has never been supported, despite the
+requirements once listing it; supporting it would mean an advisory-lock
+dialect of its own (`pg_advisory_lock`) and is not currently planned.
 
 ## Queuing jobs
 
