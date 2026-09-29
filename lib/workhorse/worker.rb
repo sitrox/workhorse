@@ -23,6 +23,9 @@ module Workhorse
     LOG_REOPEN_SIGNAL = 'HUP'.freeze
     SOFT_RESTART_SIGNAL = 'USR1'.freeze
 
+    # Seconds a repeated {#shutdown} waits for the one already in progress.
+    REPEAT_SHUTDOWN_TIMEOUT = 60
+
     # @return [Array<Symbol>] The queues this worker processes
     attr_reader :queues
 
@@ -216,7 +219,14 @@ module Workhorse
         # promise above that running jobs have finished once it returns. On
         # a worker that was never started nothing will ever shut the pool
         # down, and #wait would block forever.
-        @pool.wait if @state == :shutdown
+        #
+        # Bounded, because this runs inside the signal handler for the second
+        # of the TERM and INT the daemon's stop sends, which joins it: were
+        # the shutdown it waits on stuck, an unbounded wait would take the
+        # whole process down with it - including its ability to be killed.
+        if @state == :shutdown && !@pool.wait(timeout: REPEAT_SHUTDOWN_TIMEOUT)
+          log 'Gave up waiting for the concurrent shutdown to finish', :warn
+        end
 
         return
       end

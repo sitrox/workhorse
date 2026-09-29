@@ -108,6 +108,9 @@ module Workhorse
 
           @thread&.kill
           @thread = nil
+          # The thread held the only reference to it, so nothing else would
+          # ever close it.
+          @subscriber_client = close(@subscriber_client)
           @subscriber_failed = false
         end
 
@@ -130,22 +133,22 @@ module Workhorse
         chan = channel
 
         return Thread.new do
-          client = nil
-
           loop do
             # Kept across iterations and replaced only once the connection it
             # holds has failed, so an outage does not build one client per
             # second and drop each unclosed.
-            client ||= subscriber_client
+            client = (@subscriber_client ||= subscriber_client)
 
             client.subscribe(chan) do |on|
+              # Re-armed when the subscription is established, not after
+              # #subscribe returns: it blocks for the subscription's whole
+              # life, so a later outage would otherwise never be reported.
+              on.subscribe { @subscriber_failed = false }
               on.message { |_channel, _message| counter.increment }
             end
-
-            @subscriber_failed = false
           rescue StandardError => e
             report_subscriber_failure(e)
-            client = close(client)
+            @subscriber_client = close(client)
             Kernel.sleep RECONNECT_DELAY
           end
         end
@@ -177,12 +180,15 @@ module Workhorse
         return
       end
 
-      # Closes a client, tolerating one that cannot be closed.
+      # Closes a client this notifier built, tolerating one that cannot be
+      # closed. A client supplied by the application is left alone: it may be
+      # a wrapper sharing its connection with the one {#notify} publishes on,
+      # which closing would take down.
       #
       # @param client [Object, nil]
       # @return [nil]
       def close(client)
-        client.close if client.respond_to?(:close)
+        client.close if @owns_subscriber_client && client.respond_to?(:close)
 
         return nil
       rescue StandardError => e
@@ -204,14 +210,17 @@ module Workhorse
       #
       # Configure {Workhorse.notification_redis} with something callable to
       # get a connection of its own here. Given a client instead, this falls
-      # back to `dup`, which in redis-rb is a shallow copy that may share the
-      # underlying connection.
+      # back to `dup`. redis-rb's own `dup` builds a fresh client, but a
+      # wrapper that does not define one - a namespacing or instrumenting
+      # delegator - yields a shallow copy sharing the connection, which is
+      # why such a client is never closed.
       #
       # @return [Object]
       def subscriber_client
         source = client_source
+        @owns_subscriber_client = source.respond_to?(:call)
 
-        return source.respond_to?(:call) ? source.call : source.dup
+        return @owns_subscriber_client ? source.call : source.dup
       end
     end
   end

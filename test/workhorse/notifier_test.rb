@@ -212,6 +212,31 @@ class Workhorse::NotifierTest < WorkhorseTest
     end
   end
 
+  # The once-only guard has to re-arm, or only the first outage in a
+  # process's whole life is ever reported.
+  def test_a_second_outage_is_reported_again
+    redis = FakeRedis.new
+    notifier = Workhorse::Notifiers::Redis.new(client: redis, channel: 'test:jobs')
+    reported = []
+
+    with_exception_handler ->(e) { reported << e.message } do
+      notifier.start
+
+      begin
+        redis.drop!
+        with_retries(100, interval: 0.05) { assert_equal 1, reported.size }
+
+        redis.deliver('test:jobs', 'mailer')
+        with_retries(100, interval: 0.05) { assert_equal 1, notifier.token }
+
+        redis.drop!
+        with_retries(100, interval: 0.05) { assert_equal 2, reported.size }
+      ensure
+        notifier.stop
+      end
+    end
+  end
+
   def test_redis_notifier_swallows_publish_errors
     notifier = Workhorse::Notifiers::Redis.new(client: FakeRedis.new(fail_publish: true), channel: 'test:jobs')
 
@@ -427,6 +452,11 @@ class Workhorse::NotifierTest < WorkhorseTest
       @queue << [channel, message]
     end
 
+    # Makes the current subscription fail, as a dropped connection would.
+    def drop!
+      @queue << :drop
+    end
+
     def dup
       return self
     end
@@ -439,20 +469,31 @@ class Workhorse::NotifierTest < WorkhorseTest
 
       on = Callbacks.new
       yield on
+      on.subscribed!
 
       loop do
-        channel, message = @queue.pop
-        on.call(channel, message)
+        item = @queue.pop
+        fail 'Connection reset' if item == :drop
+
+        on.call(*item)
       end
     end
 
     class Callbacks
       def message(&block)
-        @block = block
+        @message = block
+      end
+
+      def subscribe(&block)
+        @subscribe = block
+      end
+
+      def subscribed!
+        @subscribe&.call
       end
 
       def call(channel, message)
-        @block&.call(channel, message)
+        @message&.call(channel, message)
       end
     end
   end

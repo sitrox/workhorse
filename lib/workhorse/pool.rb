@@ -72,17 +72,23 @@ module Workhorse
       @size - @active_threads.value
     end
 
-    # Waits until the pool is shut down. This will wait forever unless you
-    # eventually call {#shutdown} (either before calling `wait` or after it in
-    # another thread).
+    # Waits until the pool is shut down. Without a timeout this waits forever
+    # unless you eventually call {#shutdown} (either before calling `wait` or
+    # after it in another thread).
     #
-    # @return [void]
-    def wait
+    # @param timeout [Numeric, nil] Seconds to wait at most, or nil for no
+    #   limit.
+    # @return [Boolean] Whether the pool is shut down
+    def wait(timeout: nil)
+      deadline = timeout ? Process.clock_gettime(Process::CLOCK_MONOTONIC) + timeout : nil
+
       # Here we use a loop-sleep combination instead of using
       # ThreadPoolExecutor's `wait_for_termination`. See issue #21 for more
       # information.
       loop do
-        break if @executor.shutdown?
+        return true if @executor.shutdown?
+        return false if deadline && Process.clock_gettime(Process::CLOCK_MONOTONIC) >= deadline
+
         sleep 0.1
       end
     end

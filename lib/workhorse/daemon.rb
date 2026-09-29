@@ -320,14 +320,24 @@ module Workhorse
 
         begin
           worker.block.call
-        ensure
+
           # Exit without running the at_exit handlers the parent registered:
           # they belong to whatever started the daemon, not to this worker,
           # and one that waits on threads the fork did not inherit hangs a
-          # worker that has finished - which then ignores TERM. In an ensure,
-          # as a worker that raised must not run them either. ShellHandler
+          # worker that has finished - which then ignores TERM. ShellHandler
           # skips them for the same reason.
           exit!(0)
+        rescue Exception => e
+          # Reported here because exit! below denies it to every other route
+          # out: stderr is /dev/null by now, and an error reporter installed
+          # as an at_exit handler never runs. A worker that dies of an
+          # unhandled exception would otherwise do so silently.
+          begin
+            Workhorse.on_exception.call(e)
+          rescue Exception # rubocop:disable Lint/SuppressedException
+          end
+
+          exit!(1)
         end
       end
       worker.pid = pid

@@ -109,9 +109,16 @@
   did not inherit hangs a worker which has already finished - which then
   ignores `TERM`, so the daemon's `stop` waits for it forever.
   `Workhorse::Daemon::ShellHandler` has skipped them for the same reason since
-  1.3.0. If your application relies on an `at_exit` handler running inside
-  job workers - flushing a reporter, deregistering from a service registry -
-  do that work explicitly before the worker's block returns.
+  1.3.0.
+
+  Note that this skips interpreter finalisation as a whole, so anything a
+  worker left in a buffer is dropped too - relevant if your logger is not in
+  sync mode, as under Rails' `config.autoflush_log = false`. If your
+  application relies on an `at_exit` handler running inside job workers -
+  flushing a reporter, deregistering from a service registry - do that work
+  explicitly before the worker's block returns. A worker that dies of an
+  unhandled exception now reports it through `Workhorse.on_exception` and
+  exits non-zero, which the lost `at_exit` would previously have carried.
 
 * Change failures to obtain the global lock on a poll that a notification or
   an instant repoll brought forward: they no longer count towards

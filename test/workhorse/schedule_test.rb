@@ -808,6 +808,43 @@ class Workhorse::ScheduleTest < WorkhorseTest
     assert_equal [24, 25, 26], days
   end
 
+  # An hour holding several occurrences replays all of them, which a single
+  # step over the repeat does not cover.
+  def test_daylight_saving_fall_back_with_several_occurrences_in_the_hour
+    previous_tz = ENV.fetch('TZ', nil)
+    ENV['TZ'] = 'Europe/Zurich'
+    zone = ActiveSupport::TimeZone['Europe/Zurich']
+    schedule = persisted_schedule(
+      'twice', cron: '0,30 2 * * *', timezone: 'Europe/Zurich',
+      next_at: zone.parse('2026-10-25T02:00:00').to_time
+    )
+
+    fired = step_through(schedule, until_after: zone.parse('2026-10-25T23:00:00').to_time)
+    locals = fired.map { |o| o.in_time_zone(zone).strftime('%H:%M %Z') }
+
+    assert_equal ['02:00 CEST', '02:30 CEST'], locals
+  ensure
+    ENV['TZ'] = previous_tz
+  end
+
+  # The zone may be given as a trailing token of the expression instead of as
+  # an option, and the wall-clock comparison has to read either.
+  def test_daylight_saving_fall_back_with_the_zone_inside_the_expression
+    previous_tz = ENV.fetch('TZ', nil)
+    ENV['TZ'] = 'UTC'
+    zone = ActiveSupport::TimeZone['Europe/Zurich']
+    schedule = persisted_schedule(
+      'nightly', cron:    '30 2 * * * Europe/Zurich',
+                 next_at: zone.parse('2026-10-24T02:30:00').to_time
+    )
+
+    fired = step_through(schedule, until_after: zone.parse('2026-10-27T00:00:00').to_time)
+
+    assert_equal([24, 25, 26], fired.map { |o| o.in_time_zone(zone).day })
+  ensure
+    ENV['TZ'] = previous_tz
+  end
+
   # An expression with a wildcard hour ticks on every real instant, so both
   # halves of the repeated hour are genuine and must both be kept.
   def test_daylight_saving_fall_back_keeps_both_ticks_of_an_hourly_schedule

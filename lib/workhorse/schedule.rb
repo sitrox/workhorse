@@ -17,6 +17,11 @@ module Workhorse
     # row is deleted.
     OBSOLETE_GRACE = 24 * 60 * 60
 
+    # Most candidates {#advance} steps over before giving up. An hour can
+    # repeat only once, so this is only ever reached by a schedule with a very
+    # short period, whose repeats are bounded by the length of that hour.
+    MAX_REPEATED_STEPS = 3600
+
     # Returns the schedules whose next occurrence has come.
     #
     # @param now [Time]
@@ -212,9 +217,21 @@ module Workhorse
 
       return next_at unless wall_clock_anchored?
       return next_at if occurrences.empty?
-      return next_at unless wall_clock(next_at) == wall_clock(occurrences.last)
 
-      return cron.next_time(next_at.getutc).to_t
+      # Stepped in a loop, not once: an hour holding several occurrences -
+      # `0,30 2 * * *` - replays all of them, and consecutive candidates
+      # never collide pairwise. Formatted times sort chronologically, and the
+      # wall clock advances again once the transition is over, so this
+      # terminates; bounded regardless.
+      last = wall_clock(occurrences.last)
+
+      MAX_REPEATED_STEPS.times do
+        break if wall_clock(next_at) > last
+
+        next_at = cron.next_time(next_at.getutc).to_t
+      end
+
+      return next_at
     end
 
     # Drops occurrences that fall on the same wall-clock time, see {#advance}.
@@ -241,7 +258,9 @@ module Workhorse
     # @param time [Time]
     # @return [String] The local time, in the schedule's zone
     def wall_clock(time)
-      zone = definition.timezone
+      # The zone may be given as an option or as a trailing token of the
+      # expression itself, and fugit reports either.
+      zone = definition.parsed_cron.zone || definition.timezone
       local = zone ? time.in_time_zone(zone) : time.getlocal
 
       return local.strftime('%F %T')
