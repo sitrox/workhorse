@@ -1,12 +1,12 @@
 class CreateTableWorkhorseSchedules < ActiveRecord::Migration[7.1]
   def change
+    # Schedules are addressed by key; the job class and its options live in
+    # the Workhorse.schedules definition rather than here.
     create_table :workhorse_schedules, force: true do |t|
-      # The job class and its options live in the Workhorse.schedules
-      # definition, not here.
       t.string :key, null: false
 
-      # Kept here so that a change to either can be recognised on
-      # reconciliation.
+      # The cron expression and timezone are kept here so that a change to
+      # either is recognised on reconciliation.
       t.string :cron, null: false
       t.string :timezone, null: true
 

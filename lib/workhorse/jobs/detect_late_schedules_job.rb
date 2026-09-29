@@ -40,8 +40,6 @@ module Workhorse::Jobs
       # it, so reporting it would be a false alarm.
       keys = @keys || Workhorse::Schedules.definitions.keys
 
-      return if keys.empty?
-
       rel = Workhorse::Schedule.where(enabled: true, key: keys)
       rel = rel.where(Workhorse::Schedule.arel_table[:next_at].lt(@threshold.seconds.ago))
 

@@ -35,6 +35,9 @@ module Workhorse
     # @param now [Time]
     # @return [void]
     def self.reconcile!(now = Time.now)
+      # See Workhorse::Schedule#pending_occurrences for why fugit is never
+      # handed a local time.
+      now = now.getutc
       definitions = Workhorse::Schedules.definitions
 
       definitions.each_value do |definition|
@@ -128,7 +131,7 @@ module Workhorse
         occurrences.unshift(cursor)
       end
 
-      return [apply_catch_up(deduplicate(occurrences), now), cron.next_time(now).to_t]
+      return [apply_catch_up(deduplicate(occurrences), now), advance(cron, now, occurrences)]
     end
 
     # Returns how many occurrences the catch-up policy could use at most.
@@ -192,22 +195,56 @@ module Workhorse
 
     private
 
-    # Drops occurrences that fall on the same wall-clock time.
+    # Returns the occurrence to wait for after the given ones.
     #
-    # When the clocks go back, a local time happens twice, and a schedule
-    # anchored to one produces two instants for it. Running a nightly job
-    # twice that night is not what "at 02:30" is taken to mean, here or in
-    # cron, so the repeat is dropped.
+    # Skips an occurrence repeating the wall-clock time just emitted: the
+    # clocks going back make a local time happen twice, and only
+    # {#deduplicate} would see those two instants when they fall in the same
+    # walk. At the default `catch_up: :run_once` they never do, as only one
+    # occurrence is taken per call.
+    #
+    # @param cron [Fugit::Cron]
+    # @param now [Time]
+    # @param occurrences [Array<Time>]
+    # @return [Time]
+    def advance(cron, now, occurrences)
+      next_at = cron.next_time(now).to_t
+
+      return next_at unless wall_clock_anchored?
+      return next_at if occurrences.empty?
+      return next_at unless wall_clock(next_at) == wall_clock(occurrences.last)
+
+      return cron.next_time(next_at.getutc).to_t
+    end
+
+    # Drops occurrences that fall on the same wall-clock time, see {#advance}.
+    #
+    # Only for a schedule anchored to one: "at 02:30" means that clock time,
+    # which happens once. An expression with a wildcard hour ticks on every
+    # real instant instead, so both halves of a repeated hour are genuine and
+    # dropping one would silently skip an hour of work once a year.
     #
     # @param occurrences [Array<Time>]
     # @return [Array<Time>]
     def deduplicate(occurrences)
-      zone = definition.timezone
+      return occurrences unless wall_clock_anchored?
 
-      return occurrences.uniq do |occurrence|
-        local = zone ? occurrence.in_time_zone(zone) : occurrence.getlocal
-        local.strftime('%F %T')
-      end
+      return occurrences.uniq { |occurrence| wall_clock(occurrence) }
+    end
+
+    # @return [Boolean] Whether the expression names an hour rather than
+    #   ticking within every one
+    def wall_clock_anchored?
+      return !definition.parsed_cron.hours.nil?
+    end
+
+    # @param time [Time]
+    # @return [String] The local time, in the schedule's zone
+    def wall_clock(time)
+      zone = definition.timezone
+      local = zone ? time.in_time_zone(zone) : time.getlocal
+
+      return local.strftime('%F %T')
     end
 
     # Applies the catch-up policy to the occurrences that are due.

@@ -69,4 +69,8 @@ end
 #   schedule 'detect_stale_jobs',
 #            job:  'Workhorse::Jobs::DetectStaleJobsJob',
 #            cron: '30 * * * *'
+#
+#   schedule 'detect_late_schedules',
+#            job:  'Workhorse::Jobs::DetectLateSchedulesJob',
+#            cron: '*/30 * * * *'
 # end

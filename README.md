@@ -206,7 +206,7 @@ lateness of that occurrence, available on every job as
 `Workhorse::DbJob#lateness`, and derivable in SQL from the `started_at` and
 `perform_at` columns.
 
-Two options act on it, and both work for hand-enqueued jobs as well:
+Two options act on it, both settable on a schedule:
 
 * **`max_lateness`** — seconds the job may start late before
   `Workhorse.on_job_late` is called. The job still runs; it was just late.
@@ -427,21 +427,22 @@ a client through `config.notification_redis`.
 ```ruby
 Workhorse.setup do |config|
   config.notifier = :redis
-  config.notification_redis = Redis.new(url: ENV['REDIS_URL'])
+  config.notification_redis = -> { Redis.new(url: ENV['REDIS_URL']) }
   config.notification_channel = 'workhorse:jobs' # optional
 end
 ```
 
-A subscribed Redis connection cannot be used for anything else, so the
-notifier needs one of its own. Give `notification_redis` something callable
-and it is used to build both:
+`notification_redis` is given something callable above because a subscribed
+Redis connection cannot be used for anything else: `subscribe` occupies it
+until it returns. The notifier calls it once for publishing and once for the
+subscriber, so the two get separate connections.
 
-```ruby
-config.notification_redis = -> { Redis.new(url: ENV['REDIS_URL']) }
-```
+Passing a client rather than a callable also works, but the subscriber then
+falls back to `dup` — in redis-rb a shallow copy that may share the
+connection, in which case publishing can block behind the subscription.
 
-Given a client instead, the subscriber falls back to `dup`, which in redis-rb
-is a shallow copy that may share the connection.
+The channel can be changed at any point before a worker starts; the
+subscriber thread captures the one it was started with.
 
 #### Writing your own
 

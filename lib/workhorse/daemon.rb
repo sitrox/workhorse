@@ -310,7 +310,7 @@ module Workhorse
         @lockfile&.close
         # Reopen pipes to prevent #107576
         $stdin.reopen File.open(File::NULL, 'r')
-        null_out = File.open(File::NULL, 'w') # rubocop:disable Style/FileOpen
+        null_out = File.open(File::NULL, 'w')
         $stdout.reopen null_out
         $stderr.reopen null_out
 
@@ -318,7 +318,17 @@ module Workhorse
         # by slot (see Workhorse::Worker#heartbeat!). Same id as the pidfile.
         ENV['WORKHORSE_DAEMON_WORKER_ID'] = worker.id.to_s
 
-        worker.block.call
+        begin
+          worker.block.call
+        ensure
+          # Exit without running the at_exit handlers the parent registered:
+          # they belong to whatever started the daemon, not to this worker,
+          # and one that waits on threads the fork did not inherit hangs a
+          # worker that has finished - which then ignores TERM. In an ensure,
+          # as a worker that raised must not run them either. ShellHandler
+          # skips them for the same reason.
+          exit!(0)
+        end
       end
       worker.pid = pid
       File.write(pid_file_for(worker), pid)

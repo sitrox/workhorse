@@ -385,20 +385,26 @@ class Workhorse::ScheduleTest < WorkhorseTest
 
   def test_a_missing_schedules_table_does_not_shut_the_worker_down
     define_schedule 'due_now', cron: '* * * * *'
+    exceptions = []
 
     with_renamed_schedules_table do
       log = capture_log do |logger|
-        with_worker(polling_interval: 0.2, pool_size: 1, auto_terminate: false, logger: logger) do |w|
-          job = Workhorse.enqueue BasicJob.new(sleep_time: 0)
+        with_exception_handler ->(e) { exceptions << e } do
+          with_worker(polling_interval: 0.2, pool_size: 1, auto_terminate: false, logger: logger) do |w|
+            job = Workhorse.enqueue BasicJob.new(sleep_time: 0)
 
-          with_retries { assert_equal 'succeeded', job.reload.state }
+            with_retries { assert_equal 'succeeded', job.reload.state }
 
-          assert_equal :running, w.state
+            assert_equal :running, w.state
+          end
         end
       end
 
       assert_match(/workhorse_schedules table does not exist/, log)
     end
+
+    assert exceptions.any? { |e| e.message =~ /workhorse_schedules table does not exist/ },
+           'the missing table must be reported, not only logged'
   end
 
   # A rolling deployment runs both versions at once.
@@ -570,17 +576,24 @@ class Workhorse::ScheduleTest < WorkhorseTest
     assert_equal total, Workhorse::DbJob.expired.count
   end
 
-  def test_the_expiry_sweep_is_capped_per_poll
-    (Workhorse::Poller::MAX_EXPIRIES_PER_POLL + 5).times do
-      Workhorse.enqueue BasicJob.new(sleep_time: 0), expires_at: Time.now - 3600
+  # Capped, and draining in deadline order so that "the rest is expired by
+  # the following polls" is not left to the optimiser.
+  def test_the_expiry_sweep_is_capped_per_poll_and_takes_the_oldest_first
+    surplus = 5
+    total = Workhorse::Poller::MAX_EXPIRIES_PER_POLL + surplus
+
+    total.times do |i|
+      Workhorse.enqueue BasicJob.new(sleep_time: 0), expires_at: Time.now - ((total - i) * 60)
     end
+
+    newest = Workhorse::DbJob.order(:expires_at).last(surplus).map(&:id)
 
     Workhorse::Worker.new(polling_interval: 60, pool_size: 1).poller.send(:expire_due_jobs)
 
     assert_equal Workhorse::Poller::MAX_EXPIRIES_PER_POLL, Workhorse::DbJob.expired.count
+    assert_equal newest.sort, Workhorse::DbJob.waiting.pluck(:id).sort
   end
 
-  # The option end to end, rather than only the column it writes.
   def test_a_materialized_job_past_its_expiry_is_not_performed
     expired = []
     Workhorse.on_job_expired = proc { |db_job| expired << db_job.id }
@@ -614,7 +627,6 @@ class Workhorse::ScheduleTest < WorkhorseTest
     assert_empty exceptions
   end
 
-  # One typo must not produce a notification every polling interval forever.
   def test_a_permanently_broken_schedule_is_reported_once
     define_schedule 'broken', cron: '0 3 * * *', job: 'ThisClassDoesNotExist'
     Workhorse::Schedule.reconcile!
@@ -640,9 +652,8 @@ class Workhorse::ScheduleTest < WorkhorseTest
     end
   end
 
-  # The occurrence, not the moment the poll happened to run.
   def test_an_occurrence_matching_now_is_recorded_without_its_fraction
-    now = Time.at(Time.now.to_i).utc + 0.4
+    now = Time.at((Time.now.to_i / 60) * 60).utc + 0.4
     schedule = persisted_schedule('every_minute', cron: '* * * * *', next_at: now - 300)
 
     occurrences, = schedule.pending_occurrences(now)
@@ -650,9 +661,12 @@ class Workhorse::ScheduleTest < WorkhorseTest
     assert_equal 0, occurrences.last.usec
   end
 
-  # EtOrbi cannot resolve an ambiguous local time during the repeated hour of
-  # a fall-back transition, which used to raise for every schedule.
   def test_occurrences_can_be_computed_during_the_fall_back_hour
+    previous_tz = ENV.fetch('TZ', nil)
+    # EtOrbi resolves a Time's zone from the process's, so the moment has to
+    # be built while that zone is the ambiguous one.
+    ENV['TZ'] = 'Europe/Zurich'
+
     ambiguous = ActiveSupport::TimeZone['Europe/Zurich'].parse('2026-10-25T02:30:00+02:00').to_time
     schedule = persisted_schedule(
       'nightly', cron: '0 3 * * *', timezone: 'Europe/Zurich', next_at: ambiguous - 3600
@@ -661,6 +675,8 @@ class Workhorse::ScheduleTest < WorkhorseTest
     assert_nothing_raised do
       schedule.pending_occurrences(ambiguous)
     end
+  ensure
+    ENV['TZ'] = previous_tz
   end
 
   def test_nothing_due_leaves_the_next_occurrence_where_it_is
@@ -705,7 +721,6 @@ class Workhorse::ScheduleTest < WorkhorseTest
     assert_equal [expired.id], Workhorse::DbJob.pluck(:id)
   end
 
-  # An instance enqueued before the upgrade unmarshals without @states.
   def test_cleanup_enqueued_before_the_upgrade_still_deletes
     old = Time.now - (30 * 24 * 60 * 60)
     job = Workhorse.enqueue BasicJob.new(sleep_time: 0)
@@ -741,14 +756,6 @@ class Workhorse::ScheduleTest < WorkhorseTest
     refute_match(/ignored/, error.message)
   end
 
-  def test_detect_late_schedules_does_nothing_when_none_is_declared
-    Workhorse::Schedule.create!(key: 'orphan', cron: '0 3 * * *', next_at: Time.now - 3600)
-
-    assert_nothing_raised do
-      Workhorse::Jobs::DetectLateSchedulesJob.new(threshold: 60).perform
-    end
-  end
-
   # Two workers starting together both insert the same schedule; the loser of
   # the race must carry on rather than fail its whole reconciliation.
   def test_reconcile_tolerates_a_concurrent_insert
@@ -768,6 +775,8 @@ class Workhorse::ScheduleTest < WorkhorseTest
   # The clocks go back on 2026-10-25 in this zone, so 02:30 happens twice in
   # wall-clock terms. The schedule must still produce one occurrence that day.
   def test_daylight_saving_fall_back_does_not_repeat_an_occurrence
+    previous_tz = ENV.fetch('TZ', nil)
+    ENV['TZ'] = 'Europe/Zurich'
     zone = ActiveSupport::TimeZone['Europe/Zurich']
     schedule = persisted_schedule(
       'nightly', cron: '30 2 * * *', timezone: 'Europe/Zurich', catch_up: :run,
@@ -779,6 +788,42 @@ class Workhorse::ScheduleTest < WorkhorseTest
 
     assert_equal [24, 25, 26], days
     assert_equal days.uniq, days, 'no day may produce two occurrences'
+  ensure
+    ENV['TZ'] = previous_tz
+  end
+
+  # The default policy takes one occurrence per call, so the two instants of
+  # the repeated hour arrive in separate calls where the within-call
+  # deduplication cannot see them.
+  def test_daylight_saving_fall_back_does_not_repeat_for_the_default_policy
+    zone = ActiveSupport::TimeZone['Europe/Zurich']
+    schedule = persisted_schedule(
+      'nightly', cron: '30 2 * * *', timezone: 'Europe/Zurich',
+      next_at: zone.parse('2026-10-24T02:30:00').to_time
+    )
+
+    fired = step_through(schedule, until_after: zone.parse('2026-10-27T00:00:00').to_time)
+    days = fired.map { |o| o.in_time_zone(zone).day }
+
+    assert_equal [24, 25, 26], days
+  end
+
+  # An expression with a wildcard hour ticks on every real instant, so both
+  # halves of the repeated hour are genuine and must both be kept.
+  def test_daylight_saving_fall_back_keeps_both_ticks_of_an_hourly_schedule
+    zone = ActiveSupport::TimeZone['Europe/Zurich']
+    schedule = persisted_schedule(
+      'hourly', cron: '30 * * * *', timezone: 'Europe/Zurich', catch_up: :run,
+      next_at: zone.parse('2026-10-25T00:30:00').to_time
+    )
+
+    occurrences, = schedule.pending_occurrences(zone.parse('2026-10-25T05:00:00').to_time)
+    locals = occurrences.map { |o| o.in_time_zone(zone).strftime('%H:%M %Z') }
+
+    repeated = locals.select { |l| l.start_with?('02:30') }
+
+    assert_equal ['02:30 CEST', '02:30 CET'], repeated
+    assert_equal 6, occurrences.size
   end
 
   def test_enqueue_uses_the_configured_queue_and_description
@@ -808,15 +853,18 @@ class Workhorse::ScheduleTest < WorkhorseTest
 
   private
 
+  # Renamed rather than removed: dropping a column silently takes it out of
+  # the composite index too, and adding it back does not restore it, leaving
+  # every later test querying a differently indexed table.
   def without_expiry_columns
     connection = ActiveRecord::Base.connection
-    connection.remove_column :jobs, :expires_at
-    connection.remove_column :jobs, :max_lateness
+    connection.rename_column :jobs, :expires_at, :expires_at_hidden
+    connection.rename_column :jobs, :max_lateness, :max_lateness_hidden
     Workhorse::DbJob.reset_column_information
     yield
   ensure
-    connection.add_column :jobs, :expires_at, :datetime, null: true
-    connection.add_column :jobs, :max_lateness, :integer, null: true
+    connection.rename_column :jobs, :expires_at_hidden, :expires_at
+    connection.rename_column :jobs, :max_lateness_hidden, :max_lateness
     Workhorse::DbJob.reset_column_information
   end
 
@@ -852,6 +900,24 @@ class Workhorse::ScheduleTest < WorkhorseTest
   ensure
     connection.rename_table :workhorse_schedules_hidden, :workhorse_schedules
     Workhorse::Schedule.reset_column_information
+  end
+
+  # Materializes occurrence by occurrence the way a worker polling at each
+  # next_at does, rather than resolving a backlog in one call.
+  def step_through(schedule, until_after:)
+    fired = []
+    cursor = schedule.next_at
+
+    40.times do
+      break if cursor > until_after
+
+      occurrences, next_at = schedule.pending_occurrences(cursor)
+      fired.concat(occurrences)
+      schedule.update!(next_at: next_at)
+      cursor = next_at
+    end
+
+    return fired
   end
 
   def with_exception_handler(handler)

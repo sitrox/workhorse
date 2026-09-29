@@ -41,7 +41,8 @@ module Workhorse
 
       # Resolved when used rather than when constructed, so that
       # {Workhorse.notification_channel} can be set in any order relative to
-      # {Workhorse.notifier=}.
+      # {Workhorse.notifier=} - up to the point a worker starts, as the
+      # subscriber thread captures the channel it was started with.
       #
       # @return [String] Channel that is published to and subscribed on
       def channel
@@ -51,10 +52,13 @@ module Workhorse
       # @return [Object] The configured Redis client
       # @raise [RuntimeError] If no client has been configured
       def client
-        return @client ||= begin
-          source = client_source
-          source.respond_to?(:call) ? source.call : source
-        end
+        return @client if @client
+
+        # Built under the mutex: #notify runs on every enqueueing thread, and
+        # two of them racing here would each build one and orphan the loser.
+        @mutex.synchronize { @client ||= build_client }
+
+        return @client
       end
 
       # Returns the configured source of clients: either a client, or a
@@ -87,7 +91,7 @@ module Workhorse
       def start
         @mutex.synchronize do
           @subscribers += 1
-          @thread ||= start_subscriber
+          @thread = start_subscriber unless @thread&.alive?
         end
 
         return
@@ -104,6 +108,7 @@ module Workhorse
 
           @thread&.kill
           @thread = nil
+          @subscriber_failed = false
         end
 
         return
@@ -125,12 +130,22 @@ module Workhorse
         chan = channel
 
         return Thread.new do
+          client = nil
+
           loop do
-            subscriber_client.subscribe(chan) do |on|
+            # Kept across iterations and replaced only once the connection it
+            # holds has failed, so an outage does not build one client per
+            # second and drop each unclosed.
+            client ||= subscriber_client
+
+            client.subscribe(chan) do |on|
               on.message { |_channel, _message| counter.increment }
             end
+
+            @subscriber_failed = false
           rescue StandardError => e
             report_subscriber_failure(e)
+            client = close(client)
             Kernel.sleep RECONNECT_DELAY
           end
         end
@@ -150,9 +165,37 @@ module Workhorse
         return if @subscriber_failed
 
         @subscriber_failed = true
-        Workhorse.on_exception.call(exception)
+
+        begin
+          Workhorse.on_exception.call(exception)
+        rescue Exception => e
+          # A reporter that is itself unreachable must not unwind the retry
+          # loop and leave the process without a subscriber for good.
+          Workhorse.debug_log("on_exception failed: #{e.class}: #{e.message}")
+        end
 
         return
+      end
+
+      # Closes a client, tolerating one that cannot be closed.
+      #
+      # @param client [Object, nil]
+      # @return [nil]
+      def close(client)
+        client.close if client.respond_to?(:close)
+
+        return nil
+      rescue StandardError => e
+        Workhorse.debug_log("Closing the subscriber client failed: #{e.class}: #{e.message}")
+
+        return nil
+      end
+
+      # @return [Object] A newly built client
+      def build_client
+        source = client_source
+
+        return source.respond_to?(:call) ? source.call : source
       end
 
       # Returns the client to subscribe with. A subscribed connection cannot

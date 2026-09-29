@@ -44,6 +44,10 @@ class Rails
 end
 
 class WorkhorseTest < ActiveSupport::TestCase
+  # How long a query must have been running to count as left over from a
+  # crashed run rather than belonging to this one.
+  STALE_QUERY_SECONDS = 5
+
   def setup
     remove_pids!
     clear_locks_and_db_threads!
@@ -73,19 +77,27 @@ class WorkhorseTest < ActiveSupport::TestCase
 
     # Use `select_values` rather than `execute`, as the latter does not return a
     # result set on every adapter.
-    # Restricted to this database: the process list is server-wide, so killing
-    # every query on it takes down whatever else happens to share the server -
-    # another project, or a second run of this very suite - and surfaces here
-    # as an unrelated "Lost connection to server during query".
+    # The point of this is to clear a query left behind by a crashed run,
+    # holding a lock nothing will release. Two restrictions keep it from
+    # shooting anything live, both of which surfaced as spurious "Lost
+    # connection to server during query" failures:
+    #
+    #   * this database only, as the process list is server-wide and another
+    #     project or a second run of this suite shares the server;
+    #   * running for a while only, as this process has a pool of its own
+    #     connections and a worker thread may be mid-query on one of them.
     pids = Workhorse::DbJob.connection.select_values(<<~SQL.squish)
       SELECT ID FROM INFORMATION_SCHEMA.PROCESSLIST
       WHERE ID != CONNECTION_ID() AND DB = DATABASE()
+        AND COMMAND != 'Sleep' AND TIME >= #{STALE_QUERY_SECONDS}
     SQL
 
-    begin
-      pids.each { |pid| Workhorse::DbJob.connection.execute("KILL QUERY #{pid}") }
+    pids.each do |pid|
+      Workhorse::DbJob.connection.execute("KILL QUERY #{pid}")
     rescue ActiveRecord::StatementInvalid
-      # Ignore
+      # The connection ended between the query above and this kill; the rest
+      # still have to be killed.
+      nil
     end
 
     Workhorse::DbJob.connection.execute('SELECT RELEASE_ALL_LOCKS()')

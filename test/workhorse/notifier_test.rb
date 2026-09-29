@@ -33,7 +33,9 @@ class Workhorse::NotifierTest < WorkhorseTest
     Workhorse.notifier = :file
     Workhorse.notifier = nil
 
-    assert_instance_of Workhorse::Notifiers::None, Workhorse.notifier
+    # Asserted on the stored value: the reader falls back to a None of its
+    # own, so it cannot tell a cleared notifier from an unset one.
+    assert_instance_of Workhorse::Notifiers::None, Workhorse.instance_variable_get(:@notifier)
   end
 
   def test_the_file_notifier_defaults_below_the_rails_root
@@ -86,11 +88,13 @@ class Workhorse::NotifierTest < WorkhorseTest
   end
 
   def test_file_notifier_swallows_errors
-    file = Tempfile.new('workhorse')
-    notifier = Workhorse::Notifiers::FileSystem.new(path: File.join(file.path, 'workhorse.wake'))
+    Tempfile.create('workhorse') do |file|
+      # A regular file cannot be a directory, on any platform.
+      notifier = Workhorse::Notifiers::FileSystem.new(path: File.join(file.path, 'workhorse.wake'))
 
-    assert_nothing_raised { notifier.notify }
-    assert_nil notifier.token
+      assert_nothing_raised { notifier.notify }
+      assert_nil notifier.token
+    end
   end
 
   def test_enqueueing_notifies
@@ -133,6 +137,9 @@ class Workhorse::NotifierTest < WorkhorseTest
         Workhorse.enqueue BasicJob.new(sleep_time: 0)
 
         with_retries(30) do
+          # Re-announced on every attempt: a single announcement whose poll
+          # loses the global lock race would otherwise wait out the interval.
+          Workhorse.notifier.notify
           assert_equal 1, Workhorse::DbJob.succeeded.count
         end
       end
@@ -154,6 +161,18 @@ class Workhorse::NotifierTest < WorkhorseTest
     end
   end
 
+  # Without this, marking every poll as brought forward - which would
+  # silently disable the max_global_lock_fails alarm - goes undetected.
+  def test_a_poll_that_waited_out_its_interval_is_not_marked_as_brought_forward
+    poller = Workhorse::Worker.new(polling_interval: 0.2, pool_size: 1).poller
+    poller.instance_variable_set(:@running, true)
+
+    poller.send(:sleep)
+
+    refute poller.instance_variable_get(:@poll_brought_forward),
+           'a poll that waited out its interval is the scheduled one'
+  end
+
   def test_redis_notifier_publishes_and_counts
     redis = FakeRedis.new
     notifier = Workhorse::Notifiers::Redis.new(client: redis, channel: 'test:jobs')
@@ -171,6 +190,25 @@ class Workhorse::NotifierTest < WorkhorseTest
       end
     ensure
       notifier.stop
+    end
+  end
+
+  # A reporter that is itself unreachable must not leave the process without
+  # a subscriber for the rest of its life.
+  def test_a_raising_exception_handler_does_not_kill_the_subscriber
+    redis = FakeRedis.new(fail_subscribe: 1)
+    notifier = Workhorse::Notifiers::Redis.new(client: redis, channel: 'test:jobs')
+
+    with_exception_handler ->(_e) { fail 'reporter is down' } do
+      notifier.start
+
+      begin
+        redis.deliver('test:jobs', 'mailer')
+
+        with_retries(100, interval: 0.05) { assert_equal 1, notifier.token }
+      ensure
+        notifier.stop
+      end
     end
   end
 
@@ -200,6 +238,9 @@ class Workhorse::NotifierTest < WorkhorseTest
     Workhorse.notifier = file_notifier
     w = Workhorse::Worker.new(polling_interval: 60, pool_size: 1)
     poller = w.poller
+
+    poller.instance_variable_set(:@running, true)
+    poller.instance_variable_set(:@last_notification, Workhorse.notifier.token)
 
     Workhorse.notifier.notify
     poller.send(:sleep)
@@ -265,7 +306,6 @@ class Workhorse::NotifierTest < WorkhorseTest
     end
   end
 
-  # Configuration must work in any order relative to selecting the notifier.
   def test_the_file_notifier_follows_the_configured_path
     Workhorse.notifier = :file
     Workhorse.notification_path = wake_path
@@ -284,9 +324,32 @@ class Workhorse::NotifierTest < WorkhorseTest
     Workhorse.notification_channel = nil
   end
 
+  # A subscribed connection cannot also publish, so the callable has to be
+  # asked again for the subscriber rather than the publisher being reused.
+  def test_the_redis_notifier_subscribes_on_a_client_of_its_own
+    built = []
+    notifier = Workhorse::Notifiers::Redis.new(
+      client: -> { FakeRedis.new.tap { |r| built << r } }, channel: 'test:jobs'
+    )
+
+    notifier.notify(queue: :mailer)
+    notifier.start
+
+    begin
+      with_retries(50, interval: 0.02) { assert_equal 2, built.size }
+
+      refute_equal built.first.object_id, built.last.object_id
+    ensure
+      notifier.stop
+    end
+  end
+
   def test_the_redis_notifier_builds_a_client_from_a_callable
     built = []
-    Workhorse.notification_redis = -> { built << :built and FakeRedis.new }
+    Workhorse.notification_redis = lambda do
+      built << :built
+      FakeRedis.new
+    end
     notifier = Workhorse::Notifiers::Redis.new
 
     notifier.notify(queue: :mailer)
@@ -297,6 +360,14 @@ class Workhorse::NotifierTest < WorkhorseTest
   end
 
   private
+
+  def with_exception_handler(handler)
+    previous = Workhorse.on_exception
+    Workhorse.on_exception = handler
+    yield
+  ensure
+    Workhorse.on_exception = previous
+  end
 
   def wake_path
     return File.join(Dir.tmpdir, 'workhorse_test.wake')
@@ -339,9 +410,10 @@ class Workhorse::NotifierTest < WorkhorseTest
   class FakeRedis
     attr_reader :published
 
-    def initialize(fail_publish: false)
+    def initialize(fail_publish: false, fail_subscribe: 0)
       @published = []
       @fail_publish = fail_publish
+      @fail_subscribe = fail_subscribe
       @queue = Queue.new
     end
 
@@ -360,6 +432,11 @@ class Workhorse::NotifierTest < WorkhorseTest
     end
 
     def subscribe(_channel)
+      if @fail_subscribe > 0
+        @fail_subscribe -= 1
+        fail 'Connection refused'
+      end
+
       on = Callbacks.new
       yield on
 

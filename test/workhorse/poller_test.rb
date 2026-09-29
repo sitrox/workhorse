@@ -138,7 +138,17 @@ class Workhorse::PollerTest < WorkhorseTest
     # Create 10 worker processes that work for 3s each
     10.times do
       Process.fork do
+        # A forked child inherits the parent's MySQL sockets and would share
+        # them, so it builds connections of its own instead.
+        ActiveRecord::Base.connection_pool.disconnect!
+
         work 3, pool_size: 1, polling_interval: 0.1
+      ensure
+        # Exit without running the at_exit handlers of the test process: one
+        # of them is Minitest's, which joins threads this fork did not
+        # inherit and hangs the child, leaving waitall below waiting forever.
+        # In an ensure, as a child that raised must not run them either.
+        exit!(0)
       end
     end
 

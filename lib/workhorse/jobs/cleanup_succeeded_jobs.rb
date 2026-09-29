@@ -6,9 +6,10 @@ module Workhorse::Jobs
   # @example Schedule cleanup job
   #   Workhorse.enqueue(CleanupSucceededJobs.new(max_age: 30))
   #
-  # @example Daily cleanup with cron
-  #   # Clean up jobs older than 14 days every day at 2 AM
-  #   Workhorse.enqueue(CleanupSucceededJobs.new, perform_at: 1.day.from_now.beginning_of_day + 2.hours)
+  # @example Daily cleanup on a schedule
+  #   Workhorse.schedules do
+  #     schedule 'cleanup_jobs', job: 'Workhorse::Jobs::CleanupSucceededJobs', cron: '0 2 * * *'
+  #   end
   class CleanupSucceededJobs
     # States that are cleaned up unless told otherwise. Both are terminal and
     # will never run again; `expired` is included so that a schedule using

@@ -193,8 +193,10 @@ module Workhorse
     end
 
     # Shuts down worker and DB poller. Jobs currently being processed are
-    # properly finished before this method returns. Subsequent calls to this
-    # method are ignored.
+    # properly finished before this method returns, including for a call that
+    # finds another thread already shutting the worker down - such a call
+    # waits rather than returning early. Shutting down a worker that was
+    # never started does nothing.
     #
     # @return [void]
     def shutdown
@@ -211,8 +213,9 @@ module Workhorse
       unless transitioned
         # Another thread is doing the shutting down, or it is already done.
         # Wait for the pool rather than returning, so that this call keeps the
-        # promise above that running jobs have finished once it returns. A
-        # worker that was never started has no pool to wait for.
+        # promise above that running jobs have finished once it returns. On
+        # a worker that was never started nothing will ever shut the pool
+        # down, and #wait would block forever.
         @pool.wait if @state == :shutdown
 
         return

@@ -155,7 +155,14 @@ module Workhorse
           message = 'Schedules are declared but the workhorse_schedules table does not exist. ' \
                     'Run the migration that creates it; no scheduled job will run until then.'
           worker.log message, :error
-          Workhorse.on_exception.call(StandardError.new(message))
+
+          begin
+            Workhorse.on_exception.call(StandardError.new(message))
+          rescue Exception => e
+            # Reported through the rescue below would feed the callback its
+            # own failure; escaping leaves the worker half-started.
+            Workhorse.debug_log("on_exception failed: #{e.class}: #{e.message}")
+          end
         end
 
         return
@@ -250,7 +257,8 @@ module Workhorse
         break
       end
 
-      # Time left on the clock means the sleep was cut short, see #poll.
+      # Time left on the clock means the sleep was cut short, which #poll
+      # passes on as `count_failures: false`.
       @poll_brought_forward = remaining > 0
     end
 
@@ -386,6 +394,8 @@ module Workhorse
 
       @instant_repoll.make_false
 
+      # A poll the sleep cut short is not the scheduled one the lock-failure
+      # alarm is calibrated against, see #with_global_lock.
       brought_forward = @poll_brought_forward
       @poll_brought_forward = false
 
@@ -526,7 +536,7 @@ module Workhorse
         # backlog of jobs that all expired at once - workers down over a
         # weekend, or a bulk enqueue - would otherwise turn one poll into
         # thousands of updates that block every other worker. The rest is
-        # expired by the following polls.
+        # expired by the following polls, most overdue first.
         rel.order(:expires_at).limit(MAX_EXPIRIES_PER_POLL).each do |db_job|
           db_job.mark_expired!
           expired << db_job

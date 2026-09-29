@@ -58,7 +58,8 @@
   * `:redis` publishes on a Redis pub/sub channel, for deployments whose
     workers do not share a filesystem with the application. Redis is a soft
     dependency: workhorse never requires it, the client is supplied through
-    `config.notification_redis`.
+    `config.notification_redis`. Set that to something callable, as a
+    subscribed connection cannot also publish.
 
   ```ruby
   # config/initializers/workhorse.rb
