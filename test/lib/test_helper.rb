@@ -44,10 +44,6 @@ class Rails
 end
 
 class WorkhorseTest < ActiveSupport::TestCase
-  # How long a query must have been running to count as left over from a
-  # crashed run rather than belonging to this one.
-  STALE_QUERY_SECONDS = 5
-
   def setup
     remove_pids!
     clear_locks_and_db_threads!
@@ -73,33 +69,15 @@ class WorkhorseTest < ActiveSupport::TestCase
   end
 
   def clear_locks_and_db_threads!
-    Workhorse::DbJob.connection.execute('SELECT RELEASE_ALL_LOCKS()')
-
-    # Use `select_values` rather than `execute`, as the latter does not return a
-    # result set on every adapter.
-    # The point of this is to clear a query left behind by a crashed run,
-    # holding a lock nothing will release. Two restrictions keep it from
-    # shooting anything live, both of which surfaced as spurious "Lost
-    # connection to server during query" failures:
-    #
-    #   * this database only, as the process list is server-wide and another
-    #     project or a second run of this suite shares the server;
-    #   * running for a while only, as this process has a pool of its own
-    #     connections and a worker thread may be mid-query on one of them.
-    pids = Workhorse::DbJob.connection.select_values(<<~SQL.squish)
-      SELECT ID FROM INFORMATION_SCHEMA.PROCESSLIST
-      WHERE ID != CONNECTION_ID() AND DB = DATABASE()
-        AND COMMAND != 'Sleep' AND TIME >= #{STALE_QUERY_SECONDS}
-    SQL
-
-    pids.each do |pid|
-      Workhorse::DbJob.connection.execute("KILL QUERY #{pid}")
-    rescue ActiveRecord::StatementInvalid
-      # The connection ended between the query above and this kill; the rest
-      # still have to be killed.
-      nil
-    end
-
+    # Releases the locks held by *this* connection, which is all a fresh run
+    # needs. It used to kill the queries of every other connection as well, to
+    # clear one left behind by a crashed run - but KILL QUERY only aborts a
+    # query and does not release a named lock, which is held by the connection
+    # rather than the statement, so it never achieved that. What it did
+    # achieve was killing queries belonging to the current run, surfacing as
+    # spurious "Lost connection to server during query" failures. Should a
+    # crashed run ever leave a lock behind, kill its *connection*, which does
+    # release it.
     Workhorse::DbJob.connection.execute('SELECT RELEASE_ALL_LOCKS()')
   end
 

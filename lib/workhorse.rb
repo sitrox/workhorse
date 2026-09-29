@@ -179,6 +179,19 @@ module Workhorse
     @notification_path = value
   end
 
+  # Seconds the daemon's `stop` waits for a worker to shut down gracefully
+  # before killing it.
+  #
+  # A worker normally goes away as soon as the job it is performing finishes,
+  # so this only takes effect for one that is wedged or performing something
+  # very long. Without a limit `stop` waits forever, and so does whatever is
+  # waiting on it. Set to nil to wait indefinitely, which was the behaviour
+  # before this setting existed.
+  #
+  # @return [Numeric, nil] Timeout in seconds, or nil for no limit
+  mattr_accessor :shutdown_timeout
+  self.shutdown_timeout = 300
+
   # Path to a debug log file for diagnosing log rotation and signal handling issues.
   # When set, Workhorse writes timestamped debug entries to this file at key points
   # (worker startup, HUP signal handling, restart-logging command flow).

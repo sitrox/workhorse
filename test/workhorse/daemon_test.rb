@@ -1,6 +1,39 @@
 require 'test_helper'
 
 class Workhorse::DaemonTest < WorkhorseTest
+  # A worker that ignores TERM used to leave `stop` - and whatever is waiting
+  # on it, a deployment usually - looping forever.
+  def test_stop_kills_a_worker_that_ignores_term
+    previous = Workhorse.shutdown_timeout
+    Workhorse.shutdown_timeout = 2
+
+    daemon = Workhorse::Daemon.new(pidfile: 'tmp/pids/stubborn%s.pid') do |d|
+      d.worker 'Stubborn' do
+        Signal.trap('TERM') { nil }
+        Signal.trap('INT') { nil }
+        # A bare sleep returns as soon as a handler runs, so it has to be
+        # re-entered to actually ignore the signal.
+        loop { sleep 1 }
+      end
+    end
+
+    daemon.start(quiet: true)
+    pid = daemon.workers.first.pid
+
+    with_retries(50, interval: 0.1) { assert process?(pid) }
+
+    capture_stderr do
+      Timeout.timeout(30) { daemon.stop(quiet: true) }
+    end
+
+    wait_for_process_exit(pid)
+
+    refute process?(pid)
+  ensure
+    Workhorse.shutdown_timeout = previous
+    FileUtils.rm_f Dir['tmp/pids/stubborn*.pid']
+  end
+
   def setup
     remove_pids!
   end

@@ -3,6 +3,9 @@ module Workhorse
   # Provides functionality to start, stop, restart, and monitor worker processes
   # through a simple Ruby DSL.
   class Daemon
+    # Seconds spent waiting for a process to disappear after KILL, which it
+    # can only survive by being stuck in an uninterruptible syscall.
+    KILL_TIMEOUT = 10
     # Internal representation of a worker process.
     # Stores worker metadata and the block to execute.
     class Worker
@@ -357,18 +360,41 @@ module Workhorse
       signals = kill ? %w[KILL] : %w[TERM INT]
 
       Workhorse.debug_log("Daemon: stopping PID #{pid} with signals #{signals.join(', ')}")
+
+      unless signal_until_gone(pid, signals, Workhorse.shutdown_timeout)
+        # A worker that does not go away leaves `stop` - and the deployment
+        # waiting on it - hanging indefinitely, so it is escalated the way an
+        # init system would.
+        warn "Worker #{pid} did not stop within #{Workhorse.shutdown_timeout}s, killing it"
+        Workhorse.debug_log("Daemon: PID #{pid} did not stop in time, sending KILL")
+        signal_until_gone(pid, %w[KILL], KILL_TIMEOUT)
+      end
+
+      Workhorse.debug_log("Daemon: PID #{pid} stopped")
+      FileUtils.rm_f(pid_file)
+    end
+
+    # Sends the given signals once a second until the process is gone.
+    #
+    # @param pid [Integer] The process to signal
+    # @param signals [Array<String>] Signals to send on each attempt
+    # @param timeout [Numeric, nil] Seconds to keep trying, or nil for no limit
+    # @return [Boolean] Whether the process is gone
+    # @private
+    def signal_until_gone(pid, signals, timeout)
+      deadline = timeout ? Process.clock_gettime(Process::CLOCK_MONOTONIC) + timeout : nil
+
       loop do
         begin
           signals.each { |signal| Process.kill(signal, pid) }
         rescue Errno::ESRCH
-          break
+          return true
         end
+
+        return false if deadline && Process.clock_gettime(Process::CLOCK_MONOTONIC) >= deadline
 
         sleep 1
       end
-
-      Workhorse.debug_log("Daemon: PID #{pid} stopped")
-      File.delete(pid_file)
     end
 
     # Sends HUP signal to a worker process.

@@ -24,6 +24,11 @@ Workhorse.setup do |config|
   #   # ExceptionNotifier.notify_exception(exception)
   # end
 
+  # Seconds the daemon's `stop` waits for a worker to finish what it is doing
+  # before killing it. Set to nil to wait indefinitely.
+  #
+  # config.shutdown_timeout = 300
+
   # Enable this to let an enqueued job start without waiting for the next
   # poll. Use :file where the workers share a filesystem with the application
   # and :redis where they do not. Polling stays the floor either way, so raise

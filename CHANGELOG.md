@@ -1,6 +1,6 @@
 # Workhorse Changelog
 
-## 1.5.3 - 2026-09-28
+## 2.0.0.rc0 - 2026-09-29
 
 * Add *scheduling*. Workhorse now runs jobs on a cron schedule itself, without
   an external scheduler process:
@@ -102,6 +102,13 @@
 * Change `rails generate workhorse:install` to emit two migrations rather than
   one. Their version numbers now count up, as two migrations generated within
   the same second would otherwise collide.
+
+* Add `Workhorse.shutdown_timeout`, the number of seconds the daemon's `stop`
+  waits for a worker to shut down gracefully before killing it. Defaults to
+  300. A worker that ignores `TERM` - wedged, or performing something very
+  long - previously left `stop` looping forever, and with it whatever was
+  waiting on `stop`, usually a deployment. Set it to nil for the old
+  behaviour of waiting indefinitely.
 
 * Change a forked daemon worker to exit without running the `at_exit`
   handlers registered by the process that started it. They belong to that
