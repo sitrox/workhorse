@@ -2,92 +2,105 @@
 
 ## 2.0.0.rc0 - 2026-09-29
 
-* **Drop support for Oracle.** Workhorse supports MySQL and MariaDB only. The
-  Oracle branches of the global lock, the row limiting and the generated
-  migrations are gone, along with `Workhorse::Poller::ORACLE_LOCK_MODE` and
-  `ORACLE_LOCK_HANDLE`. It was never covered by CI, so it only ever had manual
-  verification. An Oracle installation has no upgrade path and should stay on
-  1.x. See [Database support](README.md#database-support).
+Sitrox reference: #154443.
 
-* Add *scheduling*: workhorse runs jobs on a cron schedule itself, without an
+### Breaking changes
+
+* **Support for Oracle is dropped.** Workhorse supports MySQL and MariaDB
+  only. The Oracle branches of the global lock, the row limiting and the
+  generated migrations are gone, along with
+  `Workhorse::Poller::ORACLE_LOCK_MODE` and `ORACLE_LOCK_HANDLE`. It was never
+  covered by CI, so it only ever had manual verification. An Oracle
+  installation has no upgrade path and should stay on 1.x. See
+  [Database support](README.md#database-support).
+
+* A forked daemon worker no longer runs the `at_exit` handlers registered by
+  the process that started it. They belong to that process, and one that waits
+  on threads the fork did not inherit hangs a worker which has already
+  finished - which then ignores `TERM`. This skips interpreter finalisation as
+  a whole, so buffered output is dropped too; a worker that dies of an
+  unhandled exception now reports it through `Workhorse.on_exception` and
+  exits non-zero.
+
+### Added
+
+* *Scheduling*: workhorse runs jobs on a cron schedule itself, without an
   external scheduler process. Each schedule owns a row in the new
   `workhorse_schedules` table holding the occurrence it is waiting for, so an
   occurrence whose time passes while nothing is running is not lost, and what
   happens to it is a per-schedule `catch_up` policy. Timezones and daylight
   saving are handled. See [Scheduling](README.md#scheduling).
 
-* Add *notifications*: enqueuing a job announces it and a waiting worker polls
+* *Notifications*: enqueuing a job announces it and a waiting worker polls
   straight away, rather than sleeping out its polling interval. Polling stays
   the floor. `:file` suits workers sharing a filesystem with the application
   and `:redis` those that do not; both are off by default. See
   [Notifications](README.md#notifications).
 
-* Add job deadlines and lateness reporting: `expires_at`, `max_lateness`, the
-  new `expired` state, `Workhorse.on_job_expired`, `Workhorse.on_job_late` and
+* Job deadlines and lateness reporting: `expires_at`, `max_lateness`, the new
+  `expired` state, `Workhorse.on_job_expired`, `Workhorse.on_job_late` and
   `Workhorse::DbJob#lateness`. A job past its deadline is expired rather than
   performed. See [Lateness and deadlines](README.md#lateness-and-deadlines).
 
-* Add `Workhorse::Jobs::DetectLateSchedulesJob`, which reports schedules whose
+* `Workhorse::Jobs::DetectLateSchedulesJob`, which reports schedules whose
   next occurrence lies well in the past. Neither callback above can fire for a
   job that was never created, so this is what catches materialization having
   stopped. See
   [Detecting schedules that stopped](README.md#detecting-schedules-that-stopped).
 
-* Add `Workhorse.shutdown_timeout`, the seconds the daemon's `stop` waits for
-  a worker before killing it. Defaults to 300, `nil` restores the previous
+* `Workhorse.shutdown_timeout`, the seconds the daemon's `stop` waits for a
+  worker before killing it. Defaults to 300, `nil` restores the previous
   behaviour. A worker that ignores `TERM` used to leave `stop` - and whatever
   waits on it, usually a deployment - looping forever.
 
-* Add `Workhorse.enqueue_job_class`, the keyword arguments `expires_at:` and
+* `Workhorse.enqueue_job_class`, the keyword arguments `expires_at:` and
   `max_lateness:` on `Workhorse.enqueue` and `Workhorse.enqueue_active_job`,
   `priority:` on the latter, and the scope `Workhorse::DbJob.expired`.
 
-* Add the composite indexes `[state, perform_at]`, `[state, priority,
-  created_at]` and `[state, expires_at]` to the generated `jobs` migration,
-  replacing the single-column index on `state`. `rails generate
-  workhorse:install` now emits two migrations rather than one.
+* The composite indexes `[state, perform_at]`, `[state, priority, created_at]`
+  and `[state, expires_at]` in the generated `jobs` migration, replacing the
+  single-column index on `state`. `rails generate workhorse:install` now emits
+  two migrations rather than one.
 
-* Add `fugit` as a runtime dependency, for parsing cron expressions.
+* `fugit` as a runtime dependency, for parsing cron expressions.
 
-* Change a forked daemon worker to exit without running the `at_exit` handlers
-  registered by the process that started it. They belong to that process, and
-  one that waits on threads the fork did not inherit hangs a worker which has
-  already finished - which then ignores `TERM`. Note this skips interpreter
-  finalisation as a whole, so buffered output is dropped too; a worker that
-  dies of an unhandled exception now reports it through
-  `Workhorse.on_exception` and exits non-zero.
+### Changed
 
-* Change `Workhorse::Jobs::CleanupSucceededJobs` to also delete jobs in the
-  new `expired` state, with a `states` argument to opt out. A schedule using
+* `Workhorse::Jobs::CleanupSucceededJobs` also deletes jobs in the new
+  `expired` state, with a `states` argument to opt out. A schedule using
   `expires_after` that regularly misses its window would otherwise grow the
   jobs table without bound.
 
-* Change failures to obtain the global lock on a poll that a notification or
-  an instant repoll brought forward: they no longer count towards
-  `max_global_lock_fails` and are logged at `debug`. Several workers woken by
+* Failures to obtain the global lock on a poll that a notification or an
+  instant repoll brought forward no longer count towards
+  `max_global_lock_fails`, and are logged at `debug`. Several workers woken by
   one announcement race for the lock and all but one lose, which says nothing
   about a crashed worker.
 
-* Accept `expired` in `Workhorse::DbJob#reset!` as the terminal state it is.
+* `Workhorse::DbJob#reset!` accepts `expired` as the terminal state it is.
 
-* Document that PostgreSQL is not supported. Workers emit `GET_LOCK` on every
-  poll, which PostgreSQL does not provide, so a worker fails on its first one.
-  The requirements previously listed it as supported, which it never was.
+### Fixed
 
-* Fix a deadlock between shutting a worker down and the poller posting a job.
+* A deadlock between shutting a worker down and the poller posting a job.
   `Worker#shutdown` held the worker's mutex while waiting for the poller
   thread, which could be waiting for that same mutex in `Worker#perform`. The
   worker then ignored `TERM`. A job that was locked but cannot be performed
   because the worker is shutting down is now reset to `waiting` rather than
   left locked, where it would have blocked its queue.
 
-* Fix `Worker#shutdown` raising when called concurrently, which the daemon
-  does by sending both `TERM` and `INT`.
+* `Worker#shutdown` raising when called concurrently, which the daemon does by
+  sending both `TERM` and `INT`.
 
-  Sitrox reference: #154443.
+### Documentation
 
-* Nothing breaks without migrating, but the new features need one. See
-  [Upgrading from 1.x](README.md#upgrading-from-1x).
+* PostgreSQL is documented as unsupported. Workers emit `GET_LOCK` on every
+  poll, which PostgreSQL does not provide, so a worker fails on its first one.
+  The requirements previously listed it as supported, which it never was.
+
+### Upgrading
+
+Nothing breaks without migrating, but the new features need one. See
+[Upgrading from 1.x](README.md#upgrading-from-1x).
 
 ## 1.5.2 - 2026-08-04
 
