@@ -1,9 +1,9 @@
 # -*- encoding: utf-8 -*-
-# stub: workhorse 1.5.2 ruby lib
+# stub: workhorse 2.0.0.rc0 ruby lib
 
 Gem::Specification.new do |s|
   s.name = "workhorse".freeze
-  s.version = "1.5.2".freeze
+  s.version = "2.0.0.rc0".freeze
 
   s.required_rubygems_version = Gem::Requirement.new(">= 0".freeze) if s.respond_to? :required_rubygems_version=
   s.require_paths = ["lib".freeze]
