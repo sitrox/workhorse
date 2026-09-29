@@ -1,1 +1,5 @@
-bundle exec rubocop "$@"
+#!/bin/bash
+
+BASE_PATH=`(cd $(dirname $0)/.. && pwd -P)`
+
+BUNDLE_GEMFILE=$BASE_PATH/Gemfile $BASE_PATH/bin/ruby -e "require 'rubygems';require 'bundler/setup'; load Gem.activate_bin_path('rubocop', 'rubocop', '>= 0.a')" -- $@
