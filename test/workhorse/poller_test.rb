@@ -145,11 +145,23 @@ class Workhorse::PollerTest < WorkhorseTest
       Process.fork do
         started = Time.now
 
+        # A worker that cannot even be shut down would leave waitall below
+        # waiting for good, so it reports where it is stuck and gives up.
+        Thread.new do
+          sleep 90
+          report_threads 'Worker process still running after 90s'
+          exit!(1)
+        end
+
         with_worker(pool_size: 1, polling_interval: 0.1, auto_terminate: false) do
           loop do
             elapsed = Time.now - started
             break if elapsed >= 3 && Workhorse::DbJob.succeeded.count >= 100
-            break if elapsed >= 60
+
+            if elapsed >= 60
+              report_threads 'Worker process gave up waiting for all jobs to succeed after 60s'
+              break
+            end
 
             sleep 0.1
           end

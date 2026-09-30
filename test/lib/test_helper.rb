@@ -62,13 +62,18 @@ class WorkhorseTest < ActiveSupport::TestCase
 
     @hang_watchdog = Thread.new do
       sleep HANG_REPORT_AFTER
-      warn "#{test} is still running after #{HANG_REPORT_AFTER}s. Its threads:"
+      report_threads "#{test} is still running after #{HANG_REPORT_AFTER}s"
+    end
+  end
 
-      Thread.list.each do |thread|
-        next if thread == Thread.current
+  # Prints the backtraces of all threads of this process but the calling one.
+  def report_threads(title)
+    warn "#{title} (PID #{Process.pid}). Its threads:"
 
-        warn "--- #{thread.inspect}\n#{(thread.backtrace || ['(no backtrace)']).join("\n")}"
-      end
+    Thread.list.each do |thread|
+      next if thread == Thread.current
+
+      warn "--- #{thread.inspect}\n#{(thread.backtrace || ['(no backtrace)']).join("\n")}"
     end
   end
 
