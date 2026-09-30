@@ -182,9 +182,15 @@ class Workhorse::PollerTest < WorkhorseTest
     end
 
     # Make sure there are 100 jobs, all jobs have succeeded and that all of the
-    # workers have had their turn.
+    # workers have had their turn. The jobs that have not are listed, as all
+    # a count says is that something got stuck, not where.
+    unfinished = Workhorse::DbJob.where.not(state: 'succeeded').order(:id).map do |job|
+      "##{job.id} #{job.state}, locked_by #{job.locked_by.inspect}, " \
+        "locked_at #{job.locked_at.inspect}, started_at #{job.started_at.inspect}"
+    end
+
     assert_equal 100, total
-    assert_equal 100, succeeded
+    assert_equal 100, succeeded, "Jobs that did not succeed:\n#{unfinished.join("\n")}"
     assert_equal 10,  used_workers
   end
 

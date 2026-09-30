@@ -140,18 +140,16 @@ class Workhorse::WorkerTest < WorkhorseTest
   end
 
   def test_term
-    with_worker(polling_interval: 0.2) do |w|
+    with_worker(polling_interval: 0.2, auto_terminate: true) do |w|
       Process.kill 'TERM', Process.pid
-      sleep 0.2
-      w.assert_state! :shutdown
+      with_retries { w.assert_state! :shutdown }
     end
   end
 
   def test_int
-    with_worker(polling_interval: 0.2) do |w|
+    with_worker(polling_interval: 0.2, auto_terminate: true) do |w|
       Process.kill 'INT', Process.pid
-      sleep 0.2
-      w.assert_state! :shutdown
+      with_retries { w.assert_state! :shutdown }
     end
   end
 
@@ -260,7 +258,7 @@ class Workhorse::WorkerTest < WorkhorseTest
   end
 
   def test_soft_restart_ignored_during_shutdown
-    with_worker(pool_size: 1, polling_interval: 0.2) do |w|
+    with_worker(pool_size: 1, polling_interval: 0.2, auto_terminate: true) do |w|
       Process.kill 'TERM', Process.pid
       with_retries { assert_equal :shutdown, w.state }
 

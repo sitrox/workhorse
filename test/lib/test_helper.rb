@@ -50,6 +50,33 @@ class Rails
 end
 
 class WorkhorseTest < ActiveSupport::TestCase
+  # Seconds a test may run before the backtraces of all its threads are
+  # printed. A hung test otherwise only shows up as a CI attempt killed at its
+  # time limit, with nothing saying where it hung.
+  HANG_REPORT_AFTER = 120
+
+  # Callbacks rather than methods, so that a test class defining its own setup
+  # or teardown does not skip them.
+  setup do
+    test = "#{self.class}##{name}"
+
+    @hang_watchdog = Thread.new do
+      sleep HANG_REPORT_AFTER
+      warn "#{test} is still running after #{HANG_REPORT_AFTER}s. Its threads:"
+
+      Thread.list.each do |thread|
+        next if thread == Thread.current
+
+        warn "--- #{thread.inspect}\n#{(thread.backtrace || ['(no backtrace)']).join("\n")}"
+      end
+    end
+  end
+
+  teardown do
+    @hang_watchdog&.kill
+    restore_termination_traps
+  end
+
   def setup
     remove_pids!
     clear_locks_and_db_threads!
@@ -189,8 +216,14 @@ class WorkhorseTest < ActiveSupport::TestCase
     w.shutdown
   end
 
+  # Without auto_terminate unless asked for, as work and work_until have it:
+  # a worker that has it traps TERM and INT for the whole process and never
+  # gives them back, so the test process ignored the TERM meant to stop it for
+  # the rest of the run - and a timed-out CI attempt kept running alongside
+  # the next. Every test hands them back afterwards regardless, see the
+  # teardown above.
   def with_worker(options = {})
-    w = Workhorse::Worker.new(**options)
+    w = Workhorse::Worker.new(auto_terminate: false, **options)
     w.start
     begin
       yield(w)
@@ -214,6 +247,12 @@ class WorkhorseTest < ActiveSupport::TestCase
     yield @daemon
   ensure
     daemon.stop(quiet: true)
+  end
+
+  # Hands TERM and INT back to the handlers the process started with, which a
+  # worker started with auto_terminate replaced.
+  def restore_termination_traps
+    ORIGINAL_TERMINATION_TRAPS.each { |signal, handler| Signal.trap(signal, handler) }
   end
 
   def with_retries(max = 50, interval: 0.1, &_block)
@@ -259,3 +298,10 @@ ActiveRecord::Base.establish_connection(
 
 require 'db_schema'
 require 'workhorse'
+
+# The handlers the process started with, see #restore_termination_traps.
+ORIGINAL_TERMINATION_TRAPS = Workhorse::Worker::SHUTDOWN_SIGNALS.to_h do |signal|
+  handler = Signal.trap(signal, 'DEFAULT')
+  Signal.trap(signal, handler)
+  [signal, handler]
+end

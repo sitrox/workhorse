@@ -45,13 +45,13 @@ jobs:
           retry_on: any
           max_attempts: 3
           command: bundle exec rake test TESTOPTS='--verbose'
-          # A timed-out attempt leaves its daemon workers running - they call
-          # setsid, so killing the attempt does not reach them - and the next
-          # attempt then hangs in the daemon tests against them and their
-          # pidfiles. Clear both before retrying.
+          # A timed-out attempt can leave the suite and its daemon workers
+          # running - the workers call setsid, so killing the attempt does not
+          # reach them - and the next attempt then runs against them. KILL, as
+          # a worker traps TERM. Clear their pidfiles as well.
           on_retry_command: |
-            pkill -f "^Workhorse .*: $GITHUB_WORKSPACE" || true
-            pkill -f "[I]lib:test/lib" || true
+            pkill -KILL -f "^Workhorse .*: $GITHUB_WORKSPACE" || true
+            pkill -KILL -f "[r]ake_test_loader" || true
             sleep 1
             rm -f tmp/pids/*
 
@@ -171,13 +171,13 @@ jobs:
           retry_on: any
           max_attempts: 3
           command: bundle exec rake test TESTOPTS='--verbose'
-          # A timed-out attempt leaves its daemon workers running - they call
-          # setsid, so killing the attempt does not reach them - and the next
-          # attempt then hangs in the daemon tests against them and their
-          # pidfiles. Clear both before retrying.
+          # A timed-out attempt can leave the suite and its daemon workers
+          # running - the workers call setsid, so killing the attempt does not
+          # reach them - and the next attempt then runs against them. KILL, as
+          # a worker traps TERM. Clear their pidfiles as well.
           on_retry_command: |
-            pkill -f "^Workhorse .*: $GITHUB_WORKSPACE" || true
-            pkill -f "[I]lib:test/lib" || true
+            pkill -KILL -f "^Workhorse .*: $GITHUB_WORKSPACE" || true
+            pkill -KILL -f "[r]ake_test_loader" || true
             sleep 1
             rm -f tmp/pids/*
 
