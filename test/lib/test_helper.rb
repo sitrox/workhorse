@@ -84,7 +84,16 @@ class WorkhorseTest < ActiveSupport::TestCase
     # spurious "Lost connection to server during query" failures. Should a
     # crashed run ever leave a lock behind, kill its *connection*, which does
     # release it.
-    Workhorse::DbJob.connection.execute('SELECT RELEASE_ALL_LOCKS()')
+    if DB_ORACLE
+      # Oracle has no "release everything" call, but workhorse takes exactly
+      # one handle. RELEASE reports a status rather than raising when the lock
+      # is not held, so this needs no guard.
+      Workhorse::DbJob.connection.execute(
+        "SELECT DBMS_LOCK.RELEASE(#{Workhorse::Poller::ORACLE_LOCK_HANDLE}) FROM DUAL"
+      )
+    else
+      Workhorse::DbJob.connection.execute('SELECT RELEASE_ALL_LOCKS()')
+    end
   end
 
   def remove_pids!
