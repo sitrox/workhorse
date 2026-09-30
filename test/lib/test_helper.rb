@@ -6,8 +6,8 @@ require 'benchmark'
 require 'concurrent'
 require 'jobs'
 
-# The adapter to run the test suite against. Both MySQL / MariaDB adapters are
-# supported, as workhorse has to work with either of them.
+# The adapter to run the test suite against. Workhorse has to work with each of
+# them, so each is covered by CI.
 DB_ADAPTER = ENV.fetch('DB_ADAPTER', 'mysql2')
 
 case DB_ADAPTER
@@ -15,9 +15,15 @@ when 'mysql2'
   require 'mysql2'
 when 'trilogy'
   require 'trilogy'
+when 'oracle_enhanced'
+  require 'active_record/connection_adapters/oracle_enhanced_adapter'
 else
-  fail "Unsupported DB_ADAPTER #{DB_ADAPTER.inspect}, use 'mysql2' or 'trilogy'."
+  fail "Unsupported DB_ADAPTER #{DB_ADAPTER.inspect}, use 'mysql2', 'trilogy' or 'oracle_enhanced'."
 end
+
+# Whether the suite is running against Oracle. Used where the schema or an
+# assertion cannot be written the same way for both families.
+DB_ORACLE = DB_ADAPTER == 'oracle_enhanced'
 
 class MockRailsEnv < String
   def production?
@@ -200,13 +206,15 @@ class WorkhorseTest < ActiveSupport::TestCase
   end
 end
 
+# On Oracle the "database" is a service name rather than a schema, and the
+# schema is the user the suite connects as.
 ActiveRecord::Base.establish_connection(
   adapter:  DB_ADAPTER,
-  database: ENV.fetch('DB_NAME', nil) || 'workhorse',
-  username: ENV.fetch('DB_USERNAME', nil) || 'root',
-  password: ENV.fetch('DB_PASSWORD', nil) || '',
+  database: ENV.fetch('DB_NAME', nil) || (DB_ORACLE ? 'FREEPDB1' : 'workhorse'),
+  username: ENV.fetch('DB_USERNAME', nil) || (DB_ORACLE ? 'workhorse' : 'root'),
+  password: ENV.fetch('DB_PASSWORD', nil) || (DB_ORACLE ? 'workhorse' : ''),
   host:     ENV.fetch('DB_HOST', nil) || '127.0.0.1',
-  port:     ENV.fetch('DB_PORT', nil) || 3306,
+  port:     ENV.fetch('DB_PORT', nil) || (DB_ORACLE ? 1521 : 3306),
   pool:     10
 )
 

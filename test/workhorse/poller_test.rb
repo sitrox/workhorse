@@ -71,8 +71,10 @@ class Workhorse::PollerTest < WorkhorseTest
     assert_equal [], w.poller.send(:valid_queues)
   end
 
-  # Not every adapter returns a result set from `execute`, so querying the
-  # valid queues must not rely on its return value.
+  # Not every adapter returns a result set from `execute`: the Oracle enhanced
+  # adapter, for instance, returns `true` for queries, both before and after
+  # version 7.0.0. Querying the valid queues must therefore not rely on the
+  # return value of `execute`.
   def test_valid_queues_without_usable_execute
     w = Workhorse::Worker.new(polling_interval: 60)
 

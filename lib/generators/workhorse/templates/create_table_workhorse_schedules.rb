@@ -23,7 +23,20 @@ class CreateTableWorkhorseSchedules < ActiveRecord::Migration[7.1]
       t.timestamps null: false
     end
 
-    add_index :workhorse_schedules, :key, unique: true, length: 191, name: 'idx_wh_schedules_key'
+    # The index names are given explicitly because the ones Rails would derive
+    # exceed the 30 characters Oracle allows before 12.2.
+    if oracle?
+      add_index :workhorse_schedules, :key, unique: true, name: 'idx_wh_schedules_key'
+    else
+      add_index :workhorse_schedules, :key, unique: true, length: 191, name: 'idx_wh_schedules_key'
+    end
+
     add_index :workhorse_schedules, %i[enabled next_at], name: 'idx_wh_schedules_due'
+  end
+
+  private
+
+  def oracle?
+    ActiveRecord::Base.connection.adapter_name == 'OracleEnhanced'
   end
 end

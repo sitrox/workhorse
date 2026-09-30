@@ -45,6 +45,97 @@ jobs:
           max_attempts: 3
           command: bundle exec rake test TESTOPTS='--verbose'
 
+  test-oracle:
+    runs-on: ubuntu-latest
+
+    # Oracle gets a job of its own rather than a matrix entry: it needs a
+    # service container and the Instant Client, and it is run against a single
+    # Ruby version, as what is being covered is the database dialect rather
+    # than the interpreter.
+    services:
+      oracle:
+        image: gvenzl/oracle-free:23-slim
+        env:
+          ORACLE_PASSWORD: oracle
+          APP_USER: workhorse
+          APP_USER_PASSWORD: workhorse
+        ports:
+          - 1521:1521
+        options: >-
+          --health-cmd healthcheck.sh
+          --health-interval 20s
+          --health-timeout 10s
+          --health-retries 30
+
+    env:
+      DB_ADAPTER: oracle_enhanced
+      DB_NAME: FREEPDB1
+      DB_USERNAME: workhorse
+      DB_PASSWORD: workhorse
+      DB_HOST: localhost
+      DB_PORT: 1521
+      LD_LIBRARY_PATH: /opt/oracle/instantclient
+
+    steps:
+      - uses: actions/checkout@v2
+
+      # ruby-oci8 compiles against the Instant Client, so both the runtime
+      # library and the SDK headers are needed; basiclite alone does not carry
+      # oci.h.
+      - name: Install Oracle Instant Client
+        run: |
+          sudo apt-get update
+          # The package was renamed in Ubuntu 24.04, which `ubuntu-latest` now
+          # is; keep working on both.
+          sudo apt-get install -y unzip
+          sudo apt-get install -y libaio1 || sudo apt-get install -y libaio1t64
+          sudo mkdir -p /opt/oracle
+          cd /tmp
+          curl -sSLO https://download.oracle.com/otn_software/linux/instantclient/instantclient-basiclite-linuxx64.zip
+          curl -sSLO https://download.oracle.com/otn_software/linux/instantclient/instantclient-sdk-linuxx64.zip
+          sudo unzip -oq instantclient-basiclite-linuxx64.zip -d /opt/oracle
+          sudo unzip -oq instantclient-sdk-linuxx64.zip -d /opt/oracle
+          # The archives unpack into a versioned directory, whose name changes
+          # with every release; the fixed symlink is what LD_LIBRARY_PATH and
+          # the ruby-oci8 build both point at.
+          sudo ln -sfn "$(find /opt/oracle -maxdepth 1 -type d -name 'instantclient_*' | head -1)" /opt/oracle/instantclient
+          echo /opt/oracle/instantclient | sudo tee /etc/ld.so.conf.d/oracle-instantclient.conf
+          sudo ldconfig
+
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.2.1'
+
+      - name: Install bundle including the oracle group
+        run: |
+          bundle config set --local with oracle
+          bundle install --jobs 4 --retry 3
+
+      # The global lock is DBMS_LOCK on Oracle, and execute permission on that
+      # package is not granted to a new schema by default. SYS owns the
+      # package, and only it can grant it, so this connects as SYSDBA.
+      - name: Grant DBMS_LOCK to the test schema
+        run: |
+          bundle exec ruby -e '
+            require "active_record"
+            require "active_record/connection_adapters/oracle_enhanced_adapter"
+            ActiveRecord::Base.establish_connection(
+              adapter: "oracle_enhanced", database: "FREEPDB1",
+              username: "sys", password: "oracle", privilege: "SYSDBA",
+              host: "localhost", port: 1521
+            )
+            ActiveRecord::Base.connection.execute("GRANT EXECUTE ON DBMS_LOCK TO workhorse")
+          '
+
+      - name: Run rake tests
+        uses: nick-fields/retry@v2
+        with:
+          timeout_seconds: 600
+          retry_on: any
+          max_attempts: 3
+          command: bundle exec rake test TESTOPTS='--verbose'
+
   linters:
     runs-on: ubuntu-latest
     steps:

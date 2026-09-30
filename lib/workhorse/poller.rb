@@ -1,6 +1,7 @@
 module Workhorse
   # Database poller that discovers and locks jobs for execution.
   # Handles job querying, global locking, and job distribution to workers.
+  # Supports both MySQL and Oracle databases with database-specific optimizations.
   #
   # @example Basic usage (typically used internally)
   #   poller = Workhorse::Poller.new(worker, proc { true })
@@ -17,6 +18,9 @@ module Workhorse
     # responsive to shutdown, to instant repolling and to notifications.
     SLEEP_SLICE = 0.1
 
+    ORACLE_LOCK_MODE   = 6           # X_MODE (exclusive)
+    ORACLE_LOCK_HANDLE = 478_564_848 # Randomly chosen number
+
     # @return [Workhorse::Worker] The worker this poller serves
     attr_reader :worker
 
@@ -31,6 +35,7 @@ module Workhorse
       @worker = worker
       @running = false
       @table = Workhorse::DbJob.arel_table
+      @is_oracle = ActiveRecord::Base.connection.adapter_name == 'OracleEnhanced'
       @instant_repoll = Concurrent::AtomicBoolean.new(false)
       @global_lock_fails = 0
       @max_global_lock_fails_reached = false
@@ -303,6 +308,7 @@ module Workhorse
     end
 
     # Executes a block with a global database lock.
+    # Supports both MySQL GET_LOCK and Oracle DBMS_LOCK.
     #
     # @param name [Symbol] Lock name identifier
     # @param timeout [Integer] Lock timeout in seconds
@@ -313,10 +319,18 @@ module Workhorse
     # @private
     def with_global_lock(name: :workhorse, timeout: 2, count_failures: true, &_block)
       begin # rubocop:disable Style/RedundantBegin
-        result = Workhorse::DbJob.connection.select_all(
-          "SELECT GET_LOCK(CONCAT(DATABASE(), '_#{name}'), #{timeout})"
-        ).first.values.last
-        success = result == 1
+        if @is_oracle
+          result = Workhorse::DbJob.connection.select_all(
+            "SELECT DBMS_LOCK.REQUEST(#{ORACLE_LOCK_HANDLE}, #{ORACLE_LOCK_MODE}, #{timeout}) FROM DUAL"
+          ).first.values.last
+
+          success = result == 0
+        else
+          result = Workhorse::DbJob.connection.select_all(
+            "SELECT GET_LOCK(CONCAT(DATABASE(), '_#{name}'), #{timeout})"
+          ).first.values.last
+          success = result == 1
+        end
 
         if success
           @global_lock_fails = 0
@@ -362,7 +376,11 @@ module Workhorse
         yield
       ensure
         if success
-          Workhorse::DbJob.connection.execute("SELECT RELEASE_LOCK(CONCAT(DATABASE(), '_#{name}'))")
+          if @is_oracle
+            Workhorse::DbJob.connection.execute("SELECT DBMS_LOCK.RELEASE(#{ORACLE_LOCK_HANDLE}) FROM DUAL")
+          else
+            Workhorse::DbJob.connection.execute("SELECT RELEASE_LOCK(CONCAT(DATABASE(), '_#{name}'))")
+          end
         end
       end
     end
@@ -572,7 +590,7 @@ module Workhorse
         # any presumptions on the order.
         record_number = queue.nil? ? limit : 1
 
-        union_parts << select.take(record_number)
+        union_parts << agnostic_limit(select, record_number)
       end
 
       return [] if union_parts.empty?
@@ -583,6 +601,9 @@ module Workhorse
       # contained within.
       # Additionally, each of the subselects and the final union select is given
       # an alias to comply with MySQL requirements.
+      # These aliases are added directly instead of using Arel `as`, because it
+      # uses the keyword 'AS' in SQL generated for Oracle, which is invalid for
+      # table aliases.
       union_query_sql = '('
       union_query_sql += "SELECT * FROM (#{union_parts.shift.to_sql}) union_0"
       union_parts.each_with_index do |part, idx|
@@ -600,7 +621,7 @@ module Workhorse
       select = order(select)
 
       # Limit number of records
-      select = select.take(limit)
+      select = agnostic_limit(select, limit)
 
       return Workhorse::DbJob.find_by_sql(select.to_sql).to_a
     end
@@ -652,6 +673,17 @@ module Workhorse
       select.order(Arel.sql('priority').asc).order(Arel.sql('created_at').asc)
     end
 
+    # Limits the number of records
+    #
+    # @param select [Arel::SelectManager] the select manager on which to apply
+    #   the limit
+    # @param number [Integer] the maximum number of records to return
+    # @return [Arel::SelectManager] the resultant select manager
+    def agnostic_limit(select, number)
+      return select.where(Arel.sql('ROWNUM').lteq(number)) if @is_oracle
+      return select.take(number)
+    end
+
     # Returns an Array of queue names for which a job may be posted
     #
     # This is done in multiple steps. First, all queues with jobs that are in
@@ -696,9 +728,10 @@ module Workhorse
       queues = select.project(:queue)
 
       # Note that `select_values` is used here on purpose: `execute` does not
-      # return a result set on every adapter, while `select_values` is
+      # return a result set on every adapter (the Oracle enhanced adapter, for
+      # instance, returns `true` for queries), while `select_values` is
       # implemented in terms of `exec_query` and thus behaves the same on the
-      # mysql2 and trilogy adapters.
+      # mysql2, trilogy and Oracle enhanced adapters.
       return Workhorse::DbJob.connection.select_values(queues.distinct.to_sql)
     end
   end

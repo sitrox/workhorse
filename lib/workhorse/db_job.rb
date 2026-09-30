@@ -101,10 +101,25 @@ module Workhorse
     # Returns a relation with split locked_by field for easier querying.
     # Extracts host, PID, and random string components from locked_by.
     #
+    # `locked_by` is "<host>.<pid>.<random>", and the host may itself contain
+    # dots, so both dialects below work backwards from the last two.
+    #
     # @return [ActiveRecord::Relation] Relation with additional computed columns
     # @private
     def self.with_split_locked_by
-      select(<<~SQL)
+      return select(oracle? ? split_locked_by_sql_oracle : split_locked_by_sql_mysql)
+    end
+
+    # @return [Boolean] Whether the connection speaks Oracle
+    # @private
+    def self.oracle?
+      return connection.adapter_name == 'OracleEnhanced'
+    end
+
+    # @return [String]
+    # @private
+    def self.split_locked_by_sql_mysql
+      return <<~SQL
         #{table_name}.*,
 
         -- random string
@@ -124,6 +139,30 @@ module Workhorse
           length(locked_by) -
           length(substring_index(locked_by, '.', -2)) - 1
         ) as locked_by_host
+      SQL
+    end
+
+    # Oracle has no `substring_index`. `instr` with a negative position counts
+    # occurrences from the right, which gives the two delimiters directly.
+    #
+    # @return [String]
+    # @private
+    def self.split_locked_by_sql_oracle
+      return <<~SQL
+        #{table_name}.*,
+
+        -- random string
+        substr(locked_by, instr(locked_by, '.', -1, 1) + 1) as locked_by_rnd,
+
+        -- pid
+        substr(
+          locked_by,
+          instr(locked_by, '.', -1, 2) + 1,
+          instr(locked_by, '.', -1, 1) - instr(locked_by, '.', -1, 2) - 1
+        ) as locked_by_pid,
+
+        -- get host
+        substr(locked_by, 1, instr(locked_by, '.', -1, 2) - 1) as locked_by_host
       SQL
     end
 
