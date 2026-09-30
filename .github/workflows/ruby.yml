@@ -91,10 +91,15 @@ jobs:
           sudo apt-get install -y libaio1 || sudo apt-get install -y libaio1t64
           sudo mkdir -p /opt/oracle
           cd /tmp
-          curl -sSLO https://download.oracle.com/otn_software/linux/instantclient/instantclient-basiclite-linuxx64.zip
-          curl -sSLO https://download.oracle.com/otn_software/linux/instantclient/instantclient-sdk-linuxx64.zip
-          sudo unzip -oq instantclient-basiclite-linuxx64.zip -d /opt/oracle
-          sudo unzip -oq instantclient-sdk-linuxx64.zip -d /opt/oracle
+          # Pinned to 21.13 rather than taking the current release: ruby-oci8
+          # 2.2 fails its `OCI_MAJOR_VERSION` probe against an Instant Client
+          # 23 header, after finding the library and the SDK correctly. A 21
+          # client talks to the 23 server used below.
+          base=https://download.oracle.com/otn_software/linux/instantclient/2113000
+          curl -sSLO $base/instantclient-basiclite-linux.x64-21.13.0.0.0dbru.zip
+          curl -sSLO $base/instantclient-sdk-linux.x64-21.13.0.0.0dbru.zip
+          sudo unzip -oq 'instantclient-basiclite-linux.x64-*.zip' -d /opt/oracle
+          sudo unzip -oq 'instantclient-sdk-linux.x64-*.zip' -d /opt/oracle
           # The archives unpack into a versioned directory, whose name changes
           # with every release; the fixed symlink is what LD_LIBRARY_PATH and
           # the ruby-oci8 build both point at.
