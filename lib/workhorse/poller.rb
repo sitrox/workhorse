@@ -318,7 +318,13 @@ module Workhorse
     # @return [void]
     # @private
     def with_global_lock(name: :workhorse, timeout: 2, count_failures: true, &_block)
-      begin # rubocop:disable Style/RedundantBegin
+      # Whole seconds, rounded up: MySQL and Oracle both take the timeout as an
+      # integer and round a fraction of a second down to not waiting at all -
+      # only MariaDB honours one. A poll finding the lock taken would then give
+      # up at once, and count towards max_global_lock_fails for mere contention.
+      timeout = timeout.ceil
+
+      begin
         if @is_oracle
           result = Workhorse::DbJob.connection.select_all(
             "SELECT DBMS_LOCK.REQUEST(#{ORACLE_LOCK_HANDLE}, #{ORACLE_LOCK_MODE}, #{timeout}) FROM DUAL"

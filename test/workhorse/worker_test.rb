@@ -124,7 +124,7 @@ class Workhorse::WorkerTest < WorkhorseTest
     Workhorse.enqueue BasicJob.new(sleep_time: 0.1)
     assert_equal 'waiting', Workhorse::DbJob.first.state
 
-    work_until(polling_interval: 0.2) do
+    work_until(pool_size: 5, polling_interval: 0.2) do
       assert_equal 'succeeded', Workhorse::DbJob.first.state
     end
   end
@@ -133,9 +133,7 @@ class Workhorse::WorkerTest < WorkhorseTest
     BasicJob.results.clear
 
     Workhorse.enqueue BasicJob.new(some_param: 5, sleep_time: 0)
-    work 0.5
-
-    assert_equal 'succeeded', Workhorse::DbJob.first.state
+    work_until(pool_size: 5, polling_interval: 0.2) { assert_equal 'succeeded', Workhorse::DbJob.first.state }
 
     assert_equal 1, BasicJob.results.count
     assert_equal 5, BasicJob.results.first
@@ -278,80 +276,61 @@ class Workhorse::WorkerTest < WorkhorseTest
 
   def test_no_queues
     enqueue_in_multiple_queues
-    work 0.2, polling_interval: 0.2
 
-    jobs = jobs_by_queue
-    assert_equal 'succeeded', jobs[0].state
-    assert_equal 'succeeded', jobs[1].state
-    assert_equal 'succeeded', jobs[2].state
+    work_until(pool_size: 5, polling_interval: 0.2) do
+      assert_equal %w[succeeded succeeded succeeded], jobs_by_queue.map(&:state)
+    end
   end
 
   def test_nil_queue
     enqueue_in_multiple_queues
-    work 0.2, queues: [nil], polling_interval: 0.2
 
-    jobs = jobs_by_queue
-    assert_equal 'succeeded', jobs[0].state
-    assert_equal 'waiting',   jobs[1].state
-    assert_equal 'waiting',   jobs[2].state
+    # A job the worker wrongly took would be taken in the same poll as the
+    # one it rightly took, so is locked by the time that one has succeeded.
+    work_until(queues: [nil], pool_size: 5, polling_interval: 0.2) do
+      assert_equal %w[succeeded waiting waiting], jobs_by_queue.map(&:state)
+    end
   end
 
   def test_queues_with_nil
     enqueue_in_multiple_queues
-    work 0.2, queues: [nil, :q1], polling_interval: 0.2
 
-    jobs = jobs_by_queue
-    assert_equal 'succeeded', jobs[0].state
-    assert_equal 'succeeded', jobs[1].state
-    assert_equal 'waiting',   jobs[2].state
+    work_until(queues: [nil, :q1], pool_size: 5, polling_interval: 0.2) do
+      assert_equal %w[succeeded succeeded waiting], jobs_by_queue.map(&:state)
+    end
   end
 
   def test_queues_without_nil
     enqueue_in_multiple_queues
-    work 0.2, queues: %i[q1 q2], polling_interval: 0.2
 
-    jobs = jobs_by_queue
-    assert_equal 'waiting',   jobs[0].state
-    assert_equal 'succeeded', jobs[1].state
-    assert_equal 'succeeded', jobs[2].state
+    work_until(queues: %i[q1 q2], pool_size: 5, polling_interval: 0.2) do
+      assert_equal %w[waiting succeeded succeeded], jobs_by_queue.map(&:state)
+    end
   end
 
   def test_queue_not_parallel
     Workhorse::DbJob.delete_all
-    Workhorse.enqueue BasicJob.new(sleep_time: 0.2), queue: :q1
-    Workhorse.enqueue BasicJob.new(sleep_time: 0.2), queue: :q1
+    first = Workhorse.enqueue BasicJob.new(sleep_time: 2), queue: :q1
+    second = Workhorse.enqueue BasicJob.new(sleep_time: 2), queue: :q1
 
-    work 0.2, polling_interval: 0.2
-    jobs = Workhorse::DbJob.all.to_a
-    assert_equal 'succeeded', jobs[0].state
-    assert_equal 'waiting',   jobs[1].state
+    assert_queued_one_at_a_time [first], [second]
   end
 
   def test_multiple_queued_same_queue
     # One queue
-    Workhorse.enqueue BasicJob.new(sleep_time: 0.2), queue: :q1
-    Workhorse.enqueue BasicJob.new(sleep_time: 0.2), queue: :q1
+    first = Workhorse.enqueue BasicJob.new(sleep_time: 2), queue: :q1
+    second = Workhorse.enqueue BasicJob.new(sleep_time: 2), queue: :q1
 
-    work 0.2, polling_interval: 0.2
-
-    jobs = Workhorse::DbJob.all.to_a
-    assert_equal 'succeeded', jobs[0].state
-    assert_equal 'waiting',   jobs[1].state
+    assert_queued_one_at_a_time [first], [second]
 
     # Two queues
     Workhorse::DbJob.delete_all
-    Workhorse.enqueue BasicJob.new(sleep_time: 0.2), queue: :q1
-    Workhorse.enqueue BasicJob.new(sleep_time: 0.2), queue: :q1
-    Workhorse.enqueue BasicJob.new(sleep_time: 0.2), queue: :q2
-    Workhorse.enqueue BasicJob.new(sleep_time: 0.2), queue: :q2
+    q1_first = Workhorse.enqueue BasicJob.new(sleep_time: 2), queue: :q1
+    q1_second = Workhorse.enqueue BasicJob.new(sleep_time: 2), queue: :q1
+    q2_first = Workhorse.enqueue BasicJob.new(sleep_time: 2), queue: :q2
+    q2_second = Workhorse.enqueue BasicJob.new(sleep_time: 2), queue: :q2
 
-    work 0.2, polling_interval: 0.2
-
-    jobs = jobs_by_queue
-    assert_equal 'succeeded', jobs[0].state
-    assert_equal 'waiting',   jobs[1].state
-    assert_equal 'succeeded', jobs[2].state
-    assert_equal 'waiting',   jobs[3].state
+    assert_queued_one_at_a_time [q1_first, q2_first], [q1_second, q2_second]
   end
 
   def test_order_with_priorities
@@ -500,5 +479,20 @@ class Workhorse::WorkerTest < WorkhorseTest
   # Within a queue, in the order they were enqueued.
   def jobs_by_queue
     return Workhorse::DbJob.all.sort_by { |job| [job.queue.nil? ? 0 : 1, job.queue.to_s, job.id] }
+  end
+
+  # Asserts that while the first job of each queue runs, the ones queued behind
+  # it wait. Looked at while they run rather than after a fixed time: the job
+  # behind is rightly taken as soon as the one ahead has finished.
+  def assert_queued_one_at_a_time(firsts, followers)
+    with_worker(pool_size: 5, polling_interval: 0.2, auto_terminate: false) do
+      with_retries { assert_equal(%w[started] * firsts.size, firsts.map { |job| job.reload.state }) }
+
+      # Room for further polls, each a chance to take a follower wrongly, and
+      # well short of the 2s the jobs ahead take.
+      sleep 0.5
+
+      assert_equal(%w[waiting] * followers.size, followers.map { |job| job.reload.state })
+    end
   end
 end

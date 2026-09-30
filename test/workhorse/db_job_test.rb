@@ -10,9 +10,7 @@ class Workhorse::DbJobTest < WorkhorseTest
 
   def test_reset_failed
     job = Workhorse.enqueue FailingTestJob.new
-    work 0.5
-    job.reload
-    assert_equal 'failed', job.state
+    work_until(pool_size: 5, polling_interval: 0.2) { assert_equal 'failed', job.reload.state }
 
     job.reset!
 

@@ -26,6 +26,14 @@ Sitrox reference: #154443.
   `FETCH FIRST … ROWS ONLY`, which applies after the sort and is why 12c is
   now the minimum.
 
+* A poll that finds the global lock taken waits for it again with a polling
+  interval below half a second. The lock timeout follows the interval, and
+  MySQL and Oracle take it as whole seconds, so they rounded it down to not
+  waiting at all - only MariaDB honours a fraction. Each such poll gave up
+  at once and counted towards `Workhorse.max_global_lock_fails`, so several
+  workers contending for the lock could trigger its alarm about a crashed
+  worker. The timeout is now rounded up to whole seconds.
+
 * A soft restart (`USR1`) no longer wedges a worker whose `tmp/pids` does not
   exist yet, as on a fresh checkout or deployment. The worker touched its
   shutdown file there after it had stopped accepting jobs, so failing on it

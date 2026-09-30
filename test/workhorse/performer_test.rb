@@ -8,28 +8,26 @@ class Workhorse::PerformerTest < WorkhorseTest
       Workhorse.enqueue DbConnectionTestJob.new
     end
 
-    work 0.2, polling_interval: 0.2
+    work_until(pool_size: 5, polling_interval: 0.2) do
+      assert_equal 2, DbConnectionTestJob.db_connections.count
+    end
 
-    assert_equal 2, DbConnectionTestJob.db_connections.count
     assert_equal 2, DbConnectionTestJob.db_connections.uniq.count
   end
 
   def test_success
     Workhorse.enqueue BasicJob.new(sleep_time: 0.1)
-    work 0.2, polling_interval: 0.2
-    assert_equal 'succeeded', Workhorse::DbJob.first.state
+    work_until(pool_size: 5, polling_interval: 0.2) { assert_equal 'succeeded', Workhorse::DbJob.first.state }
   end
 
   def test_exception
     Workhorse.enqueue FailingTestJob.new
-    work 0.2, polling_interval: 0.2
-    assert_equal 'failed', Workhorse::DbJob.first.state
+    work_until(pool_size: 5, polling_interval: 0.2) { assert_equal 'failed', Workhorse::DbJob.first.state }
   end
 
   def test_syntax_exception
     Workhorse.enqueue SyntaxErrorJob
-    work 0.2, polling_interval: 0.2
-    assert_equal 'failed', Workhorse::DbJob.first.state
+    work_until(pool_size: 5, polling_interval: 0.2) { assert_equal 'failed', Workhorse::DbJob.first.state }
   end
 
   def test_on_exception
@@ -41,7 +39,7 @@ class Workhorse::PerformerTest < WorkhorseTest
     end
 
     Workhorse.enqueue FailingTestJob.new
-    work 0.2, polling_interval: 0.2
+    work_until(pool_size: 5, polling_interval: 0.2) { assert exception, 'expected on_exception to be called' }
 
     assert_equal exception.message, FailingTestJob::MESSAGE
   ensure

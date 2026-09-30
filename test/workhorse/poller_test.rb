@@ -188,10 +188,10 @@ class Workhorse::PollerTest < WorkhorseTest
     assert_equal 10,  used_workers
   end
 
-  # A poll that finds the global lock taken waits for as long as it asked to
-  # before giving up. Below half a second is what the poller asks for with a
-  # short polling interval, and where a database that takes the timeout as
-  # whole seconds would round it down to not waiting at all.
+  # A poll that finds the global lock taken waits at least as long as it asked
+  # to before giving up. Below half a second is what the poller asks for with
+  # a short polling interval, and what MySQL and Oracle, which take the timeout
+  # as whole seconds, used to round down to not waiting at all.
   def test_contended_global_lock_waits_for_its_timeout
     poller = Workhorse::Worker.new(polling_interval: 0.3).poller
     ran = false
