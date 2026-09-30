@@ -89,6 +89,14 @@ jobs:
           # is; keep working on both.
           sudo apt-get install -y unzip
           sudo apt-get install -y libaio1 || sudo apt-get install -y libaio1t64
+          # The rename came with a soname change to libaio.so.1t64, while the
+          # Oracle client still links against libaio.so.1. Without this the
+          # client library cannot be linked, and ruby-oci8's version probe
+          # fails with a TypeError that says nothing about the cause.
+          if ! ldconfig -p | grep -qE 'libaio\.so\.1$|libaio\.so\.1 '; then
+            t64=$(ls /usr/lib/*/libaio.so.1t64 2>/dev/null | head -1)
+            if [ -n "$t64" ]; then sudo ln -sfn "$t64" "$(dirname "$t64")/libaio.so.1"; fi
+          fi
           sudo mkdir -p /opt/oracle
           cd /tmp
           # Pinned to 21.13 rather than taking the current release: ruby-oci8
