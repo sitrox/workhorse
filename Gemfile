@@ -6,7 +6,7 @@ gemspec
 gem 'activejob', '~> 7.1.3'
 gem 'activerecord', '~> 7.1.3'
 gem 'benchmark-ips'
-gem 'bundler'
+gem 'bundler', '>= 2.5'
 gem 'minitest'
 gem 'mysql2'
 gem 'pry'
