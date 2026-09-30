@@ -26,7 +26,7 @@ Sitrox reference: #154443.
   `FETCH FIRST … ROWS ONLY`, which applies after the sort and is why 12c is
   now the minimum.
 
-* A poll that finds the global lock taken waits for it again with a polling
+* A poll that finds the global lock taken now waits for it with a polling
   interval below half a second. The lock timeout follows the interval, and
   MySQL and Oracle take it as whole seconds, so they rounded it down to not
   waiting at all - only MariaDB honours a fraction. Each such poll gave up
