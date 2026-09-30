@@ -135,10 +135,14 @@ class Workhorse::PollerTest < WorkhorseTest
       Workhorse.enqueue BasicJob.new(some_param: i, sleep_time: 0)
     end
 
-    # Create 10 worker processes that work for 3s each
+    # Create 10 worker processes that work for 3s each. Longer on Oracle: every
+    # poll holds the global lock throughout, so the workers take turns, and
+    # Oracle's slower round trips got through 61 to 80 of the 100 jobs in 3s.
+    # What is tested is that none is taken twice and every worker gets a turn,
+    # not how fast.
     10.times do
       Process.fork do
-        work 3, pool_size: 1, polling_interval: 0.1
+        work DB_ORACLE ? 10 : 3, pool_size: 1, polling_interval: 0.1
       ensure
         # Exit without running the at_exit handlers of the test process: one
         # of them is Minitest's, which joins threads this fork did not
