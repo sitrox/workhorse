@@ -362,7 +362,7 @@ class Workhorse::ScheduleTest < WorkhorseTest
     end
 
     assert_equal 1, Workhorse::DbJob.succeeded.count
-    assert exceptions.any? { |e| e.is_a?(NameError) }, "expected a NameError, got #{exceptions.map(&:class)}"
+    assert exceptions.any?(NameError), "expected a NameError, got #{exceptions.map(&:class)}"
   end
 
   # An occurrence must not be consumed unless the job for it exists. Were the

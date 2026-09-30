@@ -165,9 +165,8 @@ module Workhorse
     def deserialized_job
       # The source is safe as long as jobs are always enqueued using
       # Workhorse::Enqueuer so it is ok to use Marshal.load.
-      # rubocop: disable Security/MarshalLoad
+      # rubocop: disable-next Security/MarshalLoad
       Marshal.load(@db_job.handler)
-      # rubocop: enable Security/MarshalLoad
     end
   end
 end

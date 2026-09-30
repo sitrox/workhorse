@@ -311,9 +311,13 @@ module Workhorse
         $0 = process_name(worker)
         # Close inherited lockfile fd to prevent holding the flock after parent exits
         @lockfile&.close
-        # Reopen pipes to prevent #107576
+        # Reopen pipes to prevent #107576. Not the block form: the descriptor
+        # has to outlive this call, as stdout and stderr keep pointing at it
+        # for the lifetime of the worker.
+        # rubocop:disable Style/FileOpen
         $stdin.reopen File.open(File::NULL, 'r')
         null_out = File.open(File::NULL, 'w')
+        # rubocop:enable Style/FileOpen
         $stdout.reopen null_out
         $stderr.reopen null_out
 

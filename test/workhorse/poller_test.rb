@@ -170,9 +170,8 @@ class Workhorse::PollerTest < WorkhorseTest
   end
 
   def test_connection_loss
-    # rubocop: disable Style/GlobalVars
+    # rubocop: disable-next Style/GlobalVars
     $thread_conn = nil
-    # rubocop: enable Style/GlobalVars
 
     Workhorse.enqueue BasicJob.new(sleep_time: 3)
 

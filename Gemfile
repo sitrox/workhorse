@@ -6,12 +6,18 @@ gemspec
 gem 'activejob', '~> 7.1.3'
 gem 'activerecord', '~> 7.1.3'
 gem 'benchmark-ips'
-gem 'bundler', '>= 2.5'
+gem 'bundler'
 gem 'minitest'
 gem 'mysql2'
 gem 'pry'
 gem 'rake'
-gem 'rubocop', '~> 1.60'
+
+# Pinned to a patch range rather than given a floor: Gemfile.lock is not
+# checked in, so CI resolves the newest version matching this line while a
+# checkout keeps whatever it installed. With a floor, every rubocop release
+# that adds a cop turns the build red for a reason nobody can reproduce
+# locally.
+gem 'rubocop', '~> 1.91.0'
 gem 'trilogy'
 
 # Only needed to run the suite against Oracle, which additionally requires the

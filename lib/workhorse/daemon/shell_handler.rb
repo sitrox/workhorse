@@ -146,6 +146,9 @@ module Workhorse
 
     def self.acquire_lock(lockfile_path, flags)
       if Workhorse.lock_shell_commands
+        # Not the block form: the lockfile is returned to the caller, which
+        # holds the flock for as long as the command runs.
+        # rubocop:disable-next Style/FileOpen
         lockfile = File.open(lockfile_path, 'a')
         result = lockfile.flock(flags)
 
