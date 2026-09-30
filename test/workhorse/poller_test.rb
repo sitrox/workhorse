@@ -19,25 +19,25 @@ class Workhorse::PollerTest < WorkhorseTest
     Workhorse.enqueue BasicJob.new(sleep_time: 2), queue: :q2
     Workhorse.enqueue BasicJob.new(sleep_time: 2), queue: :q2
 
-    assert_equal %w[q1 q2], w.poller.send(:valid_queues)
+    assert_equal %w[q1 q2], valid_queues_of(w)
 
     first_job = Workhorse::DbJob.first
     first_job.mark_locked!(42)
 
-    assert_equal %w[q2], w.poller.send(:valid_queues)
+    assert_equal %w[q2], valid_queues_of(w)
 
     first_job.mark_started!
 
-    assert_equal %w[q2], w.poller.send(:valid_queues)
+    assert_equal %w[q2], valid_queues_of(w)
 
     first_job.mark_succeeded!
 
-    assert_equal %w[q1 q2], w.poller.send(:valid_queues)
+    assert_equal %w[q1 q2], valid_queues_of(w)
 
     last_job = Workhorse::DbJob.last
     last_job.mark_locked!(42)
 
-    assert_equal %w[q1], w.poller.send(:valid_queues)
+    assert_equal %w[q1], valid_queues_of(w)
 
     begin
       fail 'Some exception'
@@ -45,30 +45,30 @@ class Workhorse::PollerTest < WorkhorseTest
       last_job.mark_failed!(e)
     end
 
-    assert_equal %w[q1 q2], w.poller.send(:valid_queues)
+    assert_equal %w[q1 q2], valid_queues_of(w)
   end
 
   def test_valid_queues_2
     w = Workhorse::Worker.new(polling_interval: 60)
 
-    assert_equal [], w.poller.send(:valid_queues)
+    assert_equal [], valid_queues_of(w)
 
     Workhorse.enqueue BasicJob.new(sleep_time: 2), queue: nil
 
-    assert_equal [nil], w.poller.send(:valid_queues)
+    assert_equal [nil], valid_queues_of(w)
 
     a_job = Workhorse.enqueue BasicJob.new(sleep_time: 2), queue: :a
 
-    assert_equal [nil, 'a'], w.poller.send(:valid_queues)
+    assert_equal [nil, 'a'], valid_queues_of(w)
 
     a_job.update_attribute :state, :locked
 
-    assert_equal [nil], w.poller.send(:valid_queues)
+    assert_equal [nil], valid_queues_of(w)
   end
 
   def test_no_queues
     w = Workhorse::Worker.new(polling_interval: 60)
-    assert_equal [], w.poller.send(:valid_queues)
+    assert_equal [], valid_queues_of(w)
   end
 
   # Not every adapter returns a result set from `execute`: the Oracle enhanced
@@ -82,7 +82,7 @@ class Workhorse::PollerTest < WorkhorseTest
     Workhorse.enqueue BasicJob.new(sleep_time: 2), queue: :a
 
     with_return_value(Workhorse::DbJob.connection, :execute, true) do
-      assert_equal [nil, 'a'], w.poller.send(:valid_queues)
+      assert_equal [nil, 'a'], valid_queues_of(w)
     end
   end
 
@@ -94,11 +94,11 @@ class Workhorse::PollerTest < WorkhorseTest
     end
     jobs = Workhorse::DbJob.all
 
-    assert_equal [nil], w.poller.send(:valid_queues)
+    assert_equal [nil], valid_queues_of(w)
 
     jobs[0].mark_locked!(42)
 
-    assert_equal [nil], w.poller.send(:valid_queues)
+    assert_equal [nil], valid_queues_of(w)
   end
 
   def test_with_instant_repolling
@@ -273,6 +273,13 @@ class Workhorse::PollerTest < WorkhorseTest
   end
 
   private
+
+  # The worker's valid queues, the queueless one first. Sorted here, as they
+  # come from a SELECT DISTINCT without ORDER BY: MySQL happens to return NULL
+  # first, Oracle does not, and the poller does not depend on the order.
+  def valid_queues_of(worker)
+    return worker.poller.send(:valid_queues).sort_by { |queue| [queue.nil? ? 0 : 1, queue.to_s] }
+  end
 
   def kill_deamon_workers
     pids = daemon.workers.map(&:pid)
