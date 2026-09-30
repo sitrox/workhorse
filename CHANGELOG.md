@@ -26,6 +26,14 @@ Sitrox reference: #154443.
   `FETCH FIRST … ROWS ONLY`, which applies after the sort and is why 12c is
   now the minimum.
 
+* A soft restart (`USR1`) no longer wedges a worker whose `tmp/pids` does not
+  exist yet, as on a fresh checkout or deployment. The worker touched its
+  shutdown file there after it had stopped accepting jobs, so failing on it
+  left a worker that took no jobs and never exited. The directory is now
+  created when missing, and a shutdown file that still cannot be written no
+  longer holds up the shutdown. The heartbeat and the memory-limit shutdown,
+  which write to the same directory, create it as well.
+
 * `Workhorse.clean_stuck_jobs` works on Oracle. It is built on splitting
   `locked_by` into host, PID and random component, which was written with
   MySQL's `substring_index` and so raised on Oracle for as long as the option

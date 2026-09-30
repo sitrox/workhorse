@@ -97,14 +97,11 @@ class Workhorse::WorkerTest < WorkhorseTest
     with_worker(pool_size: 5, polling_interval: 0.2) do |w|
       assert_equal 5, w.idle
 
-      sleep 0.05
-      Workhorse.enqueue BasicJob.new(sleep_time: 0.2)
+      # Long enough to be seen running at the 0.1s the retries look.
+      Workhorse.enqueue BasicJob.new(sleep_time: 1)
 
-      sleep 0.25
-      assert_equal 4, w.idle
-
-      sleep 0.2
-      assert_equal 5, w.idle
+      with_retries { assert_equal 4, w.idle }
+      with_retries { assert_equal 5, w.idle }
     end
   end
 
@@ -122,15 +119,14 @@ class Workhorse::WorkerTest < WorkhorseTest
   end
 
   def test_perform
-    with_worker(polling_interval: 0.2) do
-      sleep 0.1
-      Workhorse.enqueue BasicJob.new(sleep_time: 0.1)
-      assert_equal 'waiting', Workhorse::DbJob.first.state
+    # Enqueued before the worker starts, as a running one may pick the job up
+    # before its state can be looked at.
+    Workhorse.enqueue BasicJob.new(sleep_time: 0.1)
+    assert_equal 'waiting', Workhorse::DbJob.first.state
 
-      sleep 0.3
+    work_until(polling_interval: 0.2) do
+      assert_equal 'succeeded', Workhorse::DbJob.first.state
     end
-
-    assert_equal 'succeeded', Workhorse::DbJob.first.state
   end
 
   def test_params
@@ -172,6 +168,36 @@ class Workhorse::WorkerTest < WorkhorseTest
     end
   ensure
     FileUtils.rm_f Workhorse::Worker.shutdown_file_for(Process.pid)
+  end
+
+  # A fresh checkout or deployment has no tmp/pids. The soft restart touches
+  # its shutdown file there after it has stopped accepting jobs, so failing on
+  # it used to leave a worker that took no jobs and never exited.
+  def test_soft_restart_without_a_pids_directory
+    FileUtils.rm_rf(Rails.root.join('tmp', 'pids'))
+
+    with_worker(pool_size: 1, polling_interval: 0.2) do |w|
+      Process.kill 'USR1', Process.pid
+
+      with_retries { assert_equal :shutdown, w.state }
+      assert File.exist?(Workhorse::Worker.shutdown_file_for(Process.pid))
+    end
+  ensure
+    FileUtils.mkdir_p(Rails.root.join('tmp', 'pids'))
+    FileUtils.rm_f Workhorse::Worker.shutdown_file_for(Process.pid)
+  end
+
+  def test_heartbeat_without_a_pids_directory
+    FileUtils.rm_rf(Rails.root.join('tmp', 'pids'))
+    ENV['WORKHORSE_DAEMON_WORKER_ID'] = '42'
+
+    Workhorse::Worker.new.heartbeat!
+
+    assert File.exist?(Workhorse::Worker.heartbeat_file_for('42'))
+  ensure
+    ENV.delete('WORKHORSE_DAEMON_WORKER_ID')
+    FileUtils.mkdir_p(Rails.root.join('tmp', 'pids'))
+    FileUtils.rm_f(Workhorse::Worker.heartbeat_file_for('42'))
   end
 
   def test_soft_restart_when_busy_waits_for_job
@@ -338,7 +364,9 @@ class Workhorse::WorkerTest < WorkhorseTest
     Workhorse.enqueue BasicJob.new(some_param: 1, sleep_time: 0), priority: 0
 
     BasicJob.results.clear
-    work 1, pool_size: 1, polling_interval: 0.1
+    work_until(pool_size: 1, polling_interval: 0.1) do
+      assert_equal 6, BasicJob.results.size
+    end
     assert_equal (1..6).to_a, BasicJob.results
   end
 
@@ -352,13 +380,14 @@ class Workhorse::WorkerTest < WorkhorseTest
   end
 
   def test_perform_at
-    Workhorse.enqueue BasicJob.new(sleep_time: 0), perform_at: Time.now
-    Workhorse.enqueue BasicJob.new(sleep_time: 0), perform_at: Time.now + 600
-    work 0.1, polling_interval: 0.1
+    due = Workhorse.enqueue BasicJob.new(sleep_time: 0), perform_at: Time.now
+    later = Workhorse.enqueue BasicJob.new(sleep_time: 0), perform_at: Time.now + 600
 
-    jobs = Workhorse::DbJob.all.to_a
-    assert_equal 'succeeded', jobs[0].state
-    assert_equal 'waiting',   jobs[1].state
+    work_until(polling_interval: 0.1) do
+      assert_equal 'succeeded', due.reload.state
+    end
+
+    assert_equal 'waiting', later.reload.state
   end
 
   def test_controlled_shutdown

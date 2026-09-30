@@ -135,14 +135,25 @@ class Workhorse::PollerTest < WorkhorseTest
       Workhorse.enqueue BasicJob.new(some_param: i, sleep_time: 0)
     end
 
-    # Create 10 worker processes that work for 3s each. Longer on Oracle: every
-    # poll holds the global lock throughout, so the workers take turns, and
-    # Oracle's slower round trips got through 61 to 80 of the 100 jobs in 3s.
-    # What is tested is that none is taken twice and every worker gets a turn,
-    # not how fast.
+    # Create 10 worker processes that work until all 100 jobs have succeeded,
+    # and for at least 3s, so that each is still polling while the second
+    # batch comes in. Not for a fixed time: every poll holds the global lock
+    # throughout, so the workers take turns, and 3s got through as few as 25
+    # of the 100 jobs on a loaded CI runner, and 61 on Oracle. What is tested
+    # is that none is taken twice and every worker gets a turn, not how fast.
     10.times do
       Process.fork do
-        work DB_ORACLE ? 10 : 3, pool_size: 1, polling_interval: 0.1
+        started = Time.now
+
+        with_worker(pool_size: 1, polling_interval: 0.1, auto_terminate: false) do
+          loop do
+            elapsed = Time.now - started
+            break if elapsed >= 3 && Workhorse::DbJob.succeeded.count >= 100
+            break if elapsed >= 60
+
+            sleep 0.1
+          end
+        end
       ensure
         # Exit without running the at_exit handlers of the test process: one
         # of them is Minitest's, which joins threads this fork did not
@@ -159,7 +170,7 @@ class Workhorse::PollerTest < WorkhorseTest
       Workhorse.enqueue BasicJob.new(sleep_time: 0)
     end
 
-    # Wait for all forked processes to finish (should take ~3s)
+    # Wait for all forked processes to finish
     Process.waitall
 
     total = Workhorse::DbJob.count
@@ -175,6 +186,24 @@ class Workhorse::PollerTest < WorkhorseTest
     assert_equal 100, total
     assert_equal 100, succeeded
     assert_equal 10,  used_workers
+  end
+
+  # A poll that finds the global lock taken waits for as long as it asked to
+  # before giving up. Below half a second is what the poller asks for with a
+  # short polling interval, and where a database that takes the timeout as
+  # whole seconds would round it down to not waiting at all.
+  def test_contended_global_lock_waits_for_its_timeout
+    poller = Workhorse::Worker.new(polling_interval: 0.3).poller
+    ran = false
+
+    elapsed = with_global_lock_held do
+      started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+      poller.send(:with_global_lock, timeout: 0.3, count_failures: false) { ran = true }
+      Process.clock_gettime(Process::CLOCK_MONOTONIC) - started
+    end
+
+    assert_not ran
+    assert_operator elapsed, :>=, 0.25
   end
 
   def test_connection_loss
@@ -212,7 +241,14 @@ class Workhorse::PollerTest < WorkhorseTest
       Workhorse.clean_stuck_jobs = clean
       with_daemon do
         Workhorse.enqueue BasicJob.new(sleep_time: 5)
-        sleep 0.2
+
+        # Waited for rather than slept on: until a worker has taken the job,
+        # locked_by is empty and the cleanup, which matches on the host in it,
+        # cannot recognise the job as one of its own.
+        with_retries do
+          assert_equal 'started', Workhorse::DbJob.first.state
+        end
+
         kill_deamon_workers
 
         assert_equal 1, Workhorse::DbJob.count

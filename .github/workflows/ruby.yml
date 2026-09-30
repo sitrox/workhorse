@@ -40,10 +40,20 @@ jobs:
       - name: Run rake tests
         uses: nick-fields/retry@v2
         with:
-          timeout_seconds: 120
+          # Not much above what one run takes on a loaded runner.
+          timeout_seconds: 300
           retry_on: any
           max_attempts: 3
           command: bundle exec rake test TESTOPTS='--verbose'
+          # A timed-out attempt leaves its daemon workers running - they call
+          # setsid, so killing the attempt does not reach them - and the next
+          # attempt then hangs in the daemon tests against them and their
+          # pidfiles. Clear both before retrying.
+          on_retry_command: |
+            pkill -f "^Workhorse .*: $GITHUB_WORKSPACE" || true
+            pkill -f "[I]lib:test/lib" || true
+            sleep 1
+            rm -f tmp/pids/*
 
   test-oracle:
     runs-on: ubuntu-latest
@@ -161,6 +171,15 @@ jobs:
           retry_on: any
           max_attempts: 3
           command: bundle exec rake test TESTOPTS='--verbose'
+          # A timed-out attempt leaves its daemon workers running - they call
+          # setsid, so killing the attempt does not reach them - and the next
+          # attempt then hangs in the daemon tests against them and their
+          # pidfiles. Clear both before retrying.
+          on_retry_command: |
+            pkill -f "^Workhorse .*: $GITHUB_WORKSPACE" || true
+            pkill -f "[I]lib:test/lib" || true
+            sleep 1
+            rm -f tmp/pids/*
 
   linters:
     runs-on: ubuntu-latest

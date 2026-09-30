@@ -291,7 +291,7 @@ module Workhorse
       return unless daemon_id
 
       path = self.class.heartbeat_file_for(daemon_id)
-      FileUtils.touch(path) if path
+      touch_pid_file(path) if path
     rescue StandardError => e
       Workhorse.debug_log("[Job worker #{id}] Heartbeat touch failed: #{e.class}: #{e.message}")
     end
@@ -363,7 +363,7 @@ module Workhorse
       Workhorse.debug_log("[Job worker #{id}] Memory limit exceeded: #{mem}MB > #{max}MB, initiating shutdown")
 
       if defined?(Rails)
-        FileUtils.touch self.class.shutdown_file_for(pid)
+        touch_pid_file(self.class.shutdown_file_for(pid))
       end
 
       log "Worker process #{id.inspect} memory consumption (RSS) of #{mem}MB exceeds " \
@@ -444,8 +444,17 @@ module Workhorse
       # Create shutdown file for watch to detect
       shutdown_file = self.class.shutdown_file_for(pid)
       if shutdown_file
-        FileUtils.touch(shutdown_file)
-        Workhorse.debug_log("[Job worker #{id}] Shutdown file created: #{shutdown_file}")
+        begin
+          touch_pid_file(shutdown_file)
+          Workhorse.debug_log("[Job worker #{id}] Shutdown file created: #{shutdown_file}")
+        rescue StandardError => e
+          # The shutdown has to go ahead regardless: the worker stopped
+          # accepting jobs above, so giving up here would leave it taking none
+          # and never exiting. Without the file, watch sees a worker that is
+          # gone rather than one that asked to be restarted, and starts it all
+          # the same.
+          log "Could not create shutdown file #{shutdown_file}, shutting down regardless: #{e.message}", :warn
+        end
       end
 
       # Monitor in a separate thread to avoid blocking the signal handler
@@ -532,6 +541,18 @@ module Workhorse
 
         Kernel.sleep 0.2
       end
+    end
+
+    # Touches a file in the pids directory, creating the directory first. It
+    # is not guaranteed to exist: `tmp` is rarely checked in, so a fresh
+    # checkout or deployment has none until something writes there.
+    #
+    # @param path [Pathname, String]
+    # @return [void]
+    # @private
+    def touch_pid_file(path)
+      FileUtils.mkdir_p(File.dirname(path))
+      FileUtils.touch(path)
     end
   end
 end
