@@ -402,13 +402,30 @@ class Workhorse::NotifierTest < WorkhorseTest
   # under test sees it as taken by another worker.
   def with_global_lock_held
     connection = ActiveRecord::Base.connection_pool.checkout
-    connection.select_value("SELECT GET_LOCK(CONCAT(DATABASE(), '_workhorse'), 1)")
+    connection.select_value(acquire_global_lock_sql)
     yield
   ensure
     if connection
-      connection.select_value("SELECT RELEASE_LOCK(CONCAT(DATABASE(), '_workhorse'))")
+      connection.select_value(release_global_lock_sql)
       ActiveRecord::Base.connection_pool.checkin(connection)
     end
+  end
+
+  # Mirrors what Workhorse::Poller#with_global_lock emits, so that the lock the
+  # code under test tries to take is the same one.
+  def acquire_global_lock_sql
+    return <<~SQL.strip if DB_ORACLE
+      SELECT DBMS_LOCK.REQUEST(#{Workhorse::Poller::ORACLE_LOCK_HANDLE}, #{Workhorse::Poller::ORACLE_LOCK_MODE}, 1)
+      FROM DUAL
+    SQL
+
+    return "SELECT GET_LOCK(CONCAT(DATABASE(), '_workhorse'), 1)"
+  end
+
+  def release_global_lock_sql
+    return "SELECT DBMS_LOCK.RELEASE(#{Workhorse::Poller::ORACLE_LOCK_HANDLE}) FROM DUAL" if DB_ORACLE
+
+    return "SELECT RELEASE_LOCK(CONCAT(DATABASE(), '_workhorse'))"
   end
 
   def file_notifier
