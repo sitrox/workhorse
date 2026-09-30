@@ -104,6 +104,13 @@ jobs:
           # with every release; the fixed symlink is what LD_LIBRARY_PATH and
           # the ruby-oci8 build both point at.
           sudo ln -sfn "$(find /opt/oracle -maxdepth 1 -type d -name 'instantclient_*' | head -1)" /opt/oracle/instantclient
+          # The basiclite package ships only the versioned libraries, and
+          # linking a conftest against -lclntsh needs the unversioned name.
+          cd /opt/oracle/instantclient
+          for lib in libclntsh libocci; do
+            versioned=$(ls $lib.so.* 2>/dev/null | head -1)
+            if [ -n "$versioned" ]; then sudo ln -sfn "$versioned" "$lib.so"; fi
+          done
           echo /opt/oracle/instantclient | sudo tee /etc/ld.so.conf.d/oracle-instantclient.conf
           sudo ldconfig
 
@@ -116,6 +123,12 @@ jobs:
         run: |
           bundle config set --local with oracle
           bundle install --jobs 4 --retry 3
+
+      # extconf.rb only says to consult mkmf.log, which is otherwise lost with
+      # the runner.
+      - name: Show the native extension build log
+        if: failure()
+        run: find / -name mkmf.log -path '*ruby-oci8*' -exec cat {} +
 
       # The global lock is DBMS_LOCK on Oracle, and execute permission on that
       # package is not granted to a new schema by default. SYS owns the
