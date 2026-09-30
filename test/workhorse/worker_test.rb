@@ -254,7 +254,7 @@ class Workhorse::WorkerTest < WorkhorseTest
     enqueue_in_multiple_queues
     work 0.2, polling_interval: 0.2
 
-    jobs = Workhorse::DbJob.order(queue: :asc).to_a
+    jobs = jobs_by_queue
     assert_equal 'succeeded', jobs[0].state
     assert_equal 'succeeded', jobs[1].state
     assert_equal 'succeeded', jobs[2].state
@@ -264,7 +264,7 @@ class Workhorse::WorkerTest < WorkhorseTest
     enqueue_in_multiple_queues
     work 0.2, queues: [nil], polling_interval: 0.2
 
-    jobs = Workhorse::DbJob.order(queue: :asc).to_a
+    jobs = jobs_by_queue
     assert_equal 'succeeded', jobs[0].state
     assert_equal 'waiting',   jobs[1].state
     assert_equal 'waiting',   jobs[2].state
@@ -274,7 +274,7 @@ class Workhorse::WorkerTest < WorkhorseTest
     enqueue_in_multiple_queues
     work 0.2, queues: [nil, :q1], polling_interval: 0.2
 
-    jobs = Workhorse::DbJob.order(queue: :asc).to_a
+    jobs = jobs_by_queue
     assert_equal 'succeeded', jobs[0].state
     assert_equal 'succeeded', jobs[1].state
     assert_equal 'waiting',   jobs[2].state
@@ -284,7 +284,7 @@ class Workhorse::WorkerTest < WorkhorseTest
     enqueue_in_multiple_queues
     work 0.2, queues: %i[q1 q2], polling_interval: 0.2
 
-    jobs = Workhorse::DbJob.order(queue: :asc).to_a
+    jobs = jobs_by_queue
     assert_equal 'waiting',   jobs[0].state
     assert_equal 'succeeded', jobs[1].state
     assert_equal 'succeeded', jobs[2].state
@@ -321,7 +321,7 @@ class Workhorse::WorkerTest < WorkhorseTest
 
     work 0.2, polling_interval: 0.2
 
-    jobs = Workhorse::DbJob.order(queue: :asc).to_a
+    jobs = jobs_by_queue
     assert_equal 'succeeded', jobs[0].state
     assert_equal 'waiting',   jobs[1].state
     assert_equal 'succeeded', jobs[2].state
@@ -362,7 +362,12 @@ class Workhorse::WorkerTest < WorkhorseTest
   end
 
   def test_controlled_shutdown
-    Workhorse.max_worker_memory_mb = 100
+    # Relative to what this process already uses, as the daemon's workers are
+    # forks of it: a fixed 100MB is exceeded from the start once the Oracle
+    # client library is loaded, and the worker then stops before its first job.
+    # MemHungryJob allocates 250MB, so it still crosses the line.
+    baseline_mb = `ps -p #{Process.pid} -o rss=`.strip.to_i / 1024
+    Workhorse.max_worker_memory_mb = baseline_mb + 100
     with_daemon do
       pid = with_retries do
         pid = daemon.workers.first.pid
@@ -459,5 +464,12 @@ class Workhorse::WorkerTest < WorkhorseTest
     Workhorse.enqueue BasicJob.new(some_param: nil)
     Workhorse.enqueue BasicJob.new(some_param: :q1), queue: :q1
     Workhorse.enqueue BasicJob.new(some_param: :q2), queue: :q2
+  end
+
+  # Jobs ordered by queue, the job without a queue first. Sorted here rather
+  # than with ORDER BY, which puts NULL first on MySQL and last on Oracle.
+  # Within a queue, in the order they were enqueued.
+  def jobs_by_queue
+    return Workhorse::DbJob.all.sort_by { |job| [job.queue.nil? ? 0 : 1, job.queue.to_s, job.id] }
   end
 end

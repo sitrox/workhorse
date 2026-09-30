@@ -6,11 +6,11 @@ Sitrox reference: #154443.
 
 ### Added
 
-* Oracle is supported again, and is now covered by CI against
+* Oracle 12c or later is supported again, and is now covered by CI against
   `activerecord-oracle_enhanced-adapter` rather than only by hand. The global
-  lock uses `DBMS_LOCK`, row limiting uses `ROWNUM`, and the generated
-  migrations leave out the index prefix lengths Oracle rejects while naming
-  every index within the 30 characters it allows before 12.2. See
+  lock uses `DBMS_LOCK`, and the generated migrations leave out the index
+  prefix lengths Oracle rejects while naming every index within the 30
+  characters it allows before 12.2. See
   [Database support](README.md#database-support).
 
   2.0.0.rc0 dropped Oracle; anyone who took that release up and needs it can
@@ -18,6 +18,13 @@ Sitrox reference: #154443.
   `DBMS_LOCK`, as described under Database support.
 
 ### Fixed
+
+* On Oracle, jobs are picked up in priority order. 1.x limited the rows it
+  selected by filtering on `ROWNUM`, which Oracle numbers before sorting, so
+  both the job taken from each queue and the jobs a poll picked up were an
+  arbitrary subset regardless of `priority`. Limiting now uses
+  `FETCH FIRST … ROWS ONLY`, which applies after the sort and is why 12c is
+  now the minimum.
 
 * `Workhorse.clean_stuck_jobs` works on Oracle. It is built on splitting
   `locked_by` into host, PID and random component, which was written with

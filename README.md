@@ -77,7 +77,7 @@ implemented:
 | Database          | Supported | Lock used            | Covered by CI |
 |-------------------|-----------|----------------------|---------------|
 | MySQL / MariaDB   | Yes       | `GET_LOCK`           | Yes, against both the `mysql2` and the `trilogy` adapter |
-| Oracle            | Yes       | `DBMS_LOCK`          | Yes, against `activerecord-oracle_enhanced-adapter` |
+| Oracle 12c+       | Yes       | `DBMS_LOCK`          | Yes, against `activerecord-oracle_enhanced-adapter` |
 | PostgreSQL        | **No**    | —                    | — |
 | Everything else   | **No**    | —                    | — |
 
@@ -88,7 +88,9 @@ Supporting it would mean an advisory-lock dialect of its own
 on MySQL / MariaDB, as MyISAM supports neither transactions nor row-level
 locking.
 
-When using Oracle, make sure your schema has access to the package `DBMS_LOCK`:
+Oracle 12c is the minimum, as job selection limits its rows with
+`FETCH FIRST … ROWS ONLY`. When using Oracle, make sure your schema has access
+to the package `DBMS_LOCK`:
 
 ```
 GRANT execute ON DBMS_LOCK TO <schema-name>;

@@ -590,7 +590,7 @@ module Workhorse
         # any presumptions on the order.
         record_number = queue.nil? ? limit : 1
 
-        union_parts << agnostic_limit(select, record_number)
+        union_parts << limited_sql(select, record_number)
       end
 
       return [] if union_parts.empty?
@@ -605,9 +605,9 @@ module Workhorse
       # uses the keyword 'AS' in SQL generated for Oracle, which is invalid for
       # table aliases.
       union_query_sql = '('
-      union_query_sql += "SELECT * FROM (#{union_parts.shift.to_sql}) union_0"
+      union_query_sql += "SELECT * FROM (#{union_parts.shift}) union_0"
       union_parts.each_with_index do |part, idx|
-        union_query_sql += " UNION SELECT * FROM (#{part.to_sql}) union_#{idx + 1}"
+        union_query_sql += " UNION SELECT * FROM (#{part}) union_#{idx + 1}"
       end
       union_query_sql += ') subselect'
 
@@ -620,10 +620,7 @@ module Workhorse
       select = table.project(Arel.star).where(table[:id].in(select.project(:id)))
       select = order(select)
 
-      # Limit number of records
-      select = agnostic_limit(select, limit)
-
-      return Workhorse::DbJob.find_by_sql(select.to_sql).to_a
+      return Workhorse::DbJob.find_by_sql(limited_sql(select, limit)).to_a
     end
 
     # Returns a fresh Arel select manager containing the id of all waiting jobs.
@@ -673,15 +670,19 @@ module Workhorse
       select.order(Arel.sql('priority').asc).order(Arel.sql('created_at').asc)
     end
 
-    # Limits the number of records
+    # Returns the SQL of a select, limited to the given number of records.
     #
-    # @param select [Arel::SelectManager] the select manager on which to apply
-    #   the limit
+    # On Oracle this is `FETCH FIRST`, which applies after `ORDER BY`. Filtering
+    # on `ROWNUM` instead - the only option before 12c - numbers the rows
+    # before they are sorted, so it returned an arbitrary subset and ignored
+    # the priority order altogether.
+    #
+    # @param select [Arel::SelectManager] the select manager to limit
     # @param number [Integer] the maximum number of records to return
-    # @return [Arel::SelectManager] the resultant select manager
-    def agnostic_limit(select, number)
-      return select.where(Arel.sql('ROWNUM').lteq(number)) if @is_oracle
-      return select.take(number)
+    # @return [String] the resultant SQL
+    def limited_sql(select, number)
+      return "#{select.to_sql} FETCH FIRST #{Integer(number)} ROWS ONLY" if @is_oracle
+      return select.take(number).to_sql
     end
 
     # Returns an Array of queue names for which a job may be posted

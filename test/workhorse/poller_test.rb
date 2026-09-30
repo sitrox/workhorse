@@ -160,7 +160,11 @@ class Workhorse::PollerTest < WorkhorseTest
 
     total = Workhorse::DbJob.count
     succeeded = Workhorse::DbJob.succeeded.count
-    used_workers = Workhorse::DbJob.lock.pluck(:locked_by).uniq.size
+    # In a transaction, as Oracle commits a FOR UPDATE outside of one before
+    # its rows are fetched and then fails with "fetch out of sequence".
+    used_workers = Workhorse::DbJob.transaction do
+      Workhorse::DbJob.lock.pluck(:locked_by).uniq.size
+    end
 
     # Make sure there are 100 jobs, all jobs have succeeded and that all of the
     # workers have had their turn.
