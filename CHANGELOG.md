@@ -1,65 +1,13 @@
 # Workhorse Changelog
 
-## 2.0.0.rc1 - 2026-09-30
-
-Sitrox reference: #154443.
-
-### Added
-
-* Oracle 12c or later is supported again, and is now covered by CI against
-  `activerecord-oracle_enhanced-adapter` rather than only by hand. The global
-  lock uses `DBMS_LOCK`, and the generated migrations leave out the index
-  prefix lengths Oracle rejects while naming every index within the 30
-  characters it allows before 12.2. See
-  [Database support](README.md#database-support).
-
-  2.0.0.rc0 dropped Oracle; anyone who took that release up and needs it can
-  move straight to this one. Grant the schema execute permission on
-  `DBMS_LOCK`, as described under Database support.
-
-### Fixed
-
-* On Oracle, jobs are picked up in priority order. 1.x limited the rows it
-  selected by filtering on `ROWNUM`, which Oracle numbers before sorting, so
-  both the job taken from each queue and the jobs a poll picked up were an
-  arbitrary subset regardless of `priority`. Limiting now uses
-  `FETCH FIRST … ROWS ONLY`, which applies after the sort and is why 12c is
-  now the minimum.
-
-* A poll that finds the global lock taken now waits for it with a polling
-  interval below half a second. The lock timeout follows the interval, and
-  MySQL and Oracle take it as whole seconds, so they rounded it down to not
-  waiting at all - only MariaDB honours a fraction. Each such poll gave up
-  at once and counted towards `Workhorse.max_global_lock_fails`, so several
-  workers contending for the lock could trigger its alarm about a crashed
-  worker. The timeout is now rounded up to whole seconds.
-
-* A soft restart (`USR1`) no longer wedges a worker whose `tmp/pids` does not
-  exist yet, as on a fresh checkout or deployment. The worker touched its
-  shutdown file there after it had stopped accepting jobs, so failing on it
-  left a worker that took no jobs and never exited. The directory is now
-  created when missing, and a shutdown file that still cannot be written no
-  longer holds up the shutdown. The heartbeat and the memory-limit shutdown,
-  which write to the same directory, create it as well.
-
-* `Workhorse.clean_stuck_jobs` works on Oracle. It is built on splitting
-  `locked_by` into host, PID and random component, which was written with
-  MySQL's `substring_index` and so raised on Oracle for as long as the option
-  has existed — visible only to an installation that turned it on, as it is
-  off by default.
-
-## 2.0.0.rc0 - 2026-09-29
+## 2.0.0 - 2026-10-14
 
 Sitrox reference: #154443.
 
 ### Breaking changes
 
-* **Support for Oracle is dropped.** Workhorse supports MySQL and MariaDB
-  only. The Oracle branches of the global lock, the row limiting and the
-  generated migrations are gone, along with
-  `Workhorse::Poller::ORACLE_LOCK_MODE` and `ORACLE_LOCK_HANDLE`. It was never
-  covered by CI, so it only ever had manual verification. An Oracle
-  installation has no upgrade path and should stay on 1.x. See
+* Oracle 12c is the minimum, as job selection now limits its rows with
+  `FETCH FIRST … ROWS ONLY` (see the priority fix below). See
   [Database support](README.md#database-support).
 
 * A forked daemon worker no longer runs the `at_exit` handlers registered by
@@ -108,7 +56,9 @@ Sitrox reference: #154443.
 * The composite indexes `[state, perform_at]`, `[state, priority, created_at]`
   and `[state, expires_at]` in the generated `jobs` migration, replacing the
   single-column index on `state`. `rails generate workhorse:install` now emits
-  two migrations rather than one.
+  two migrations rather than one. On Oracle, the generated migrations leave
+  out the index prefix lengths Oracle rejects and name every index within the
+  30 characters it allows before 12.2.
 
 * `fugit` as a runtime dependency, for parsing cron expressions.
 
@@ -127,7 +77,39 @@ Sitrox reference: #154443.
 
 * `Workhorse::DbJob#reset!` accepts `expired` as the terminal state it is.
 
+* Oracle is covered by CI against `activerecord-oracle_enhanced-adapter`
+  rather than only by hand.
+
 ### Fixed
+
+* On Oracle, jobs are picked up in priority order. 1.x limited the rows it
+  selected by filtering on `ROWNUM`, which Oracle numbers before sorting, so
+  both the job taken from each queue and the jobs a poll picked up were an
+  arbitrary subset regardless of `priority`. Limiting now uses
+  `FETCH FIRST … ROWS ONLY`, which applies after the sort and is why 12c is
+  now the minimum.
+
+* A poll that finds the global lock taken now waits for it with a polling
+  interval below half a second. The lock timeout follows the interval, and
+  MySQL and Oracle take it as whole seconds, so they rounded it down to not
+  waiting at all - only MariaDB honours a fraction. Each such poll gave up
+  at once and counted towards `Workhorse.max_global_lock_fails`, so several
+  workers contending for the lock could trigger its alarm about a crashed
+  worker. The timeout is now rounded up to whole seconds.
+
+* A soft restart (`USR1`) no longer wedges a worker whose `tmp/pids` does not
+  exist yet, as on a fresh checkout or deployment. The worker touched its
+  shutdown file there after it had stopped accepting jobs, so failing on it
+  left a worker that took no jobs and never exited. The directory is now
+  created when missing, and a shutdown file that still cannot be written no
+  longer holds up the shutdown. The heartbeat and the memory-limit shutdown,
+  which write to the same directory, create it as well.
+
+* `Workhorse.clean_stuck_jobs` works on Oracle. It is built on splitting
+  `locked_by` into host, PID and random component, which was written with
+  MySQL's `substring_index` and so raised on Oracle for as long as the option
+  has existed — visible only to an installation that turned it on, as it is
+  off by default.
 
 * A deadlock between shutting a worker down and the poller posting a job.
   `Worker#shutdown` held the worker's mutex while waiting for the poller
