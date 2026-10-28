@@ -30,6 +30,21 @@ class Workhorse::PerformerTest < WorkhorseTest
     work_until(pool_size: 5, polling_interval: 0.2) { assert_equal 'failed', Workhorse::DbJob.first.state }
   end
 
+  class OwnDbJobJob
+    class_attribute :db_job_id
+
+    def perform
+      self.class.db_job_id = Workhorse.performer.db_job.id
+    end
+  end
+
+  def test_a_job_finds_its_own_db_job
+    db_job = Workhorse.enqueue OwnDbJobJob.new
+    work_until(pool_size: 1, polling_interval: 0.2) { assert_equal 'succeeded', db_job.reload.state }
+
+    assert_equal db_job.id, OwnDbJobJob.db_job_id
+  end
+
   def test_on_exception
     old_callback = Workhorse.on_exception
     exception = nil

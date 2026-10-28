@@ -1,5 +1,14 @@
 # Workhorse Changelog
 
+## 2.0.1 - 2026-10-28
+
+### Added
+
+* `Workhorse::Performer#db_job`: inside a job, `Workhorse.performer.db_job`
+  returns the job's own `Workhorse::DbJob`. This lets a job link something to
+  its record that outlives the job, for example a progress display that has to
+  end when the worker cleans up after a killed worker.
+
 ## 2.0.0 - 2026-10-14
 
 Sitrox reference: #154443.

@@ -10,6 +10,13 @@ module Workhorse
     # @return [Workhorse::Worker] The worker that owns this performer
     attr_reader :worker
 
+    # The job this performer performs. Inside a job, {Workhorse.performer}
+    # gives a job its own database record, e.g. to link something to it that
+    # outlives the job.
+    #
+    # @return [Workhorse::DbJob]
+    attr_reader :db_job
+
     # Creates a new performer for a specific job.
     #
     # @param db_job_id [Integer] The ID of the {Workhorse::DbJob} to perform
